@@ -155,7 +155,7 @@ agents:
 ## 5. Repository layout
 
 ```
-team/
+swarm-blackboard/
 ├── CLAUDE.md
 ├── docs/
 │   ├── PLAN.md               # this document — phase checkboxes kept current
@@ -171,7 +171,10 @@ team/
 │   ├── results/              # committed eval reports
 │   └── run.ts                # swarm vs baseline; LLM judge; report
 ├── prompts/                  # role prompts, one file per agent
+├── fixtures/
+│   └── runs/                 # recorded runs used as replay and UI test fixtures
 ├── agents.yaml               # roster: role → provider/model, prompt, fallback
+├── .env.example
 └── pnpm-workspace.yaml
 ```
 
@@ -184,7 +187,8 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 ### Phase 0 — Scaffold (~½ day)
 
 - [ ] Monorepo; TypeScript strict; ESLint + Prettier; Vitest; GitHub Actions (lint + test).
-- [ ] `CLAUDE.md` (see §9) and initial ADRs.
+- [x] `CLAUDE.md` (see §9) and ADRs 0001–0007 — provided with this plan; commit them as-is.
+- [ ] `.env.example` committed; `.env` gitignored.
 - **DoD:** `pnpm lint && pnpm test` green locally and in CI with a placeholder test in each package.
 
 ### Phase 1 — Board + controller, no real models (~1–2 days)
