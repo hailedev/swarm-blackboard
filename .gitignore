@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment — only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# Local data (SQLite database)
+data/
+
+# Test and coverage output
+coverage/
+.vitest/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db

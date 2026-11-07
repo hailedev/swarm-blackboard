@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+.vitest/
+data/
+pnpm-lock.yaml
+*.md
