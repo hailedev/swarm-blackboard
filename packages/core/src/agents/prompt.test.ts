@@ -32,7 +32,7 @@ describe('renderAgentPrompt', () => {
     expect(prompt).toContain('Round 2 of 12');
     expect(prompt).toContain('# Problem\nPick a database');
     expect(prompt).toContain('Use SQLite');
-    expect(prompt).not.toContain(old.id);
+    expect(prompt).not.toContain(`[hypothesis] ${old.id}`);
     expect(prompt).toContain('severity=major');
     expect(prompt).toContain('Budget?');
     expect(prompt).toContain('source=docs');

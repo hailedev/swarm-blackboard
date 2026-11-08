@@ -70,13 +70,13 @@ const harness = (agents: readonly Agent[], overrides: Partial<ControllerDeps> = 
 };
 
 const scripted = (config: RunConfigInput = {}, overrides: Partial<ControllerDeps> = {}) => {
-  let controller: Controller | undefined;
+  const ref: { controller: Controller | undefined } = { controller: undefined };
   const models = createScriptedModels(() => {
-    if (controller === undefined) throw new Error('controller not ready');
-    return controller.currentView();
+    if (ref.controller === undefined) throw new Error('controller not ready');
+    return ref.controller.currentView();
   });
   const h = harness(createDefaultAgents(models), overrides);
-  controller = h.controller;
+  ref.controller = h.controller;
   return { ...h, models, config };
 };
 
@@ -160,11 +160,11 @@ describe('createController', () => {
   });
 
   it('stops on the wall clock using the injected clock', async () => {
-    let controller: Controller | undefined;
+    const ref: { controller: Controller | undefined } = { controller: undefined };
     const clock = new ManualClock();
     const models = createScriptedModels(() => {
-      if (controller === undefined) throw new Error('not ready');
-      return controller.currentView();
+      if (ref.controller === undefined) throw new Error('not ready');
+      return ref.controller.currentView();
     });
     const h = harness(createDefaultAgents(models), {
       clock,
@@ -172,7 +172,8 @@ describe('createController', () => {
         if (event.type === 'round_completed') clock.advance(6 * 60_000);
       },
     });
-    controller = h.controller;
+    ref.controller = h.controller;
+    const controller = h.controller;
     await controller.start({ content: 'P' });
     const result = await controller.run();
     expect(result.ok && result.value.reason).toBe('budget:wall_clock');
