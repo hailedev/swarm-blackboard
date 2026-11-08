@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 const workspaces = [
   { name: 'core', root: 'packages/core' },
   { name: 'providers', root: 'packages/providers' },
+  { name: 'cli', root: 'apps/cli' },
   { name: 'server', root: 'apps/server' },
   { name: 'web', root: 'apps/web' },
   { name: 'evals', root: 'evals' },
@@ -29,6 +30,10 @@ export default defineConfig(({ mode }) => {
         include: ['packages/*/src/**', 'apps/*/src/**', 'evals/src/**'],
         exclude: ['**/*.test.ts'],
         reporter: ['text', 'html', 'lcov'],
+        // CLAUDE.md: core coverage target is 90 %. A phase is not done while this is red.
+        thresholds: {
+          'packages/core/src/**': { lines: 90, statements: 90, functions: 90, branches: 90 },
+        },
       },
     },
   };

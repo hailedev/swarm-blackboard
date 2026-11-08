@@ -2,3 +2,8 @@ packages:
   - 'packages/*'
   - 'apps/*'
   - 'evals'
+
+# Dependencies whose install scripts may run (pnpm 12 blocks unreviewed ones).
+# esbuild: pulled in by tsx; its postinstall only verifies the platform binary.
+allowBuilds:
+  esbuild: true

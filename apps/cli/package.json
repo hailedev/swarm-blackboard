@@ -1,0 +1,16 @@
+{
+  "name": "@team/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@team/core": "workspace:*",
+    "@team/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
+}
