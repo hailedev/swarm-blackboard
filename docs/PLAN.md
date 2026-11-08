@@ -164,6 +164,7 @@ swarm-blackboard/
 │   ├── core/                 # board, schemas, controller, agents, budgets — no I/O
 │   └── providers/            # AI SDK adapters, FakeModel, cost tables
 ├── apps/
+│   ├── cli/                  # `pnpm solve` — run the swarm from the terminal
 │   ├── server/               # Hono API + SSE + run manager + SQLite
 │   └── web/                  # Vite + React dashboard
 ├── evals/
@@ -193,16 +194,16 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 ### Phase 1 — Board + controller, no real models (~1–2 days)
 
-- [ ] Zod schemas for every entry type; append-only `BoardStore` (in-memory) with materialised view, links, supersede.
-- [ ] `Agent` interface; `FakeModel` with scripted responses.
-- [ ] Controller: rule-based eligibility, priority selection, parallel execution, commit, conflict check, termination, budgets.
-- [ ] CLI: `pnpm solve "<problem>" --fake` prints the board round by round.
-- [ ] Tests: schema validation; linking and supersede; each eligibility rule; selection diversity; each termination condition; each budget limit; one full scripted run.
+- [x] Zod schemas for every entry type; append-only `BoardStore` (in-memory) with materialised view, links, supersede.
+- [x] `Agent` interface; `FakeModel` with scripted responses.
+- [x] Controller: rule-based eligibility, priority selection, parallel execution, commit, conflict check, termination, budgets.
+- [x] CLI: `pnpm solve "<problem>" --fake` prints the board round by round.
+- [x] Tests: schema validation; linking and supersede; each eligibility rule; selection diversity; each termination condition; each budget limit; one full scripted run.
 - **DoD:** a scripted swarm runs to completion from the CLI; core coverage ≥ 90%.
 
 ### Phase 2 — Real models, hybrid roster (~1–2 days)
 
-- [ ] `packages/providers`: Anthropic + Ollama via AI SDK; structured output; retries and timeouts; token and cost accounting; `FakeModel` lives here.
+- [ ] `packages/providers`: Anthropic + Ollama via AI SDK; structured output; retries and timeouts; token and cost accounting; `FakeModel` is re-exported here (defined in `packages/core/src/model/`, Phase 1, so core can test itself without a workspace cycle).
 - [ ] Role prompts for all five agents; agent board-view builder with size bounds and rolling summary.
 - [ ] `agents.yaml` roster loader; per-role provider/model/fallback.
 - [ ] Malformed-output path: repair → fallback to Claude → discard and log.

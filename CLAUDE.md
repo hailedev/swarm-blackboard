@@ -15,7 +15,8 @@ A local, single-user app in which a swarm of LLM agents collaborates on open-end
 | Package | Role |
 |---|---|
 | `packages/core` | Board, entry schemas, controller, agent abstractions, budgets, termination. **Pure TypeScript, no I/O.** |
-| `packages/providers` | Model adapters via Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `ollama-ai-provider-v2`), `FakeModel`, cost tables, call tracing |
+| `packages/providers` | Model adapters via Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `ollama-ai-provider-v2`), cost tables, call tracing; re-exports `FakeModel` (defined in core so core can test itself) |
+| `apps/cli` | `pnpm solve` — runs the swarm from the terminal; edge adapters for clock, ids and logging |
 | `apps/server` | Hono API, SSE event stream, run manager, SQLite via Drizzle (`better-sqlite3`) |
 | `apps/web` | Vite + React, TanStack Query, Zustand, Tailwind |
 | `evals/` | Benchmark problems and the swarm-vs-single-agent harness |
