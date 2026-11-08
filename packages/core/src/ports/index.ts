@@ -1,3 +1,4 @@
+export type { BoardStore, StoreError } from './board-store';
 export type { Clock } from './clock';
 export { isoFromMs } from './clock';
 export type { IdGenerator } from './ids';
