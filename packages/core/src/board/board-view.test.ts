@@ -128,6 +128,6 @@ describe('buildBoardView', () => {
 
     const view = fx.view();
     expect(view.openBlockingCritiques().map((c) => c.id)).toEqual([onH3.id]);
-    expect(view.critiquesOf(h1.id).map((c) => c.payload.resolvedBy)).toEqual([fix.id, undefined]);
+    expect(view.critiquesOf(h1.id).map((c) => c.payload.resolvedBy)).toEqual([undefined, fix.id]);
   });
 });
