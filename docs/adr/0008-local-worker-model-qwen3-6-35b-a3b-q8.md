@@ -2,6 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-11-09
+- **Amended:** 2026-11-09, re-run after agents moved to handles (section at the end); the decision stands, the ranking does not
 
 ## Context
 
@@ -71,3 +72,44 @@ Reasoning quality was spot-checked on the samples in the results file rather tha
 - **`qwen3.6:35b-mlx`** — the fastest by far and the MLX runner honours `format`, but a schema failure in nine thinking calls and the lowest link validity (78 % researcher, 67 % solver). Revisit once ids are easier to copy.
 - **Thinking on for the Solver** — rejected on this data: slower by 7× and less link-valid, with no measured quality gain.
 - **`llama3.3:70b`** (present on the Mac mini) — not trialled: 42 GB at Q4 leaves no room for a second resident model and is far slower per token.
+
+## Amendment, 2026-11-09: the same trial with handles
+
+The hardening pass after Phase 2 made models reference entries by short handles (P1, S2, H3, …) instead of UUIDs, with every link field an enum of the handles the agent was shown (docs/PLAN.md §2.2). The trial was re-run unchanged otherwise (`pnpm trial:local --reps 3 --out evals/results/local-model-trial-2026-11-09-handles.json`, 81 role calls and 18 raw `format` probes, Ollama 0.40.15), with the per-call handle schema in place of the uuid-pattern schema. `handles` below is the size of the enum each call carried (5 on the decomposed board, 10 mid-run, 12 late).
+
+### Is `format` honoured?
+
+| Model | Runner | Strict enum/integer/array schema | Researcher schema (handle enums) |
+|---|---|---|---|
+| qwen3.6:35b-mlx | MLX | 3/3 | 3/3 |
+| qwen3.6:35b-a3b-q8_0 | GGUF | 3/3 | 3/3 |
+| qwen3.8:27b | GGUF | 3/3 | 3/3 |
+
+### Role trial
+
+| Model | Role | Think | n | Valid % | Truncated % | Schema % | Provider % | Links OK % | Median s | p90 s | Median out tok |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3.6:35b-mlx | researcher | off | 9 | 100 | 0 | 0 | 0 | 100 | 9.9 | 12.8 | 741 |
+| qwen3.6:35b-mlx | solver | off | 9 | 100 | 0 | 0 | 0 | 100 | 6.1 | 8.2 | 415 |
+| qwen3.6:35b-mlx | solver | on | 9 | 100 | 0 | 0 | 0 | 100 | 44.1 | 152.3 | 3528 |
+| qwen3.6:35b-a3b-q8_0 | researcher | off | 9 | 100 | 0 | 0 | 0 | 100 | 15.1 | 21.5 | 656 |
+| qwen3.6:35b-a3b-q8_0 | solver | off | 9 | 100 | 0 | 0 | 0 | 100 | 5.5 | 7.8 | 226 |
+| qwen3.6:35b-a3b-q8_0 | solver | on | 9 | 100 | 0 | 0 | 0 | 100 | 59.8 | 103.9 | 2844 |
+| qwen3.8:27b | researcher | off | 9 | 100 | 0 | 0 | 0 | 100 | 19.4 | 41.4 | 329 |
+| qwen3.8:27b | solver | off | 9 | 100 | 0 | 0 | 0 | 100 | 14.5 | 31.9 | 252 |
+| qwen3.8:27b | solver | on | 9 | 100 | 0 | 0 | 0 | 100 | 82.6 | 104.7 | 1519 |
+
+### Ranking (reliability, then links, then speed)
+
+| Rank | Model | Valid % (all cells) | Links OK % | Median s |
+|---|---|---|---|---|
+| 1 | qwen3.6:35b-mlx | 100 | 100 | 9.9 |
+| 2 | qwen3.6:35b-a3b-q8_0 | 100 | 100 | 15.1 |
+| 3 | qwen3.8:27b | 100 | 100 | 25.0 |
+
+### What changed
+
+- **Links are no longer a differentiator.** Every cell of every model is 100 % schema-valid and 100 % link-valid (previously 92.6 %, 88.9 % and 80.8 %). The handle enum removed the only failure mode the first trial found, on every runner.
+- **The ranking is now decided by speed alone**, and there `qwen3.6:35b-mlx` leads: 9.9 s median against 15.1 s for the current `local` alias, with the same validity. The first trial's objection to the MLX build (link validity) no longer holds.
+- **Thinking still buys nothing here.** With thinking on, every model stays valid and link-valid but takes 7–10× longer; the Solver stays on `think: false`.
+- **The decision recorded above stands until Hai chooses otherwise.** `agents.yaml` keeps `local: qwen3.6:35b-a3b-q8_0`; switching `local` to `qwen3.6:35b-mlx` is a one-line change that this amendment supports but does not make. Reasoning quality was not measured in either trial; the Phase 5 evals are the place to compare the two on that.
