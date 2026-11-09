@@ -216,7 +216,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 - [x] Board view, live feed, agent panel, controls, run list + replay scrubber, trace viewer, cost meter (ADR-0011). The board names every entry by its handle; the start-run dialog and the two-gauge cost meter are those of `docs/budget-guardrails.md` §5; every run that is not running shows its reason. Controls are start, pause, resume, stop, inject note and force synthesis; pinning and dismissing entries moved to the backlog.
 - [x] Tests: component tests for board rendering (static markup in Node, against the recorded run; no DOM package, ADR-0011); Playwright smoke in `--fake` mode — start a run, see entries appear, pause, inject, force a synthesis, stop, reload and replay (`pnpm test:e2e`, its own CI job).
-- **DoD:** a full run can be started, watched, steered and replayed in the browser.
+- **DoD:** a full run can be started, watched, steered and replayed in the browser. ✔ 2026-11-10, in Chromium: a `dev` run on `local-fast` (`qwen3.6:35b-mlx`, seven calls, all valid first time) was watched live, paused, given a note and a forced synthesis (served by round 3, the first to start after the request; at confidence 0.75 it did not end the run) and ran to its four-round limit with 30 entries; a second run whose server was killed mid-way came back `paused/interrupted` in the list and was resumed from the browser to its five-round limit; the recorded 96-entry run of Phase 2 was loaded into a database and replayed round by round. The same flow on scripted models is the Playwright smoke.
 
 ### Phase 5 — Smarter control + evals (~2–3 days)
 
