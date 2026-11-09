@@ -18,6 +18,7 @@
     "test:llm": "vitest run --mode llm",
     "test:coverage": "vitest run --coverage",
     "solve": "tsx apps/cli/src/solve.ts",
+    "db:generate": "pnpm --filter @team/host db:generate",
     "trial:local": "tsx apps/cli/src/trial.ts"
   },
   "devDependencies": {

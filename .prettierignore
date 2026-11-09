@@ -9,3 +9,6 @@ pnpm-lock.yaml
 # Generated trial and eval results
 evals/results/
 fixtures/runs/
+
+# Generated Drizzle migrations and snapshots
+packages/host/drizzle/

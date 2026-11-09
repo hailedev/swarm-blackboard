@@ -15,3 +15,7 @@ export { loadRosterFile } from './adapters/roster-file';
 export { systemClock } from './adapters/system-clock';
 export type { RandomFill } from './adapters/uuid-v7';
 export { createUuidV7Generator } from './adapters/uuid-v7';
+export type { Db, OpenedDatabase } from './db/open';
+export { databasePathFromUrl, IN_MEMORY, openDatabase } from './db/open';
+export * as schema from './db/schema';
+export { SqliteBoardStore } from './db/sqlite-board-store';
