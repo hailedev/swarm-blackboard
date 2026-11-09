@@ -407,3 +407,47 @@ describe('stop()', () => {
     expect(result.ok && [result.value.status, result.value.rounds]).toEqual(['stopped', 0]);
   });
 });
+
+describe('rehydrate: a log that paused, resumed and ended', () => {
+  it('ends up terminal, with the warning remembered and the elapsed time from the end event', async () => {
+    const { controller, store, events } = scripted({
+      onEvent: (event, c) => {
+        if (event.type === 'round_completed' && event.round === 1) c.requestPause();
+      },
+    });
+    await controller.start({ content: 'P' });
+    await controller.run();
+    await controller.resume();
+    await controller.run();
+    const log = [...(await store.eventsFor(controller.runId))];
+    // Splice a budget warning in where the controller would have emitted one.
+    const warning: BoardEvent = {
+      id: '00000000-0000-7000-8000-00000000ffff',
+      runId: controller.runId,
+      seq: log.length,
+      at: events.at(-1)?.at ?? '2026-01-01T00:00:00.000Z',
+      type: 'budget_warning',
+      round: 4,
+      spentUsd: 4.1,
+      limitUsd: 5,
+    };
+    const state = rehydrate([...log, warning]);
+    expect(state.ok).toBe(true);
+    if (!state.ok) return;
+    const terminated = log.find((e) => e.type === 'run_terminated');
+    expect(state.value.ended).toEqual({ status: 'completed', reason: 'completed' });
+    expect(state.value.monthlyWarningSent).toBe(true);
+    expect(state.value.completedRounds).toBe(4);
+    expect(state.value.elapsedMs).toBe(
+      terminated?.type === 'run_terminated' ? terminated.totals.elapsedMs : -1,
+    );
+    const endUsage = terminated?.type === 'run_terminated' ? terminated.totals.usage : null;
+    expect(endUsage).not.toBeNull();
+    if (endUsage === null) return;
+    const { costUsd, ...tokens } = state.value.usage;
+    const { costUsd: endCost, ...endTokens } = endUsage;
+    expect(tokens).toEqual(endTokens);
+    expect(costUsd).toBeCloseTo(endCost, 10);
+    expect(log.filter((e) => e.type === 'run_resumed').length).toBe(1);
+  });
+});
