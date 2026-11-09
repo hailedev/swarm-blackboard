@@ -4,7 +4,7 @@ export { FakeSpendLedger } from './fake-spend-ledger';
 export { ManualClock, TEST_EPOCH_MS } from './manual-clock';
 export { testRolePrompts } from './role-prompts';
 export type { SampleBoard } from './sample-boards';
-export { freshBoard, lateBoard, midRunBoard } from './sample-boards';
+export { decomposedBoard, freshBoard, lateBoard, midRunBoard } from './sample-boards';
 export {
   createScriptedModels,
   SCENARIO_CALL_COST_USD,

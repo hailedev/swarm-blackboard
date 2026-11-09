@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "test:llm": "vitest run --mode llm",
     "test:coverage": "vitest run --coverage",
-    "solve": "tsx apps/cli/src/solve.ts"
+    "solve": "tsx apps/cli/src/solve.ts",
+    "trial:local": "tsx apps/cli/src/trial.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

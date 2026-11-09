@@ -49,6 +49,35 @@ export const freshBoard = (ids?: IdGenerator): SampleBoard => {
   };
 };
 
+/** After the Planner's first round: open subproblems and a question, nothing else yet. */
+export const decomposedBoard = (ids?: IdGenerator): SampleBoard => {
+  const board = freshBoard(ids);
+  const { fx, problem } = board;
+  const subproblems = [
+    'Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.',
+    'Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.',
+    'List what would have to stay separate (deploy pipelines, ownership, release cadence) for the team to accept a monorepo.',
+  ].map((content) =>
+    fx.entry(
+      'subproblem',
+      { status: 'open' },
+      { author: 'planner', parents: [problem.id], content },
+    ),
+  );
+  const question = fx.entry(
+    'question',
+    {},
+    {
+      author: 'planner',
+      parents: [problem.id],
+      content:
+        'Which of the three services releases most often, and does it share code with the others?',
+    },
+  );
+  fx.startRound(2);
+  return { ...board, subproblems, questions: [question] };
+};
+
 export const midRunBoard = (ids?: IdGenerator): SampleBoard => {
   const board = freshBoard(ids);
   const { fx, problem } = board;
