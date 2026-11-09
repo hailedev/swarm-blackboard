@@ -6,6 +6,7 @@ import { defineConfig } from 'vitest/config';
 const workspaces = [
   { name: 'core', root: 'packages/core' },
   { name: 'providers', root: 'packages/providers' },
+  { name: 'host', root: 'packages/host' },
   { name: 'cli', root: 'apps/cli' },
   { name: 'server', root: 'apps/server' },
   { name: 'web', root: 'apps/web' },

@@ -5,5 +5,8 @@ packages:
 
 # Dependencies whose install scripts may run (pnpm 12 blocks unreviewed ones).
 # esbuild: pulled in by tsx; its postinstall only verifies the platform binary.
+# better-sqlite3: its install script fetches the prebuilt SQLite binary for this platform
+# (ADR-0007, ADR-0010); without it the module cannot load.
 allowBuilds:
   esbuild: true
+  better-sqlite3: true

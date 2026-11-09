@@ -16,8 +16,9 @@ A local, single-user app in which a swarm of LLM agents collaborates on open-end
 |---|---|
 | `packages/core` | Board, entry schemas, controller, agent abstractions, budgets, termination. **Pure TypeScript, no I/O.** |
 | `packages/providers` | Model adapters via Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `ollama-ai-provider-v2`), cost tables, call tracing; re-exports `FakeModel` (defined in core so core can test itself) |
-| `apps/cli` | `pnpm solve` — runs the swarm from the terminal; edge adapters for clock, ids and logging |
-| `apps/server` | Hono API, SSE event stream, run manager, SQLite via Drizzle (`better-sqlite3`) |
+| `packages/host` | What a Node host needs (ADR-0010): roster/prompt loaders, env, clock, UUID v7 ids, console logger, and the Drizzle/SQLite store (`better-sqlite3`) behind core's `BoardStore`, `SpendLedger` and `TraceSink` ports. Depends on core only. One `data/team.db` is the ledger for CLI, server and `pnpm test:llm` |
+| `apps/cli` | `pnpm solve` — runs the swarm from the terminal on the host adapters and store |
+| `apps/server` | Hono API, SSE event stream, run manager, on the host store |
 | `apps/web` | Vite + React, TanStack Query, Zustand, Tailwind |
 | `evals/` | Benchmark problems and the swarm-vs-single-agent harness |
 | `prompts/` | One markdown file per agent role — prompts are never inline in code |

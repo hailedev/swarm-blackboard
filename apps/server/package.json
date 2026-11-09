@@ -3,7 +3,21 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.6",
+    "@team/core": "workspace:*",
+    "@team/host": "workspace:*",
+    "@team/providers": "workspace:*",
+    "hono": "4.13.17",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
   }
 }

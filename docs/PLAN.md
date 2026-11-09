@@ -150,10 +150,11 @@ swarm-blackboard/
 │   └── adr/                  # one file per decision (see §9)
 ├── packages/
 │   ├── core/                 # board, schemas, controller, agents, budgets — no I/O
-│   └── providers/            # AI SDK adapters, FakeModel, cost tables
+│   ├── providers/            # AI SDK adapters, FakeModel, cost tables
+│   └── host/                 # Node adapters + Drizzle/SQLite store shared by cli and server (ADR-0010)
 ├── apps/
 │   ├── cli/                  # `pnpm solve` — run the swarm from the terminal
-│   ├── server/               # Hono API + SSE + run manager + SQLite
+│   ├── server/               # Hono API + SSE + run manager
 │   └── web/                  # Vite + React dashboard
 ├── evals/
 │   ├── problems/             # benchmark problems (markdown + rubric)
