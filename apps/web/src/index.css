@@ -1,1 +1,66 @@
 @import 'tailwindcss';
+
+/*
+ * Design tokens. Components are written against roles (surface, ink, line, accent and the
+ * four status colours), never raw hex, so light and dark swap here and nowhere else.
+ *
+ * Status colours are reserved for state (good, warning, serious, critical) and are the
+ * same in both modes. They colour marks and icons, never text: warning and serious are
+ * below 3:1 on a light surface by design, so a status is always an icon and a word too.
+ */
+@theme {
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-page: #f9f9f7;
+  --color-surface: #fcfcfb;
+  --color-sunken: #f0efec;
+  --color-ink: #0b0b0b;
+  --color-ink-2: #52514e;
+  --color-muted: #898781;
+  --color-line: #e1e0d9;
+  --color-line-strong: #c3c2b7;
+
+  --color-accent: #2a78d6;
+  --color-primary: #184f95;
+  --color-on-primary: #ffffff;
+
+  --color-good: #0ca30c;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+}
+
+/* Dark is selected, not flipped: its own steps of the same ramps for the dark surface. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-page: #0d0d0d;
+    --color-surface: #1a1a19;
+    --color-sunken: #262624;
+    --color-ink: #f0efec;
+    --color-ink-2: #c3c2b7;
+    --color-muted: #898781;
+    --color-line: #2c2c2a;
+    --color-line-strong: #383835;
+
+    --color-accent: #3987e5;
+    --color-primary: #9ec5f4;
+    --color-on-primary: #0b0b0b;
+  }
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* A visible focus ring everywhere; the board is keyboard-reachable card by card. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgb(11 11 11 / 0.45);
+}
