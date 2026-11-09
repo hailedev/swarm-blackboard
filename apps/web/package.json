@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "5.107.1",

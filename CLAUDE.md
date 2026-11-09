@@ -18,8 +18,8 @@ A local, single-user app in which a swarm of LLM agents collaborates on open-end
 | `packages/providers` | Model adapters via Vercel AI SDK (`ai`, `@ai-sdk/anthropic`, `ollama-ai-provider-v2`), cost tables, call tracing; re-exports `FakeModel` (defined in core so core can test itself) |
 | `packages/host` | What a Node host needs (ADR-0010): roster/prompt loaders, env, clock, UUID v7 ids, console logger, and the Drizzle/SQLite store (`better-sqlite3`) behind core's `BoardStore`, `SpendLedger` and `TraceSink` ports. Depends on core only. One `data/team.db` is the ledger for CLI, server and `pnpm test:llm` |
 | `apps/cli` | `pnpm solve` — runs the swarm from the terminal on the host adapters and store |
-| `apps/server` | Hono API, SSE event stream, run manager, on the host store |
-| `apps/web` | Vite + React, TanStack Query, Zustand, Tailwind |
+| `apps/server` | Hono API, SSE event stream, run manager, on the host store; `--fake` runs the scripted swarm on an in-memory database. Its Zod contract is exported as `@team/server/api` |
+| `apps/web` | Vite + React, TanStack Query, Zustand, Tailwind. Everything it shows about a run is folded from the run's event stream with core's own functions (ADR-0011); it imports only `@team/core` and `@team/server/api` |
 | `evals/` | Benchmark problems and the swarm-vs-single-agent harness |
 | `prompts/` | One markdown file per agent role — prompts are never inline in code |
 | `agents.yaml` | Roster: role → provider/model/fallback |
@@ -34,6 +34,7 @@ pnpm dev                         # API server on PORT (3001) and the web app on 
 pnpm dev:fake                    # the same with scripted models and an in-memory database: no Ollama, no spend
 pnpm test                        # unit + integration — never touches the network
 pnpm test:llm                    # opt-in tests against real models (needs keys / Ollama)
+pnpm test:e2e                    # Playwright smoke: the server in --fake mode and the web app, in a real browser
 pnpm lint
 pnpm typecheck
 pnpm solve "<problem>" [--fake]  # run the swarm from the CLI; --fake uses FakeModel
@@ -58,6 +59,7 @@ pnpm eval                        # swarm vs single-agent baseline at equal budge
 - Tests that call real models are named `*.llm.test.ts`, run only via `pnpm test:llm`, and skip themselves when `ANTHROPIC_API_KEY` or a reachable Ollama is absent.
 - Snapshot-test prompt **inputs** (the rendered prompt), never model outputs.
 - Recorded runs in `fixtures/runs/` are the fixtures for replay and UI tests.
+- Web components are tested as static markup (`react-dom/server`) in Vitest's Node environment; there is no DOM test package (ADR-0011). What needs a click goes in the Playwright smoke (`apps/web/e2e`, `pnpm test:e2e`), which is not part of `pnpm test` and runs as its own CI job. It needs `pnpm --filter @team/web exec playwright install chromium` once per machine.
 - Core coverage target: 90%. A phase is not done while its definition-of-done tests are red.
 - Evals (`pnpm eval`) measure quality, not correctness. They are not part of `pnpm test` and never gate a commit.
 

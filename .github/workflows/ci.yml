@@ -20,3 +20,20 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test:coverage
+
+  # The browser smoke test (docs/PLAN.md §6, Phase 4): the API server in --fake mode and
+  # the web app, driven by Playwright. No model is called. A job of its own so that lint,
+  # typecheck and the unit tests report as fast as before.
+  e2e:
+    name: Browser smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @team/web exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
