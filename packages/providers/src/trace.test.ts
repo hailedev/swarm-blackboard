@@ -40,7 +40,11 @@ const harness = (script: Parameters<typeof createFakeModel>[0]['script']) => {
 describe('traceModel', () => {
   it('records a successful call with its prompt, response, usage and latency', async () => {
     const { traces, traced } = harness([
-      { object: { answer: 'yes' }, usage: { inputTokens: 100, outputTokens: 10 } },
+      {
+        object: { answer: 'yes' },
+        usage: { inputTokens: 100, outputTokens: 10 },
+        warnings: ['unsupported setting: topK'],
+      },
     ]);
     const result = await traced.generateObject(request);
     expect(result.ok).toBe(true);
@@ -59,6 +63,10 @@ describe('traceModel', () => {
           cacheWriteTokens: 0,
           costUsd: expect.closeTo(0.0001 + 0.00005, 12) as number,
         },
+        // 'be brief' + 'what?' is 13 characters: ⌈13 / 3⌉ + 1000.
+        estimatedInputTokens: 1005,
+        actualInputTokens: 100,
+        warnings: ['unsupported setting: topK'],
         latencyMs: 25,
         response: { answer: 'yes' },
         error: null,
@@ -74,6 +82,9 @@ describe('traceModel', () => {
     expect(traces[0]).toMatchObject({
       outcome: 'invalid_output',
       usage: { inputTokens: 50, outputTokens: 5 },
+      estimatedInputTokens: 1005,
+      actualInputTokens: 50,
+      warnings: [],
       response: '{"answer":7}',
       error: expect.stringContaining('answer') as string,
     });
@@ -87,9 +98,24 @@ describe('traceModel', () => {
     expect(traces[0]).toMatchObject({
       outcome: 'rate_limit',
       usage: null,
+      actualInputTokens: null,
+      warnings: [],
       response: null,
       error: '429',
     });
+  });
+
+  it('counts cache tokens as prompt tokens, and treats a zero count as not reported', async () => {
+    const { traces, traced } = harness([
+      {
+        object: { answer: 'a' },
+        usage: { inputTokens: 10, outputTokens: 1, cacheReadTokens: 30, cacheWriteTokens: 5 },
+      },
+      { object: { answer: 'b' }, usage: { inputTokens: 0, outputTokens: 0 } },
+    ]);
+    await traced.generateObject(request);
+    await traced.generateObject(request);
+    expect(traces.map((t) => t.actualInputTokens)).toEqual([45, null]);
   });
 
   it('keeps the wrapped model identity', () => {

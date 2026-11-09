@@ -1,5 +1,7 @@
 import {
+  estimateInputTokens,
   isoFromMs,
+  promptTokens,
   type Model,
   type ModelBilling,
   type ModelCallTags,
@@ -19,6 +21,12 @@ export interface ModelCallTrace {
   outcome: 'ok' | ModelErrorKind;
   /** Null when the call failed before the model produced anything billable. */
   usage: Usage | null;
+  /** The controller's reservation estimate for the prompt (docs/budget-guardrails.md §2). */
+  estimatedInputTokens: number;
+  /** Prompt tokens the provider reported (input + cache reads + writes); null when it reported none. */
+  actualInputTokens: number | null;
+  /** Provider warnings, e.g. a setting the model does not support. */
+  warnings: readonly string[];
   latencyMs: number;
   /** The validated object, the raw text of a rejected answer, or null. */
   response: unknown;
@@ -26,6 +34,13 @@ export interface ModelCallTrace {
 }
 
 export type TraceSink = (trace: ModelCallTrace) => void;
+
+// A real prompt is never zero tokens, so zero means the provider reported no count
+// (Ollama omits prompt_eval_count on a KV-cache hit).
+const reportedPromptTokens = (usage: Usage): number | null => {
+  const tokens = promptTokens(usage);
+  return tokens > 0 ? tokens : null;
+};
 
 export const traceModel = (model: Model, sink: TraceSink, now: () => number = Date.now): Model => ({
   id: model.id,
@@ -44,6 +59,7 @@ export const traceModel = (model: Model, sink: TraceSink, now: () => number = Da
         prompt: request.prompt,
         maxOutputTokens: request.maxOutputTokens ?? null,
       },
+      estimatedInputTokens: estimateInputTokens(request),
       latencyMs: Math.max(0, now() - startedMs),
     };
     if (result.ok) {
@@ -51,6 +67,8 @@ export const traceModel = (model: Model, sink: TraceSink, now: () => number = Da
         ...base,
         outcome: 'ok',
         usage: result.value.usage,
+        actualInputTokens: reportedPromptTokens(result.value.usage),
+        warnings: result.value.warnings,
         response: result.value.object,
         error: null,
       });
@@ -59,6 +77,8 @@ export const traceModel = (model: Model, sink: TraceSink, now: () => number = Da
         ...base,
         outcome: result.error.kind,
         usage: result.error.usage,
+        actualInputTokens: reportedPromptTokens(result.error.usage),
+        warnings: [],
         response: result.error.raw,
         error: result.error.issues.join('; '),
       });
@@ -67,6 +87,8 @@ export const traceModel = (model: Model, sink: TraceSink, now: () => number = Da
         ...base,
         outcome: result.error.kind,
         usage: null,
+        actualInputTokens: null,
+        warnings: [],
         response: null,
         error: 'message' in result.error ? result.error.message : result.error.kind,
       });
