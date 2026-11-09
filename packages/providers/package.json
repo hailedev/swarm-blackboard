@@ -10,7 +10,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.99",
     "@team/core": "workspace:*",
+    "ai": "7.0.165",
+    "ollama-ai-provider-v2": "4.1.0",
     "zod": "4.6.7"
   },
   "devDependencies": {

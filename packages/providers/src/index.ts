@@ -18,7 +18,28 @@ export type {
 } from '@team/core';
 export { createFakeModel } from '@team/core';
 
+export type { AiSdkModelOptions } from './ai-sdk-model';
+export { createAiSdkModel, describeWarning, usageFromSdk } from './ai-sdk-model';
+export type { AnthropicModelOptions, AnthropicStructuredOutputMode } from './anthropic';
+export { ANTHROPIC_TIMEOUT_MS, createAnthropicModel } from './anthropic';
 export { classifyProviderError } from './errors';
+export type { FactoryError, ModelFactory, ModelFactoryOptions } from './factory';
+export { composeModel, createModelFactory, describeFactoryError } from './factory';
+export type { OllamaModelOptions } from './ollama';
+export { createOllamaModel, OLLAMA_NUM_CTX, OLLAMA_TIMEOUT_MS, ollamaApiUrl } from './ollama';
+export type {
+  Fetch,
+  OllamaFormatProbeOptions,
+  OllamaFormatProbeResult,
+  OllamaPreflightError,
+  OllamaPreflightOptions,
+  OllamaPreflightReport,
+} from './ollama-preflight';
+export {
+  describeOllamaPreflightError,
+  preflightOllama,
+  probeOllamaFormat,
+} from './ollama-preflight';
 export { PRICE_TABLE, pricingFor } from './pricing';
 export type { RetryPolicy } from './retry';
 export { backoffDelayMs, DEFAULT_RETRY_POLICY, withRetry } from './retry';

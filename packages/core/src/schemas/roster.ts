@@ -15,6 +15,8 @@ export const ModelAliasSchema = z.object({
   provider: ProviderSchema,
   model: z.string().min(1),
   think: z.boolean().optional(),
+  /** Context window to request from a local model; the provider layer has a default. */
+  numCtx: z.int().min(1024).optional(),
 });
 export type ModelAlias = z.infer<typeof ModelAliasSchema>;
 
