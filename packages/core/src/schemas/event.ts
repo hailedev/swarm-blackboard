@@ -82,6 +82,13 @@ export const RoundCompletedEventSchema = EventBaseSchema.extend({
   newEntries: z.int().nonnegative(),
   usage: UsageSchema,
 });
+// The user asked for a synthesis now (docs/PLAN.md §2.3, human-in-the-loop). The first
+// round that starts after this event runs the Synthesizer whatever its trigger says; the
+// request is on the log so a paused or restarted run still honours it (ADR-0011).
+export const SynthesisRequestedEventSchema = EventBaseSchema.extend({
+  type: z.literal('synthesis_requested'),
+  round: RoundSchema,
+});
 // Emitted once per run when month-to-date spend crosses the warning fraction.
 export const BudgetWarningEventSchema = EventBaseSchema.extend({
   type: z.literal('budget_warning'),
@@ -117,6 +124,7 @@ export const BoardEventSchema = z.discriminatedUnion('type', [
   EntryCommittedEventSchema,
   AgentFailedEventSchema,
   RoundCompletedEventSchema,
+  SynthesisRequestedEventSchema,
   BudgetWarningEventSchema,
   RunPausedEventSchema,
   RunResumedEventSchema,

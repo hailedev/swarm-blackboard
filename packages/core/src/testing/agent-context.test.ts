@@ -11,6 +11,7 @@ describe('agentContext', () => {
       stallDetected: false,
       criticForced: false,
       decisionRequired: false,
+      synthesisForced: false,
     });
     expect(ctx.targetIds).toEqual([]);
   });

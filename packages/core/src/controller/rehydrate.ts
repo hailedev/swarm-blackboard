@@ -1,4 +1,4 @@
-import type { ControlFlags } from '../agents/agent';
+import { noControlFlags, type ControlFlags } from '../agents/agent';
 import { buildBoardView } from '../board/board-view';
 import { err, ok, type Result } from '../ports/result';
 import { addUsage, zeroUsage, type Usage } from '../schemas/common';
@@ -7,6 +7,7 @@ import type { RunProfile } from '../schemas/roster';
 import type { RunConfig } from '../schemas/run-config';
 import type { PauseReason, TerminalReason, TerminalStatus } from '../schemas/run-end';
 import { ConflictTracker } from './conflict';
+import { synthesisPending } from './synthesis-request';
 
 // A controller's state is a fold over its own event log, so a paused run can be picked up
 // by a fresh process: the month rolls over, the server restarts, the run continues. This
@@ -27,6 +28,8 @@ export interface RehydratedState {
   history: readonly (readonly string[])[];
   conflicts: ConflictTracker;
   flags: ControlFlags;
+  /** A synthesis the user asked for that no round has served yet. */
+  synthesisPending: boolean;
   reframeUsed: boolean;
   consecutiveEmptyRounds: number;
   monthlyWarningSent: boolean;
@@ -49,7 +52,7 @@ export const rehydrate = (
   const conflicts = new ConflictTracker();
   const selectedByRound = new Map<number, readonly string[]>();
   const history: (readonly string[])[] = [];
-  let flags: ControlFlags = { stallDetected: false, criticForced: false, decisionRequired: false };
+  let flags: ControlFlags = noControlFlags();
   let completedRounds = 0;
   let usage = zeroUsage();
   let consecutiveEmptyRounds = 0;
@@ -80,8 +83,10 @@ export const rehydrate = (
           ),
         );
         const assessment = conflicts.assess(buildBoardView(runId, soFar), critiqueTargets);
+        // `synthesisForced` is on only while the round that serves a request is in
+        // flight; a request still owed is `synthesisPending`, below.
         flags = {
-          stallDetected: false,
+          ...noControlFlags(),
           criticForced: assessment.criticForced,
           decisionRequired: assessment.decisionRequired,
         };
@@ -111,6 +116,7 @@ export const rehydrate = (
       case 'round_started':
       case 'entry_committed':
       case 'agent_failed':
+      case 'synthesis_requested':
         break;
     }
   }
@@ -127,6 +133,7 @@ export const rehydrate = (
     history,
     conflicts,
     flags,
+    synthesisPending: synthesisPending(events),
     reframeUsed,
     consecutiveEmptyRounds,
     monthlyWarningSent,

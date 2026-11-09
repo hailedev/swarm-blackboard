@@ -14,7 +14,16 @@ export interface ControlFlags {
   stallDetected: boolean;
   criticForced: boolean;
   decisionRequired: boolean;
+  /** The user asked for a synthesis; on for the one round that serves the request. */
+  synthesisForced: boolean;
 }
+
+export const noControlFlags = (): ControlFlags => ({
+  stallDetected: false,
+  criticForced: false,
+  decisionRequired: false,
+  synthesisForced: false,
+});
 
 // A call the controller refused because it could not fit the remaining cost cap
 // even with the output allowance shrunk to the floor (docs/budget-guardrails.md §2).
@@ -44,6 +53,8 @@ export interface Trigger {
   priority: number;
   targetIds: readonly string[];
   reason: string;
+  /** Selected ahead of every other agent and exempt from the diversity rule. */
+  mandatory: boolean;
 }
 
 export const eligible = (
@@ -55,6 +66,7 @@ export const eligible = (
   priority,
   targetIds,
   reason,
+  mandatory: false,
 });
 
 export const notEligible = (reason: string): Trigger => ({
@@ -62,6 +74,19 @@ export const notEligible = (reason: string): Trigger => ({
   priority: 0,
   targetIds: [],
   reason,
+  mandatory: false,
+});
+
+/** Priority recorded for a mandatory trigger; selection puts it first whatever the number. */
+export const MANDATORY_PRIORITY = 100;
+
+/** Eligible and certain to be selected this round, e.g. because the user asked for it. */
+export const mandatory = (targetIds: readonly string[], reason: string): Trigger => ({
+  eligible: true,
+  priority: MANDATORY_PRIORITY,
+  targetIds,
+  reason,
+  mandatory: true,
 });
 
 /** What a model returns: contributions whose references are handles until resolved. */

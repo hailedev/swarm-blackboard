@@ -9,7 +9,8 @@ export interface Candidate {
 export const DIVERSITY_WINDOW = 2;
 
 // Rule-based priority selection (docs/PLAN.md §2.3 step 4; bidding arrives in Phase 5).
-// Stable sort by priority, so ties fall back to roster order.
+// Stable sort by priority, so ties fall back to roster order. A mandatory trigger (the
+// user forced a synthesis) goes first and is never held back by the diversity rule.
 export const selectAgents = (
   candidates: readonly Candidate[],
   parallelism: number,
@@ -20,11 +21,16 @@ export const selectAgents = (
   const blocked = new Set(
     recent.length === DIVERSITY_WINDOW
       ? eligible
+          .filter((c) => !c.trigger.mandatory)
           .filter((c) => recent.every((round) => round.includes(c.agentId)))
           .map((c) => c.agentId)
       : [],
   );
-  const ranked = [...eligible].sort((a, b) => b.trigger.priority - a.trigger.priority);
+  const ranked = [...eligible].sort(
+    (a, b) =>
+      Number(b.trigger.mandatory) - Number(a.trigger.mandatory) ||
+      b.trigger.priority - a.trigger.priority,
+  );
   const allowed = ranked.filter((c) => !blocked.has(c.agentId));
   const pool = allowed.length > 0 ? allowed : ranked;
   return pool.slice(0, parallelism).map((c) => c.agentId);

@@ -11,7 +11,14 @@ export type {
   RoleModels,
   Trigger,
 } from './agent';
-export { createRoleAgent, eligible, notEligible } from './agent';
+export {
+  createRoleAgent,
+  eligible,
+  mandatory,
+  MANDATORY_PRIORITY,
+  noControlFlags,
+  notEligible,
+} from './agent';
 export type { AgentView, FocusEntry, HandleOf } from './agent-view';
 export {
   buildAgentView,

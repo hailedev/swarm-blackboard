@@ -58,6 +58,7 @@ describe('BoardEventSchema', () => {
     ],
     ['agent_failed', { round: 1, agentId: 'solver', reason: 'budget_exhausted', detail: '' }],
     ['round_completed', { round: 1, newEntries: 2, usage }],
+    ['synthesis_requested', { round: 2 }],
     ['budget_warning', { round: 2, spentUsd: 4.1, limitUsd: 5 }],
     ['run_paused', { round: 2, reason: 'monthly_budget', totals }],
     ['run_paused', { round: 2, reason: 'rate_limit', totals }],

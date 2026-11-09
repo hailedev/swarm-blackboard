@@ -7,6 +7,7 @@ import type {
   ControlFlags,
   ModelGateway,
 } from '../agents/agent';
+import { noControlFlags } from '../agents/agent';
 import { buildBoardView, type BoardView } from '../board/board-view';
 import type { BoardStore, StoreError } from '../ports/board-store';
 import { isoFromMs, type Clock } from '../ports/clock';
@@ -146,6 +147,15 @@ export interface Controller {
   resume(): Promise<Result<void, ControllerError>>;
   /** Commit a human note now; the next round sees it (docs/PLAN.md §2.3, human-in-the-loop). */
   injectNote(note: HumanNoteInput): Promise<Result<EntryOf<'human_note'>, ControllerError>>;
+  /**
+   * Have the Synthesizer run in the first round that starts from now on, whatever its
+   * trigger says. Allowed while the run is live or paused; asking again while a request
+   * is still owed changes nothing. The run ends on that synthesis only if the usual
+   * termination rules say so.
+   */
+  forceSynthesis(): Promise<Result<void, ControllerError>>;
+  /** A synthesis was asked for and no round has served it yet. */
+  readonly synthesisPending: boolean;
   currentView(): BoardView;
   readonly flags: Readonly<ControlFlags>;
   /** How the run has stopped, or null while it is live. */
@@ -215,10 +225,7 @@ export const createController = (
   const runId = resumed?.runId ?? options.runId ?? deps.ids.next();
   const events: BoardEvent[] = resumed === undefined ? [] : [...resumed.events];
   const history: string[][] = resumed === undefined ? [] : resumed.history.map((h) => [...h]);
-  const flags: ControlFlags =
-    resumed === undefined
-      ? { stallDetected: false, criticForced: false, decisionRequired: false }
-      : { ...resumed.flags };
+  const flags: ControlFlags = resumed === undefined ? noControlFlags() : { ...resumed.flags };
   const conflicts = resumed?.conflicts ?? new ConflictTracker();
   let view = buildBoardView(runId, events);
   let config: RunConfig | undefined = resumed?.config;
@@ -241,6 +248,16 @@ export const createController = (
   // of a round, while a callback may well set them while the round is in flight.
   const requested = { pause: (): boolean => pauseRequested, stop: (): boolean => stopRequested };
   let stopRequested = false;
+  // A synthesis the user asked for, owed to the first round that starts after the request
+  // (controller/synthesis-request.ts states the rule over the log). It is set in the same
+  // tick the request event is queued and taken in the same tick `round_started` is queued,
+  // so "after the request" means the same thing here as in the stored sequence.
+  let synthesisOwed = resumed?.synthesisPending ?? false;
+  const takeSynthesisRequest = (): boolean => {
+    const owed = synthesisOwed;
+    synthesisOwed = false;
+    return owed;
+  };
   const profileName = deps.profile?.name ?? resumed?.profile?.name ?? null;
 
   // Events are appended one at a time, in order, whoever asks: a note injected while a
@@ -546,6 +563,7 @@ export const createController = (
       }
     }
 
+    flags.synthesisForced = takeSynthesisRequest();
     const startedRound = await emit({ type: 'round_started', round });
     if (!startedRound.ok) return startedRound;
 
@@ -652,10 +670,12 @@ export const createController = (
     });
     if (!roundDone.ok) return roundDone;
 
-    // 7. Conflict check → flags for the next round.
+    // 7. Conflict check → flags for the next round. A forced synthesis is spent: this
+    //    round served it, whether or not the Synthesizer produced anything.
     const assessment = conflicts.assess(view, critiqueTargets);
     flags.criticForced = assessment.criticForced;
     flags.decisionRequired = assessment.decisionRequired;
+    flags.synthesisForced = false;
 
     // 8. Termination: provider failures first, then the user's requests, then stall
     //    detection and the ordered checks.
@@ -793,6 +813,24 @@ export const createController = (
     return ok(parsed.data);
   };
 
+  const forceSynthesis: Controller['forceSynthesis'] = async () => {
+    if (config === undefined) return err({ kind: 'not_started' });
+    if (ended !== null && ended.status !== 'paused') {
+      return err({ kind: 'terminated', reason: ended.reason });
+    }
+    if (synthesisOwed) return ok(undefined);
+    // Queue the event and mark the request in the same tick; see `synthesisOwed`.
+    const queued = emit({ type: 'synthesis_requested', round: completedRounds });
+    synthesisOwed = true;
+    const stored = await queued;
+    if (!stored.ok) {
+      synthesisOwed = false;
+      return err(stored.error);
+    }
+    deps.logger.info('synthesis requested by the user', { runId, round: completedRounds });
+    return ok(undefined);
+  };
+
   return {
     runId,
     start,
@@ -807,6 +845,10 @@ export const createController = (
     resume,
     stop,
     injectNote,
+    forceSynthesis,
+    get synthesisPending(): boolean {
+      return synthesisOwed;
+    },
     currentView: () => view,
     get flags(): Readonly<ControlFlags> {
       return { ...flags };

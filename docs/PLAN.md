@@ -92,7 +92,7 @@ One cycle = one round:
 
 **Budgets are hard limits enforced in the controller, not requests in prompts.** Default run config: `maxRounds: 12`, `maxCostUsd: 0.25`, `maxTokens: 400_000`, `maxWallClockMs: 15 min`, `parallelism: 2`, `synthesisThreshold: 0.8`. Every model call reserves its worst-case cost before dispatch, a paid profile is checked against the monthly ledger, and provider errors are classified rather than retried blindly — see `docs/budget-guardrails.md`.
 
-**Human-in-the-loop:** pause / resume; inject a `human_note` (highest priority next round); pin or dismiss entries; force synthesis; stop.
+**Human-in-the-loop:** pause / resume; inject a `human_note` (highest priority next round); pin or dismiss entries; force synthesis; stop. Force synthesis is a recorded request (`synthesis_requested` event, Phase 4, ADR-0011): the Synthesizer runs in the first round that starts after it, whatever its trigger says and exempt from the diversity rule, and the run ends on that synthesis only if the termination rules of step 8 say so. Pinning and dismissing are not built yet (backlog, §6).
 
 ---
 

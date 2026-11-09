@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { eligible, type Agent } from '../agents/agent';
 import { createDefaultAgents } from '../agents/roster';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
+import { createFakeModel } from '../model/fake-model';
 import { nullLogger } from '../ports/logger';
+import type { Model } from '../ports/model';
 import { ok } from '../ports/result';
 import type { BoardEvent } from '../schemas/event';
 import { BoardFixture } from '../testing/board-fixture';
@@ -13,6 +15,7 @@ import { createScriptedModels } from '../testing/scripted-scenario';
 import { SequentialIdGenerator } from '../testing/sequential-id-generator';
 import { createController, type Controller, type ControllerDeps } from './controller';
 import { rehydrate } from './rehydrate';
+import { synthesisPending } from './synthesis-request';
 
 // Pause, resume, stop, human notes and picking a run up from its own log: the operations
 // the server's run manager drives (docs/PLAN.md §2.3, human-in-the-loop).
@@ -35,6 +38,8 @@ const scripted = (
     store?: InMemoryBoardStore;
     ids?: SequentialIdGenerator;
     resume?: Parameters<typeof createController>[1];
+    /** Stands in for the scripted Synthesizer, which is always confident enough to end the run. */
+    synthesizer?: Model;
   } = {},
 ): Scripted => {
   const events: BoardEvent[] = [];
@@ -50,7 +55,10 @@ const scripted = (
     clock,
     ids: options.ids ?? new SequentialIdGenerator(),
     logger: nullLogger,
-    agents: createDefaultAgents(models, testRolePrompts()),
+    agents: createDefaultAgents(
+      options.synthesizer === undefined ? models : { ...models, synthesizer: options.synthesizer },
+      testRolePrompts(),
+    ),
     onEvent: (event) => {
       events.push(event);
       if (ref.controller !== undefined) options.onEvent?.(event, ref.controller);
@@ -231,6 +239,181 @@ describe('human notes', () => {
   });
 });
 
+describe('force synthesis', () => {
+  // A Synthesizer that answers but is never confident enough to end the run, so a test can
+  // see what the rounds after the forced one do.
+  const cautious = (): Model =>
+    createFakeModel({
+      id: 'fake-cautious-synthesizer',
+      script: () => ({
+        object: {
+          contributions: [
+            {
+              type: 'synthesis',
+              content: 'A draft from a thin board.',
+              parents: [],
+              payload: { version: 1, confidence: 0.4, cites: [] },
+            },
+          ],
+        },
+      }),
+    });
+
+  it('runs the Synthesizer in the first round after the request, once, and the run goes on', async () => {
+    const { controller, events } = scripted({ synthesizer: cautious() });
+    expect(await controller.forceSynthesis()).toEqual({
+      ok: false,
+      error: { kind: 'not_started' },
+    });
+    await controller.start({ content: 'P' });
+    await controller.runRound();
+    // Round 1 was the Planner alone: left to its trigger the Synthesizer has nothing to go on.
+    expect((await controller.forceSynthesis()).ok).toBe(true);
+    expect(controller.synthesisPending).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: 'synthesis_requested', round: 1 });
+    // Asking again while the request is owed adds nothing to the log.
+    expect((await controller.forceSynthesis()).ok).toBe(true);
+    expect(ofType(events, 'synthesis_requested').length).toBe(1);
+
+    const forced = await controller.runRound();
+    expect(forced.ok && forced.value.selected).toEqual(['synthesizer', 'solver']);
+    expect(forced.ok && forced.value.eligible.find((e) => e.agentId === 'synthesizer')).toEqual({
+      agentId: 'synthesizer',
+      priority: 100,
+      reason: 'forced by the user',
+    });
+    // The termination rules are unchanged: a 0.4 synthesis does not end the run.
+    expect(forced.ok && forced.value.ended).toBeNull();
+    expect(
+      controller
+        .currentView()
+        .liveOfType('synthesis')
+        .map((s) => s.round),
+    ).toEqual([2]);
+    expect(controller.synthesisPending).toBe(false);
+    expect(controller.flags.synthesisForced).toBe(false);
+    expect(synthesisPending(events)).toBe(false);
+
+    // Spent: the next round is chosen by the triggers alone.
+    const next = await controller.runRound();
+    expect(next.ok && next.value.selected).toEqual(['critic', 'solver']);
+  });
+
+  it('ends the run on a forced synthesis that clears the usual threshold', async () => {
+    // The scripted Synthesizer answers at 0.9 with nothing blocking, which completes a run.
+    const { controller } = scripted();
+    await controller.start({ content: 'P' });
+    await controller.runRound();
+    await controller.forceSynthesis();
+    const result = await controller.run();
+    expect(result.ok && [result.value.status, result.value.reason, result.value.rounds]).toEqual([
+      'completed',
+      'completed',
+      2,
+    ]);
+  });
+
+  it('serves a request made while a round is in flight in the next round, not that one', async () => {
+    const asked: Promise<unknown>[] = [];
+    const { controller, events } = scripted({
+      synthesizer: cautious(),
+      onEvent: (event, c) => {
+        if (event.type === 'agents_selected' && event.round === 2) asked.push(c.forceSynthesis());
+      },
+    });
+    await controller.start({ content: 'P' });
+    await controller.runRound();
+    const second = await controller.runRound();
+    await Promise.all(asked);
+    expect(second.ok && second.value.selected).toEqual(['solver', 'researcher']);
+    const requestedSeq = ofType(events, 'synthesis_requested')[0]?.seq ?? -1;
+    const secondDoneSeq = ofType(events, 'round_completed')[1]?.seq ?? -1;
+    expect(requestedSeq).toBeGreaterThan(ofType(events, 'round_started')[1]?.seq ?? Infinity);
+    expect(requestedSeq).toBeLessThan(secondDoneSeq);
+    // Round 2 completed after the request but started before it: still owed.
+    expect(controller.synthesisPending).toBe(true);
+    expect(synthesisPending(events)).toBe(true);
+
+    const third = await controller.runRound();
+    expect(third.ok && third.value.selected[0]).toBe('synthesizer');
+    expect(controller.synthesisPending).toBe(false);
+    expect(synthesisPending(events)).toBe(false);
+    expect(events.map((e) => e.seq)).toEqual(events.map((_, i) => i));
+  });
+
+  it('is exempt from the diversity rule', async () => {
+    // With synthesis allowed from round 1 the Synthesizer is picked in rounds 1 and 2, so
+    // the diversity rule sits it out in round 3 unless the user asks.
+    const rounds = async (force: boolean) => {
+      const { controller } = scripted({ synthesizer: cautious() });
+      await controller.start({ content: 'P' }, { synthesisFromRound: 1 });
+      const first = await controller.runRound();
+      const second = await controller.runRound();
+      if (force) await controller.forceSynthesis();
+      const third = await controller.runRound();
+      return [first, second, third].map((r) => (r.ok ? r.value.selected : []));
+    };
+    const unforced = await rounds(false);
+    expect(unforced[0]).toContain('synthesizer');
+    expect(unforced[1]).toContain('synthesizer');
+    expect(unforced[2]).not.toContain('synthesizer');
+    const forced = await rounds(true);
+    expect(forced.slice(0, 2)).toEqual(unforced.slice(0, 2));
+    expect(forced[2]?.[0]).toBe('synthesizer');
+  });
+
+  it('is refused once the run has ended', async () => {
+    const { controller, events } = scripted();
+    await controller.start({ content: 'P' });
+    await controller.stop();
+    await controller.run();
+    expect(await controller.forceSynthesis()).toEqual({
+      ok: false,
+      error: { kind: 'terminated', reason: 'user_stopped' },
+    });
+    expect(ofType(events, 'synthesis_requested')).toEqual([]);
+  });
+
+  it('survives a pause and a restart: the request is rebuilt from the log', async () => {
+    const first = scripted({
+      synthesizer: cautious(),
+      onEvent: (event, c) => {
+        if (event.type === 'round_completed' && event.round === 1) c.requestPause();
+      },
+    });
+    await first.controller.start({ content: 'P' });
+    await first.controller.run();
+    expect(first.controller.ended).toEqual({ status: 'paused', reason: 'user_paused' });
+    // Asked for while paused: recorded now, served by the first round after the resume.
+    expect((await first.controller.forceSynthesis()).ok).toBe(true);
+    const log = await first.store.eventsFor(first.controller.runId);
+    expect(log.at(-1)).toMatchObject({ type: 'synthesis_requested', round: 1 });
+
+    const state = rehydrate(log);
+    expect(state.ok).toBe(true);
+    if (!state.ok) return;
+    expect(state.value.synthesisPending).toBe(true);
+    expect(state.value.flags.synthesisForced).toBe(false);
+
+    // A fresh process picks the run up.
+    const second = scripted({
+      store: first.store,
+      ids: new SequentialIdGenerator(1_000),
+      resume: { resume: state.value },
+      synthesizer: cautious(),
+    });
+    expect(second.controller.synthesisPending).toBe(true);
+    expect((await second.controller.resume()).ok).toBe(true);
+    const round = await second.controller.runRound();
+    expect(round.ok && round.value.selected).toEqual(['synthesizer', 'solver']);
+    expect(second.controller.synthesisPending).toBe(false);
+    const whole = await first.store.eventsFor(first.controller.runId);
+    expect(whole.map((e) => e.seq)).toEqual(whole.map((_, i) => i));
+    const again = rehydrate(whole);
+    expect(again.ok && again.value.synthesisPending).toBe(false);
+  });
+});
+
 describe('rehydrate', () => {
   it('rebuilds a paused run from its log and finishes it like an uninterrupted run', async () => {
     const reference = scripted();
@@ -347,7 +530,9 @@ describe('rehydrate', () => {
       stallDetected: true,
       criticForced: false,
       decisionRequired: true,
+      synthesisForced: false,
     });
+    expect(state.value.synthesisPending).toBe(false);
     expect(state.value.reframeUsed).toBe(true);
     expect(state.value.consecutiveEmptyRounds).toBe(0);
     expect(state.value.history).toEqual([['solver'], ['critic'], ['planner'], ['planner']]);

@@ -41,5 +41,6 @@ export {
 } from './reservation';
 export type { Candidate } from './selection';
 export { DIVERSITY_WINDOW, selectAgents } from './selection';
+export { synthesisPending } from './synthesis-request';
 export type { TerminationInput } from './termination';
 export { checkTermination, synthesisReady } from './termination';

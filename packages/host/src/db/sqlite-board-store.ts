@@ -205,6 +205,7 @@ export class SqliteBoardStore implements BoardStore {
       case 'round_started':
       case 'agents_selected':
       case 'agent_failed':
+      case 'synthesis_requested':
       case 'budget_warning':
         break;
     }

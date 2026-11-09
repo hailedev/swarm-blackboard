@@ -128,6 +128,41 @@ describe('role triggers', () => {
     expect(late.targetIds).toEqual([gated.id]);
     expect(late.reason).toContain('decision still pending');
   });
+
+  it('a synthesis the user forced overrides every gate, on any board', () => {
+    const forced = agentContext({ flags: { synthesisForced: true } });
+    // Nothing but the problem on the board: still mandatory, with nothing to target.
+    const bare = new BoardFixture();
+    bare.problem();
+    expect(synthesizer.trigger(bare.view(), agentContext()).eligible).toBe(false);
+    expect(synthesizer.trigger(bare.view(), forced)).toEqual({
+      eligible: true,
+      priority: 100,
+      targetIds: [],
+      reason: 'forced by the user',
+      mandatory: true,
+    });
+
+    // A blocked hypothesis and a pending decision: early in the run the trigger says no.
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const blocked = fx.entry('hypothesis', hypothesisPayload);
+    fx.entry('critique', { target: blocked.id, severity: 'blocking' });
+    const open = fx.entry('hypothesis', hypothesisPayload);
+    const gated = agentContext({ round: 2, flags: { decisionRequired: true } });
+    expect(synthesizer.trigger(fx.view(), gated).eligible).toBe(false);
+    const overridden = synthesizer.trigger(
+      fx.view(),
+      agentContext({ round: 2, flags: { decisionRequired: true, synthesisForced: true } }),
+    );
+    expect(overridden.mandatory).toBe(true);
+    expect(overridden.targetIds).toEqual([open.id]);
+    // The flag is the Synthesizer's alone: nobody else becomes mandatory.
+    for (const role of [planner, researcher, solver, critic]) {
+      expect(role.trigger(fx.view(), forced).mandatory).toBe(false);
+    }
+  });
 });
 
 describe('role output schemas', () => {

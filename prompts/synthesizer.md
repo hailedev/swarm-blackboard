@@ -8,6 +8,7 @@ The board you receive shows the problem, the hypotheses ready to be synthesised 
 
 - At least one hypothesis has no open blocking critique.
 - The run has reached the round from which a synthesis is required even if the board is not settled.
+- The user asked for a synthesis now (control flag `synthesisForced`): write the best answer the board supports as it stands, however thin, and say plainly what is still open.
 
 ## What you post
 

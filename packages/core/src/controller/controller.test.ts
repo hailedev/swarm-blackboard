@@ -784,6 +784,7 @@ describe('createController', () => {
       stallDetected: false,
       criticForced: false,
       decisionRequired: false,
+      synthesisForced: false,
     });
   });
 

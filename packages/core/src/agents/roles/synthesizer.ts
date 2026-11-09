@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
-import { eligible, notEligible, type RoleDefinition } from '../agent';
+import { eligible, mandatory, notEligible, type RoleDefinition } from '../agent';
 import { synthesisCandidates } from '../eligibility';
 
 /** Exactly one synthesis, linking only through `refs`. */
@@ -12,12 +12,14 @@ export const synthesizerOutputSchema = (refs: ReferenceSchemas) =>
 // from `synthesisFromRound` onwards regardless of board state (docs/PLAN.md §2.2). The
 // decision gate (contested hypotheses need a `decision` first) applies only before that
 // round: until Phase 5 nothing posts decisions, and the first real run showed the gate
-// otherwise starving the run of any answer until the round cap.
+// otherwise starving the run of any answer until the round cap. A synthesis the user asked
+// for (`synthesisForced`) overrides all of it for one round: whatever the board holds.
 export const synthesizer: RoleDefinition = {
   role: 'synthesizer',
   outputSchema: synthesizerOutputSchema,
   trigger(view, ctx) {
     const candidates = synthesisCandidates(view).map((h) => h.id);
+    if (ctx.flags.synthesisForced) return mandatory(candidates, 'forced by the user');
     if (ctx.round >= ctx.config.synthesisFromRound) {
       return eligible(
         95,

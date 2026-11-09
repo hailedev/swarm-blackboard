@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { eligible, notEligible } from '../agents/agent';
+import { eligible, mandatory, notEligible } from '../agents/agent';
 import { selectAgents, type Candidate } from './selection';
 
 const c = (agentId: string, priority: number | null): Candidate => ({
@@ -47,5 +47,25 @@ describe('selectAgents', () => {
       'critic',
       'solver',
     ]);
+  });
+
+  it('selects a mandatory agent first, whatever the priorities and the diversity rule say', () => {
+    const forced: Candidate = { agentId: 'synthesizer', trigger: mandatory([], 'forced') };
+    // Ahead of an equal priority earlier in the roster, and of a higher one.
+    expect(selectAgents([c('planner', 100), forced], 1, [])).toEqual(['synthesizer']);
+    expect(selectAgents([c('critic', 500), forced, c('solver', 70)], 2, [])).toEqual([
+      'synthesizer',
+      'critic',
+    ]);
+    // Selected in both previous rounds: anyone else would sit this one out.
+    const history = [['synthesizer'], ['synthesizer']];
+    expect(selectAgents([c('solver', 70), forced], 1, history)).toEqual(['synthesizer']);
+    expect(
+      selectAgents(
+        [c('solver', 70), { agentId: 'synthesizer', trigger: eligible(95, [], 'late') }],
+        1,
+        history,
+      ),
+    ).toEqual(['solver']);
   });
 });
