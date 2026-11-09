@@ -22,3 +22,24 @@ export const createConsoleLogger = (
     };
   return { debug: log('debug'), info: log('info'), warn: log('warn'), error: log('error') };
 };
+
+/** Controller warnings the CLI already renders from board events; printing them too would repeat them. */
+export const WARNINGS_RENDERED_FROM_EVENTS: ReadonlySet<string> = new Set([
+  'agent failed',
+  'agent output partly discarded',
+  'monthly budget warning',
+  'model call skipped: it cannot fit the cost cap',
+]);
+
+// What `pnpm solve` prints from the controller: warnings by default (for example the
+// input-token estimate undershooting), minus the ones the board rendering already shows;
+// everything from info up with --verbose.
+export const createCliLogger = (write: (line: string) => void, verbose: boolean): Logger => {
+  const base = createConsoleLogger(write, verbose ? 'info' : 'warn');
+  return {
+    ...base,
+    warn: (message, fields) => {
+      if (verbose || !WARNINGS_RENDERED_FROM_EVENTS.has(message)) base.warn(message, fields);
+    },
+  };
+};

@@ -44,7 +44,7 @@ import {
   type ModelCallTrace,
 } from '@team/providers';
 
-import { createConsoleLogger } from './adapters/console-logger';
+import { createCliLogger } from './adapters/console-logger';
 import { JsonlSpendLedger, spendRecordFromTrace } from './adapters/jsonl-spend-ledger';
 import { loadPromptFiles } from './adapters/prompt-files';
 import { loadRosterFile } from './adapters/roster-file';
@@ -407,8 +407,8 @@ export const main = async (
     store: new InMemoryBoardStore(),
     clock,
     ids: models.ids,
-    // Failures are rendered from events below; controller warnings would repeat them.
-    logger: createConsoleLogger(io.write.bind(io), values.verbose ? 'info' : 'error'),
+    // Failures are rendered from events below; the CLI logger skips those warnings.
+    logger: createCliLogger(io.write.bind(io), values.verbose),
     agents,
     periodBudget,
     profile: profile.value,

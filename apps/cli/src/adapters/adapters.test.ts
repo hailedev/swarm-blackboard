@@ -2,7 +2,7 @@ import { IdSchema } from '@team/core';
 import { ManualClock, TEST_EPOCH_MS } from '@team/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { createConsoleLogger } from './console-logger';
+import { createCliLogger, createConsoleLogger } from './console-logger';
 import { systemClock } from './system-clock';
 import { createUuidV7Generator } from './uuid-v7';
 
@@ -55,5 +55,24 @@ describe('createConsoleLogger', () => {
     logger.info('quiet');
     logger.warn('loud');
     expect(lines).toEqual(['[warn] loud']);
+  });
+});
+
+describe('createCliLogger', () => {
+  it('prints warnings the board rendering does not already show, and everything with --verbose', () => {
+    const quiet: string[] = [];
+    const logger = createCliLogger((line) => quiet.push(line), false);
+    logger.info('run started');
+    logger.warn('agent failed', { agentId: 'solver' });
+    logger.warn('input token estimate undershot by more than 20%', { estimated: 1, actual: 2 });
+    expect(quiet).toEqual([
+      '[warn] input token estimate undershot by more than 20% {"estimated":1,"actual":2}',
+    ]);
+
+    const loud: string[] = [];
+    const verbose = createCliLogger((line) => loud.push(line), true);
+    verbose.info('run started');
+    verbose.warn('agent failed', { agentId: 'solver' });
+    expect(loud).toEqual(['[info] run started', '[warn] agent failed {"agentId":"solver"}']);
   });
 });

@@ -76,6 +76,7 @@ describe('pnpm solve', () => {
     expect(text).toContain('Answer:');
     expect(text).not.toContain('Budget check');
     expect(text).not.toContain('[info]');
+    expect(text).not.toContain('[warn]');
     expect(text).not.toContain(' ! ');
   });
 
