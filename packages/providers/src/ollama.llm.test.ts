@@ -28,7 +28,7 @@ try {
   // no .env: rely on the environment
 }
 const baseUrl = process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434';
-const modelId = process.env['OLLAMA_TEST_MODEL'] ?? 'qwen3.6:35b-mlx';
+const modelId = process.env['OLLAMA_TEST_MODEL'] ?? 'qwen3.6:35b-a3b-q8_0';
 
 const reachable = await (async () => {
   try {

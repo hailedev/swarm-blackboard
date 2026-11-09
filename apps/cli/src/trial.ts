@@ -26,7 +26,7 @@ const USAGE = [
 const { values } = parseArgs({
   args: process.argv.slice(2),
   options: {
-    models: { type: 'string', default: 'qwen3.6:35b-mlx,qwen3.6:35b-a3b-q8_0,qwen3.8:27b' },
+    models: { type: 'string', default: 'qwen3.6:35b-a3b-q8_0,qwen3.8:27b,qwen3.6:35b-mlx' },
     roles: { type: 'string', default: 'researcher,solver' },
     reps: { type: 'string', default: '3' },
     out: { type: 'string' },

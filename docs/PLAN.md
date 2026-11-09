@@ -196,8 +196,8 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 - [x] Budget guardrails, core (`docs/budget-guardrails.md` §2, §3, §5): per-call reservation that shrinks `maxOutputTokens` to the 256-token floor or skips the call; price table schema and pure cost functions; usage with cache tokens; shared run-end reason enum with paused/failed states; `SpendLedger`/`PeriodBudget` with monthly refusal, pause and one `budget_warning`.
 - [x] Budget guardrails, providers (§2, §4): dated price table; `ProviderError` classification; retry with exponential backoff (3 attempts from 1 s); per-call tracing.
 - [x] Budget guardrails, CLI (§5, §8): `--profile`, `--yes`, `--max-cost`; confirmation banner; JSONL spend ledger in `data/spend.jsonl`; stale-price-table warning; `.env` loading.
-- [ ] Trial 2–3 local models; record results in an ADR.
-- [ ] Tests: provider contract tests (skipped without keys / Ollama); prompt snapshot tests; repair and fallback paths with `FakeModel`.
+- [x] Trial 2–3 local models; record results in an ADR (ADR-0008; `pnpm trial:local`).
+- [x] Tests: provider contract tests (skipped without keys / Ollama); prompt snapshot tests; repair and fallback paths with `FakeModel`.
 - **DoD:** the CLI solves a real problem end-to-end with the hybrid roster; full trace saved to JSON.
 
 ### Phase 3 — Persistence + server (~1–2 days)
@@ -286,7 +286,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 ## 10. Open questions
 
-- Which 2–3 local models to trial for the worker roles in Phase 2.
+- ~~Which 2–3 local models to trial for the worker roles in Phase 2.~~ Settled by ADR-0008.
 - Judge model and rubric format for the evals.
 - Whether bidding should run on a local model or Claude Haiku — decide on measured reliability in Phase 5.
 - Web search provider, when Phase 6 arrives.

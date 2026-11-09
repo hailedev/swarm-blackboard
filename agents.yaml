@@ -9,9 +9,10 @@ defaultProfile: dev
 models:
   sonnet: { provider: anthropic, model: claude-sonnet-5-5 }
   haiku: { provider: anthropic, model: claude-haiku-5-5 }
-  # Local model pending the Phase 2 trial (ADR-0008 will record the choice).
-  local: { provider: ollama, model: qwen3.6:35b-mlx, think: false }
-  local-think: { provider: ollama, model: qwen3.6:35b-mlx, think: true }
+  # Worker model chosen by the Phase 2 trial (ADR-0008). Thinking is off: on this model
+  # it was 7x slower and less link-valid. `local-think` stays for experiments.
+  local: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: false }
+  local-think: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: true }
 
 profiles:
   dev: # zero API spend; the default
@@ -19,7 +20,7 @@ profiles:
     roles:
       planner: local
       researcher: local
-      solver: local-think
+      solver: local
       critic: local
       synthesizer: local
       bidder: local
@@ -28,7 +29,7 @@ profiles:
     roles:
       planner: haiku
       researcher: local
-      solver: local-think
+      solver: local
       critic: haiku
       synthesizer: haiku
       bidder: haiku
@@ -37,7 +38,7 @@ profiles:
     roles:
       planner: haiku
       researcher: local
-      solver: local-think
+      solver: local
       critic: sonnet
       synthesizer: sonnet
       bidder: haiku

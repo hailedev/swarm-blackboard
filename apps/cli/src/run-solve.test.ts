@@ -119,7 +119,7 @@ describe('pnpm solve', () => {
       expect(code).toBe(2);
       expect(text).toContain('== Budget check: profile "cheap" ==');
       expect(text).toContain('planner       haiku        anthropic/claude-haiku-5-5');
-      expect(text).toContain('researcher    local        ollama/qwen3.6:35b-mlx  free');
+      expect(text).toContain('researcher    local        ollama/qwen3.6:35b-a3b-q8_0  free');
       expect(text).toContain('fallback      haiku        anthropic/claude-haiku-5-5');
       expect(text).toContain('per-run cap   $0.2500');
       expect(text).toContain('this month    $0.0000 of $5.00 (0%)');
@@ -273,7 +273,7 @@ describe('pnpm solve', () => {
         { OLLAMA_BASE_URL: url },
       );
       expect(code).toBe(2);
-      expect(lines[0]).toBe(`Checking Ollama at ${url} and warming qwen3.6:35b-mlx…`);
+      expect(lines[0]).toBe(`Checking Ollama at ${url} and warming qwen3.6:35b-a3b-q8_0…`);
       expect(lines[1]).toContain(`Ollama is unreachable at ${url} (`);
       expect(lines[1]).toContain('is the server awake and OLLAMA_BASE_URL right?');
       expect(lines.length).toBe(2);

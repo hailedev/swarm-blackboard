@@ -5,3 +5,6 @@ coverage/
 data/
 pnpm-lock.yaml
 *.md
+
+# Generated trial and eval results
+evals/results/
