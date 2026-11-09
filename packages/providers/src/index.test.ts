@@ -6,7 +6,17 @@ import { createFakeModel } from './index';
 describe('@team/providers', () => {
   it('exposes FakeModel from the provider layer', async () => {
     const model = createFakeModel({
-      script: [{ object: { inputTokens: 1, outputTokens: 2, costUsd: 0 } }],
+      script: [
+        {
+          object: {
+            inputTokens: 1,
+            outputTokens: 2,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            costUsd: 0,
+          },
+        },
+      ],
     });
     const result = await model.generateObject({
       schema: UsageSchema,
