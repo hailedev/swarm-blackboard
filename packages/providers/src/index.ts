@@ -54,6 +54,13 @@ export {
   probeOllamaFormat,
 } from './ollama-preflight';
 export { PRICE_TABLE, pricingFor } from './pricing';
+export type {
+  PreflightOverrides,
+  ProfileModels,
+  ProfileModelsError,
+  ProfileModelsOptions,
+} from './profile-models';
+export { createProfileModels, describeProfileModelsError, localTags } from './profile-models';
 export type { RetryPolicy } from './retry';
 export { backoffDelayMs, DEFAULT_RETRY_POLICY, withRetry } from './retry';
 export type { ModelCallTrace, TraceSink } from './trace';
