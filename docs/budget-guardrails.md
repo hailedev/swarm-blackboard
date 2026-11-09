@@ -26,46 +26,54 @@ defaultProfile: dev
 
 models:
   sonnet: { provider: anthropic, model: claude-sonnet-5-5 }
-  haiku:  { provider: anthropic, model: claude-haiku-5-5 }
-  local:  { provider: ollama, model: qwen3.6:35b-mlx, think: false }
-  local-think: { provider: ollama, model: qwen3.6:35b-mlx, think: true }
+  haiku: { provider: anthropic, model: claude-haiku-5-5 }
+  # Worker model chosen by the Phase 2 trial (ADR-0008). Thinking is off: on this model
+  # it was 7x slower and less link-valid. `local-think` stays for experiments.
+  local: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: false }
+  local-think: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: true }
+  # The MLX build of the same model: as valid as `local` once agents link by handle, and
+  # faster on long answers (ADR-0008, amendments). Only `dev` uses it until the Phase 5
+  # evals have compared the two on quality.
+  local-fast: { provider: ollama, model: qwen3.6:35b-mlx, think: false }
 
 profiles:
-  dev:                         # zero API spend; the default
-    fallback: none             # schema failure → repair once → discard and log
+  dev: # zero API spend; the default
+    fallback: none # schema failure → repair once → discard and log
     roles:
-      planner: local
-      researcher: local
-      solver: local-think
-      critic: local
-      synthesizer: local
-      bidder: local
-  cheap:                       # ~1–2 cents per run
+      planner: local-fast
+      researcher: local-fast
+      solver: local-fast
+      critic: local-fast
+      synthesizer: local-fast
+      bidder: local-fast
+  cheap: # ~1–2 cents per run
     fallback: haiku
     roles:
       planner: haiku
       researcher: local
-      solver: local-think
+      solver: local
       critic: haiku
       synthesizer: haiku
       bidder: haiku
-  quality:                     # ~15–25 cents per run
+  quality: # ~15–25 cents per run
     fallback: haiku
     roles:
       planner: haiku
       researcher: local
-      solver: local-think
+      solver: local
       critic: sonnet
       synthesizer: sonnet
       bidder: haiku
 
 agents:
-  planner:     { prompt: prompts/planner.md }
-  researcher:  { prompt: prompts/researcher.md }
-  solver:      { prompt: prompts/solver.md }
-  critic:      { prompt: prompts/critic.md }
+  planner: { prompt: prompts/planner.md }
+  researcher: { prompt: prompts/researcher.md }
+  solver: { prompt: prompts/solver.md }
+  critic: { prompt: prompts/critic.md }
   synthesizer: { prompt: prompts/synthesizer.md }
 ```
+
+This block is the file at the repository root as of 2026-11-10. An alias may also carry `numCtx` (context window to request from a local model) and `charsPerToken` (§2); no alias sets either today.
 
 Rules:
 

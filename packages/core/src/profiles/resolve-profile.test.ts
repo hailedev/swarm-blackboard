@@ -4,7 +4,8 @@ import { RosterSchema } from '../schemas/roster';
 
 import { describeRosterError, loadRoster, resolveProfile } from './resolve-profile';
 
-// Mirrors agents.yaml in docs/budget-guardrails.md §1.
+// A roster in the shape of agents.yaml (docs/budget-guardrails.md §1), not a copy of it:
+// here the Solver thinks and `quality` has no bidder, to exercise those paths.
 const roster = {
   defaultProfile: 'dev',
   models: {
