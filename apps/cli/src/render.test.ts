@@ -1,7 +1,15 @@
 import { BoardFixture } from '@team/core/testing';
+import type { RunProfile, RunSummary } from '@team/core';
 import { describe, expect, it } from 'vitest';
 
-import { renderBoard, renderFailure, renderRoundHeader, renderSummary, shortId } from './render';
+import {
+  renderBoard,
+  renderBudgetBanner,
+  renderFailure,
+  renderRoundHeader,
+  renderSummary,
+  shortId,
+} from './render';
 
 describe('renderBoard', () => {
   it('prints one lane per entry type with live entries and supersede counts', () => {
@@ -62,29 +70,101 @@ describe('headers and summary', () => {
     );
   });
 
+  const summary = (overrides: Partial<RunSummary>): RunSummary => {
+    const fx = new BoardFixture();
+    fx.problem();
+    return {
+      runId: fx.runId,
+      rounds: 4,
+      status: 'completed',
+      reason: 'completed',
+      totals: {
+        rounds: 4,
+        entries: 12,
+        usage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          costUsd: 0.0315,
+        },
+        elapsedMs: 42,
+      },
+      view: fx.view(),
+      ...overrides,
+    };
+  };
+
   it('summarises totals and the final answer', () => {
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
     fx.entry('synthesis', { version: 1, confidence: 0.9, cites: [] }, { content: 'The answer.' });
-    const lines = renderSummary({
-      runId: fx.runId,
-      rounds: 4,
-      reason: 'synthesis_confident',
-      totals: {
-        rounds: 4,
-        entries: 12,
-        usage: { inputTokens: 100, outputTokens: 50, costUsd: 0.0315 },
-        elapsedMs: 42,
-      },
-      view: fx.view(),
-    });
-    expect(lines).toEqual([
-      '== Done: synthesis_confident after 4 rounds ==',
+    expect(renderSummary(summary({ view: fx.view() }))).toEqual([
+      '== Done: completed after 4 rounds ==',
       'entries 12 | tokens 150 | cost $0.0315 | elapsed 42 ms',
       '',
       'Answer:',
       'The answer.',
     ]);
+  });
+
+  it('names paused and failed runs for what they are', () => {
+    expect(
+      renderSummary(summary({ status: 'paused', reason: 'monthly_budget', rounds: 1 }))[0],
+    ).toBe('== Paused: monthly_budget after 1 rounds ==');
+    expect(renderSummary(summary({ status: 'failed', reason: 'billing', rounds: 2 }))[0]).toBe(
+      '== Failed: billing after 2 rounds ==',
+    );
+  });
+});
+
+describe('renderBudgetBanner', () => {
+  const haiku = { alias: 'haiku', provider: 'anthropic' as const, model: 'claude-haiku-5-5' };
+  const sonnet = { alias: 'sonnet', provider: 'anthropic' as const, model: 'claude-sonnet-5-5' };
+  const local = {
+    alias: 'local',
+    provider: 'ollama' as const,
+    model: 'qwen3.6:35b-mlx',
+    think: false,
+  };
+  const quality: RunProfile = {
+    name: 'quality',
+    roles: {
+      planner: haiku,
+      researcher: local,
+      solver: { ...local, alias: 'local-think', think: true },
+      critic: sonnet,
+      synthesizer: sonnet,
+    },
+    bidder: haiku,
+    fallback: haiku,
+    paid: true,
+  };
+
+  it('matches the confirmation banner snapshot', () => {
+    expect(
+      renderBudgetBanner({
+        profile: quality,
+        maxCostUsd: 0.25,
+        month: { spentUsd: 1.2345, limitUsd: 5, warnAtFraction: 0.8 },
+        fake: false,
+      }).join('\n'),
+    ).toMatchSnapshot();
+  });
+
+  it('flags the warning fraction, a missing fallback and scripted stand-ins', () => {
+    const lines = renderBudgetBanner({
+      profile: { ...quality, bidder: null, fallback: null },
+      maxCostUsd: 0.1,
+      month: { spentUsd: 4, limitUsd: 5, warnAtFraction: 0.8 },
+      fake: true,
+    });
+    expect(lines).toContain('  fallback      none');
+    expect(lines).toContain(
+      '  this month    $4.0000 of $5.00 (80%)  ! past 80% of the monthly limit',
+    );
+    expect(lines.at(-1)).toBe('  --fake: scripted models stand in for these; nothing is billed.');
+    expect(lines.some((line) => line.startsWith('  bidder'))).toBe(false);
   });
 });

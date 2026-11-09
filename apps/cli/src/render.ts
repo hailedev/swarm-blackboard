@@ -1,4 +1,14 @@
-import { ENTRY_TYPES, type BoardView, type Entry, type RunSummary } from '@team/core';
+import {
+  AGENT_ROLES,
+  ENTRY_TYPES,
+  isPaidProvider,
+  type BoardView,
+  type Entry,
+  type ResolvedModel,
+  type RunProfile,
+  type RunStatus,
+  type RunSummary,
+} from '@team/core';
 
 export const shortId = (id: string): string => `#${id.slice(-4)}`;
 
@@ -63,14 +73,63 @@ export const renderRoundHeader = (round: number, selected: readonly string[]): s
 export const renderFailure = (agentId: string, reason: string, detail: string): string =>
   `  ! ${agentId} ${reason}: ${oneLine(detail, 160)}`;
 
+const HEADING: Record<RunStatus, string> = {
+  completed: 'Done',
+  failed: 'Failed',
+  paused: 'Paused',
+  stopped: 'Stopped',
+};
+
 export const renderSummary = (summary: RunSummary): string[] => {
   const { totals } = summary;
   const tokens = totals.usage.inputTokens + totals.usage.outputTokens;
   const lines = [
-    `== Done: ${summary.reason} after ${String(summary.rounds)} rounds ==`,
+    `== ${HEADING[summary.status]}: ${summary.reason} after ${String(summary.rounds)} rounds ==`,
     `entries ${String(totals.entries)} | tokens ${String(tokens)} | cost $${totals.usage.costUsd.toFixed(4)} | elapsed ${String(totals.elapsedMs)} ms`,
   ];
   const synthesis = summary.view.liveOfType('synthesis').at(-1);
   if (synthesis !== undefined) lines.push('', 'Answer:', synthesis.content);
+  return lines;
+};
+
+export interface BudgetBannerInput {
+  profile: RunProfile;
+  maxCostUsd: number;
+  month: { spentUsd: number; limitUsd: number; warnAtFraction: number };
+  /** Scripted models are standing in for the profile's models. */
+  fake: boolean;
+}
+
+const LABEL_WIDTH = 13;
+const ALIAS_WIDTH = 12;
+
+const modelRow = (label: string, model: ResolvedModel): string =>
+  `  ${label.padEnd(LABEL_WIDTH)} ${model.alias.padEnd(ALIAS_WIDTH)} ${model.provider}/${model.model}${model.think === true ? ' (think)' : ''}${isPaidProvider(model.provider) ? '' : '  free'}`;
+
+// What a paid profile will do before it does it (docs/budget-guardrails.md §5).
+export const renderBudgetBanner = ({
+  profile,
+  maxCostUsd,
+  month,
+  fake,
+}: BudgetBannerInput): string[] => {
+  const lines = [`== Budget check: profile "${profile.name}" ==`];
+  for (const role of AGENT_ROLES) lines.push(modelRow(role, profile.roles[role]));
+  if (profile.bidder !== null) lines.push(modelRow('bidder', profile.bidder));
+  lines.push(
+    profile.fallback === null
+      ? `  ${'fallback'.padEnd(LABEL_WIDTH)} none`
+      : modelRow('fallback', profile.fallback),
+  );
+  lines.push(`  ${'per-run cap'.padEnd(LABEL_WIDTH)} $${maxCostUsd.toFixed(4)}`);
+  const percent = month.limitUsd > 0 ? Math.round((month.spentUsd / month.limitUsd) * 100) : 100;
+  const warning =
+    month.spentUsd >= month.limitUsd * month.warnAtFraction
+      ? `  ! past ${String(Math.round(month.warnAtFraction * 100))}% of the monthly limit`
+      : '';
+  lines.push(
+    `  ${'this month'.padEnd(LABEL_WIDTH)} $${month.spentUsd.toFixed(4)} of $${month.limitUsd.toFixed(2)} (${String(percent)}%)${warning}`,
+  );
+  if (fake) lines.push('  --fake: scripted models stand in for these; nothing is billed.');
   return lines;
 };

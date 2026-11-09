@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderBudgetBanner > matches the confirmation banner snapshot 1`] = `
+"== Budget check: profile "quality" ==
+  planner       haiku        anthropic/claude-haiku-5-5
+  researcher    local        ollama/qwen3.6:35b-mlx  free
+  solver        local-think  ollama/qwen3.6:35b-mlx (think)  free
+  critic        sonnet       anthropic/claude-sonnet-5-5
+  synthesizer   sonnet       anthropic/claude-sonnet-5-5
+  bidder        haiku        anthropic/claude-haiku-5-5
+  fallback      haiku        anthropic/claude-haiku-5-5
+  per-run cap   $0.2500
+  this month    $1.2345 of $5.00 (25%)"
+`;
