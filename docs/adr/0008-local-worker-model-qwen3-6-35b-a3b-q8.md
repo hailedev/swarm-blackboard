@@ -3,6 +3,7 @@
 - **Status:** accepted
 - **Date:** 2026-11-09
 - **Amended:** 2026-11-09, re-run after agents moved to handles (section at the end); the decision stands, the ranking does not
+- **Amended:** 2026-11-10, alias `local-fast` (`qwen3.6:35b-mlx`) for the `dev` profile (last section); `local` and the paid profiles are unchanged
 
 ## Context
 
@@ -113,3 +114,18 @@ The hardening pass after Phase 2 made models reference entries by short handles 
 - **The ranking is now decided by speed alone**, and there `qwen3.6:35b-mlx` leads: 9.9 s median against 15.1 s for the current `local` alias, with the same validity. The first trial's objection to the MLX build (link validity) no longer holds.
 - **Thinking still buys nothing here.** With thinking on, every model stays valid and link-valid but takes 7–10× longer; the Solver stays on `think: false`.
 - **The decision recorded above stands until Hai chooses otherwise.** `agents.yaml` keeps `local: qwen3.6:35b-a3b-q8_0`; switching `local` to `qwen3.6:35b-mlx` is a one-line change that this amendment supports but does not make. Reasoning quality was not measured in either trial; the Phase 5 evals are the place to compare the two on that.
+
+## Amendment, 2026-11-10: `local-fast` for the `dev` profile
+
+Hai's choice, on the numbers of the amendment above: the faster build goes where speed is all that is at stake, and nowhere else yet.
+
+- **New alias.** `agents.yaml` gains `local-fast: { provider: ollama, model: qwen3.6:35b-mlx, think: false }`.
+- **`dev` runs on it.** Every role of the `dev` profile (planner, researcher, solver, critic, synthesizer, bidder) uses `local-fast`. `dev` is the default profile and the one the web UI is developed against, so its turnaround matters most. In the handle re-run above the MLX build was as valid and as link-valid as `local` (100 % in every cell) and took 9.9 s against 15.1 s for the median researcher call; on the short solver answers the two were level (6.1 s against 5.5 s, with the MLX build writing 415 output tokens to 226).
+- **`local` is unchanged.** It stays `qwen3.6:35b-a3b-q8_0`, and the worker roles of `cheap` and `quality` stay on it. Those are the profiles whose answers are kept and paid for, and neither trial measured reasoning quality; the Phase 5 evals compare the two builds on that before a paid profile moves.
+- **`local-think` is unchanged** and still used by no profile.
+
+Consequences:
+
+- `+` A `dev` run spends about a third less time on its longer local calls, at no measured cost in validity.
+- `−` `dev` and the paid profiles no longer share a worker model, so a `dev` run is not a rehearsal of the local half of a `cheap` run; a prompt change should be checked on the profile it is meant for.
+- `−` A machine that runs both `dev` and a paid profile keeps two builds of the model resident. The Q8 build alone is 38.7 GB of the Mac mini's 64 GB; the size of the MLX build was not recorded in either trial, so whether both stay loaded together is something to watch in `ollama ps`, not something this record can promise.

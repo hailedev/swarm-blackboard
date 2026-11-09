@@ -29,6 +29,27 @@ describe('loadRosterFile', () => {
     ).toBe(true);
   });
 
+  it('keeps the fast local build to dev and the trialled one to the paid profiles', async () => {
+    // ADR-0008, amendment of 2026-11-10: `dev` runs on `local-fast`; the worker roles of
+    // `cheap` and `quality` stay on `local` until the Phase 5 evals compare the two.
+    const result = await loadRosterFile(REPO_AGENTS_YAML);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const { models, profiles } = result.value;
+    expect(models['local-fast']).toEqual({
+      provider: 'ollama',
+      model: 'qwen3.6:35b-mlx',
+      think: false,
+    });
+    expect(models['local']?.model).toBe('qwen3.6:35b-a3b-q8_0');
+    expect(new Set(Object.values(profiles['dev']?.roles ?? {}))).toEqual(new Set(['local-fast']));
+    for (const name of ['cheap', 'quality']) {
+      expect(profiles[name]?.roles.researcher).toBe('local');
+      expect(profiles[name]?.roles.solver).toBe('local');
+      expect(Object.values(profiles[name]?.roles ?? {})).not.toContain('local-fast');
+    }
+  });
+
   it('reports a missing file, a syntax error and a roster rule as one line each', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'swarm-roster-'));
     tempDirs.push(dir);

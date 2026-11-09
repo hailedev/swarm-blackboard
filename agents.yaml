@@ -13,17 +13,21 @@ models:
   # it was 7x slower and less link-valid. `local-think` stays for experiments.
   local: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: false }
   local-think: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: true }
+  # The MLX build of the same model: as valid as `local` once agents link by handle, and
+  # faster on long answers (ADR-0008, amendments). Only `dev` uses it until the Phase 5
+  # evals have compared the two on quality.
+  local-fast: { provider: ollama, model: qwen3.6:35b-mlx, think: false }
 
 profiles:
   dev: # zero API spend; the default
     fallback: none # schema failure → repair once → discard and log
     roles:
-      planner: local
-      researcher: local
-      solver: local
-      critic: local
-      synthesizer: local
-      bidder: local
+      planner: local-fast
+      researcher: local-fast
+      solver: local-fast
+      critic: local-fast
+      synthesizer: local-fast
+      bidder: local-fast
   cheap: # ~1–2 cents per run
     fallback: haiku
     roles:
