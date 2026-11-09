@@ -9,12 +9,14 @@ import { synthesizer } from './roles/synthesizer';
 
 export const roleDefinitions = { planner, researcher, solver, critic, synthesizer } as const;
 
-// Which model backs which role is configuration (agents.yaml, ADR-0009); the roster
-// only binds the models it is handed. The fallback is one model for the whole profile.
+// Which model backs which role is configuration (agents.yaml, ADR-0009), and the role
+// prompts are documents the host loads from prompts/; the roster only binds what it is
+// handed. The fallback is one model for the whole profile.
 export const createDefaultAgents = (
   models: Readonly<Record<AgentRole, Model>>,
+  prompts: Readonly<Record<AgentRole, string>>,
   fallback?: Model,
 ): Agent[] =>
   (Object.keys(roleDefinitions) as AgentRole[]).map((role) =>
-    createRoleAgent(roleDefinitions[role], { model: models[role], fallback }),
+    createRoleAgent(roleDefinitions[role], { model: models[role], fallback }, prompts[role]),
   );

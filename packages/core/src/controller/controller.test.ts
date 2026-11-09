@@ -24,6 +24,7 @@ import type { BoardEvent } from '../schemas/event';
 import type { RunProfile } from '../schemas/roster';
 import { FakeSpendLedger } from '../testing/fake-spend-ledger';
 import { ManualClock } from '../testing/manual-clock';
+import { testRolePrompts } from '../testing/role-prompts';
 import {
   createScriptedModels,
   SCENARIO_CALL_COST_USD,
@@ -117,7 +118,7 @@ const scripted = (overrides: Partial<ControllerDeps> = {}, pricing: ScenarioPric
     if (ref.controller === undefined) throw new Error('controller not ready');
     return ref.controller.currentView();
   }, pricing);
-  const h = harness(createDefaultAgents(models), overrides);
+  const h = harness(createDefaultAgents(models, testRolePrompts()), overrides);
   ref.controller = h.controller;
   return { ...h, models };
 };
@@ -258,7 +259,7 @@ describe('createController', () => {
       if (ref.controller === undefined) throw new Error('not ready');
       return ref.controller.currentView();
     });
-    const h = harness(createDefaultAgents(models), {
+    const h = harness(createDefaultAgents(models, testRolePrompts()), {
       clock,
       onEvent: (event) => {
         if (event.type === 'round_completed') clock.advance(6 * 60_000);
@@ -456,7 +457,9 @@ describe('createController', () => {
                 usage: { inputTokens: 300, outputTokens: 60 },
               },
       });
-      const { controller, events } = harness([createRoleAgent(planner, { model })]);
+      const { controller, events } = harness([
+        createRoleAgent(planner, { model }, testRolePrompts().planner),
+      ]);
       await controller.start({ content: 'P' });
       const report = await controller.runRound();
       expect(report.ok && report.value.failures).toEqual([]);
@@ -787,7 +790,11 @@ describe('createController', () => {
 describe('createController: exhausted scripts', () => {
   it('reports an exhausted script as an agent failure and keeps the run alive', async () => {
     const { controller } = harness([
-      createRoleAgent(planner, { model: createFakeModel({ script: [] }) }),
+      createRoleAgent(
+        planner,
+        { model: createFakeModel({ script: [] }) },
+        testRolePrompts().planner,
+      ),
     ]);
     await controller.start({ content: 'P' });
     const report = await controller.runRound();

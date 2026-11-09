@@ -33,6 +33,7 @@ import { createFakeModel, PRICE_TABLE, pricingFor, traceModel } from '@team/prov
 
 import { createConsoleLogger } from './adapters/console-logger';
 import { JsonlSpendLedger, spendRecordFromTrace } from './adapters/jsonl-spend-ledger';
+import { loadPromptFiles } from './adapters/prompt-files';
 import { loadRosterFile } from './adapters/roster-file';
 import { systemClock } from './adapters/system-clock';
 import { monthlyBudgetFromEnv, type Env } from './budget-env';
@@ -202,6 +203,11 @@ export const main = async (
     io.write(describeRosterError(profile.error));
     return 2;
   }
+  const prompts = await loadPromptFiles(roster.value, values.roster);
+  if (!prompts.ok) {
+    io.write(prompts.error);
+    return 2;
+  }
   if (!values.fake) {
     io.write(
       `Real model adapters arrive later in Phase 2. Run with --fake to let scripted models stand in for profile "${profile.value.name}".`,
@@ -303,7 +309,7 @@ export const main = async (
             script: () => ({ object: { contributions: [] }, usage: SCENARIO_TOKENS }),
           }),
         );
-  const agents = createDefaultAgents(roleModels, fallback);
+  const agents = createDefaultAgents(roleModels, prompts.value, fallback);
 
   const events: BoardEvent[] = [];
   const controller = createController({

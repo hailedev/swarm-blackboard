@@ -2,7 +2,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { AGENT_ROLES, type Roster } from '@team/core';
+import { AGENT_ROLES, renderAgentPrompt, type Roster } from '@team/core';
+import { agentContext, midRunBoard } from '@team/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { loadPromptFiles } from './prompt-files';
@@ -55,5 +56,26 @@ describe('loadPromptFiles', () => {
     await writeFile(join(dir, 'empty.md'), '  \n');
     const empty = await loadPromptFiles(rosterNaming('empty.md'), rosterPath);
     expect(!empty.ok && empty.error).toMatch(/^the planner prompt at .*empty\.md is empty$/);
+  });
+});
+
+// The real prompt files are prompt inputs too: a change to any of them shows up as a
+// snapshot diff and is reviewed deliberately.
+describe('role prompt snapshots', () => {
+  it('snapshots each role prompt as the system prompt of a rendered call', async () => {
+    const roster = await loadRosterFile(REPO_AGENTS_YAML);
+    if (!roster.ok) throw new Error(roster.error);
+    const prompts = await loadPromptFiles(roster.value, REPO_AGENTS_YAML);
+    if (!prompts.ok) throw new Error(prompts.error);
+    const { fx } = midRunBoard();
+    for (const role of AGENT_ROLES) {
+      const { system } = renderAgentPrompt(
+        role,
+        fx.view(),
+        agentContext({ runId: fx.runId, round: 4 }),
+        prompts.value[role],
+      );
+      expect(system).toMatchSnapshot(role);
+    }
   });
 });

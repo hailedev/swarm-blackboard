@@ -105,13 +105,17 @@ const reject = (error: CallError): Result<AgentResult, AgentError> => err({ kind
 // on the same model → the profile's fallback model → discard. Only schema failures take
 // this path. Provider errors are classified by the provider layer and decided by the
 // controller; retrying or falling back on them here would spend money blindly.
-export const createRoleAgent = (definition: RoleDefinition, models: RoleModels): Agent => ({
+export const createRoleAgent = (
+  definition: RoleDefinition,
+  models: RoleModels,
+  rolePrompt: string,
+): Agent => ({
   id: definition.role,
   role: definition.role,
   outputSchema: definition.outputSchema,
   trigger: (view, ctx) => definition.trigger(view, ctx),
   async act(view, ctx) {
-    const { system, prompt } = renderAgentPrompt(definition.role, view, ctx);
+    const { system, prompt } = renderAgentPrompt(definition.role, view, ctx, rolePrompt);
     const request: ModelRequest<AgentOutput> = {
       schema: definition.outputSchema,
       system,

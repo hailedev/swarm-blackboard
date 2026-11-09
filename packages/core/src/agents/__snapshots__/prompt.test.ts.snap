@@ -1,0 +1,362 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderAgentPrompt snapshots > renders the fresh board for the planner and the late board for the synthesizer 1`] = `
+"Round 1 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Entries in focus
+(none)
+
+# Rest of the board
+(nothing else)
+
+# Your targets
+00000000-0000-7000-8000-000000000002
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;
+
+exports[`renderAgentPrompt snapshots > renders the fresh board for the planner and the late board for the synthesizer 2`] = `
+"Round 5 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Human notes
+- 00000000-0000-7000-8000-000000000017 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# Entries in focus
+## [hypothesis] 00000000-0000-7000-8000-00000000001a (target)
+round 4, by solver, supersedes 00000000-0000-7000-8000-00000000000c
+parents: 00000000-0000-7000-8000-000000000007, 00000000-0000-7000-8000-00000000000e, 00000000-0000-7000-8000-000000000015
+confidence=0.75 supportedBy=00000000-0000-7000-8000-00000000000e,00000000-0000-7000-8000-000000000015 contradictedBy=-
+Consolidate into one pnpm workspace, migrating one service per sprint, but keep the three deploy pipelines separate and add task-level remote caching so CI only rebuilds what changed. This answers the CI-time critique and respects the human note.
+
+## [synthesis] 00000000-0000-7000-8000-000000000020
+round 4, by synthesizer
+parents: 00000000-0000-7000-8000-00000000001a, 00000000-0000-7000-8000-00000000000e, 00000000-0000-7000-8000-000000000015
+version=1 confidence=0.6 cites=00000000-0000-7000-8000-00000000001a,00000000-0000-7000-8000-00000000000e,00000000-0000-7000-8000-000000000015
+Recommendation: move to a single pnpm workspace one service per sprint, keeping the deploy pipelines independent and adding remote caching. Main risk: the effort estimate is unverified. Open: release cadence per service.
+
+## [critique] 00000000-0000-7000-8000-00000000001e
+round 4, by critic
+parents: 00000000-0000-7000-8000-00000000001a
+target=00000000-0000-7000-8000-00000000001a severity=minor
+The two-week effort figure is asserted, not estimated; a per-service breakdown would make it checkable.
+
+## [evidence] 00000000-0000-7000-8000-000000000015
+round 3, by researcher
+parents: 00000000-0000-7000-8000-000000000007, 00000000-0000-7000-8000-00000000000c
+source=general knowledge supports=00000000-0000-7000-8000-00000000000c contradicts=-
+pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+
+## [evidence] 00000000-0000-7000-8000-00000000000e
+round 2, by researcher
+parents: 00000000-0000-7000-8000-000000000005
+source=repository audit, October 2026 supports=00000000-0000-7000-8000-00000000000c contradicts=-
+Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on separate dates in each of the last four months.
+
+## [subproblem] 00000000-0000-7000-8000-000000000007
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+status=open
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+
+# Rest of the board
+[subproblem] 00000000-0000-7000-8000-00000000001c r4 by solver: Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.; status=done
+[critique] 00000000-0000-7000-8000-000000000013 r3 by critic: No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and th…; target=00000000-0000-7000-8000-00000000000c severity=major
+[question] 00000000-0000-7000-8000-000000000009 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
+
+# Your targets
+00000000-0000-7000-8000-00000000001a
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;
+
+exports[`renderAgentPrompt snapshots > renders the mid-run board for the critic 1`] = `
+"Round 4 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Human notes
+- 00000000-0000-7000-8000-000000000017 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# Entries in focus
+## [hypothesis] 00000000-0000-7000-8000-00000000000c (target)
+round 2, by solver
+parents: 00000000-0000-7000-8000-000000000005, 00000000-0000-7000-8000-000000000007
+confidence=0.55 supportedBy=- contradictedBy=-
+Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. Shared tooling removes the drift, and the migration fits in two weeks if the deploy pipelines stay as they are.
+
+## [evidence] 00000000-0000-7000-8000-000000000015
+round 3, by researcher
+parents: 00000000-0000-7000-8000-000000000007, 00000000-0000-7000-8000-00000000000c
+source=general knowledge supports=00000000-0000-7000-8000-00000000000c contradicts=-
+pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+
+## [critique] 00000000-0000-7000-8000-000000000013
+round 3, by critic
+parents: 00000000-0000-7000-8000-00000000000c
+target=00000000-0000-7000-8000-00000000000c severity=major
+No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and the hypothesis does not say how it avoids that.
+
+## [subproblem] 00000000-0000-7000-8000-000000000010
+round 2, by solver, supersedes 00000000-0000-7000-8000-000000000005
+parents: 00000000-0000-7000-8000-000000000002
+status=claimed
+Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.
+
+## [evidence] 00000000-0000-7000-8000-00000000000e
+round 2, by researcher
+parents: 00000000-0000-7000-8000-000000000005
+source=repository audit, October 2026 supports=00000000-0000-7000-8000-00000000000c contradicts=-
+Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on separate dates in each of the last four months.
+
+## [subproblem] 00000000-0000-7000-8000-000000000007
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+status=open
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+
+# Rest of the board
+[question] 00000000-0000-7000-8000-000000000009 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
+
+# Your targets
+00000000-0000-7000-8000-00000000000c
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;
+
+exports[`renderAgentPrompt snapshots > renders the mid-run board for the planner 1`] = `
+"Round 4 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Human notes
+- 00000000-0000-7000-8000-000000000017 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# Entries in focus
+## [subproblem] 00000000-0000-7000-8000-000000000010
+round 2, by solver, supersedes 00000000-0000-7000-8000-000000000005
+parents: 00000000-0000-7000-8000-000000000002
+status=claimed
+Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.
+
+## [question] 00000000-0000-7000-8000-000000000009
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+open
+Which of the three services releases most often, and does it share code with the others?
+
+## [subproblem] 00000000-0000-7000-8000-000000000007
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+status=open
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+
+# Rest of the board
+[evidence] 00000000-0000-7000-8000-000000000015 r3 by researcher: pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged pac…; source=general knowledge supports=00000000-0000-7000-8000-00000000000c contradicts=-
+[critique] 00000000-0000-7000-8000-000000000013 r3 by critic: No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and th…; target=00000000-0000-7000-8000-00000000000c severity=major
+[evidence] 00000000-0000-7000-8000-00000000000e r2 by researcher: Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on s…; source=repository audit, October 2026 supports=00000000-0000-7000-8000-00000000000c contradicts=-
+[hypothesis] 00000000-0000-7000-8000-00000000000c r2 by solver: Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. S…; confidence=0.55 supportedBy=- contradictedBy=-
+
+# Your targets
+(none: act on the board as a whole)
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;
+
+exports[`renderAgentPrompt snapshots > renders the mid-run board for the researcher 1`] = `
+"Round 4 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Human notes
+- 00000000-0000-7000-8000-000000000017 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# Entries in focus
+## [subproblem] 00000000-0000-7000-8000-000000000007 (target)
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+status=open
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+
+## [evidence] 00000000-0000-7000-8000-000000000015
+round 3, by researcher
+parents: 00000000-0000-7000-8000-000000000007, 00000000-0000-7000-8000-00000000000c
+source=general knowledge supports=00000000-0000-7000-8000-00000000000c contradicts=-
+pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+
+## [hypothesis] 00000000-0000-7000-8000-00000000000c
+round 2, by solver
+parents: 00000000-0000-7000-8000-000000000005, 00000000-0000-7000-8000-000000000007
+confidence=0.55 supportedBy=- contradictedBy=-
+Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. Shared tooling removes the drift, and the migration fits in two weeks if the deploy pipelines stay as they are.
+
+# Rest of the board
+[critique] 00000000-0000-7000-8000-000000000013 r3 by critic: No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and th…; target=00000000-0000-7000-8000-00000000000c severity=major
+[subproblem] 00000000-0000-7000-8000-000000000010 r2 by solver: Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.; status=claimed
+[evidence] 00000000-0000-7000-8000-00000000000e r2 by researcher: Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on s…; source=repository audit, October 2026 supports=00000000-0000-7000-8000-00000000000c contradicts=-
+[question] 00000000-0000-7000-8000-000000000009 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
+
+# Your targets
+00000000-0000-7000-8000-000000000007
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;
+
+exports[`renderAgentPrompt snapshots > renders the mid-run board for the solver 1`] = `
+"Round 4 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Human notes
+- 00000000-0000-7000-8000-000000000017 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# Entries in focus
+## [subproblem] 00000000-0000-7000-8000-000000000007 (target)
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+status=open
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+
+## [evidence] 00000000-0000-7000-8000-000000000015
+round 3, by researcher
+parents: 00000000-0000-7000-8000-000000000007, 00000000-0000-7000-8000-00000000000c
+source=general knowledge supports=00000000-0000-7000-8000-00000000000c contradicts=-
+pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+
+## [hypothesis] 00000000-0000-7000-8000-00000000000c
+round 2, by solver
+parents: 00000000-0000-7000-8000-000000000005, 00000000-0000-7000-8000-000000000007
+confidence=0.55 supportedBy=- contradictedBy=-
+Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. Shared tooling removes the drift, and the migration fits in two weeks if the deploy pipelines stay as they are.
+
+# Rest of the board
+[critique] 00000000-0000-7000-8000-000000000013 r3 by critic: No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and th…; target=00000000-0000-7000-8000-00000000000c severity=major
+[subproblem] 00000000-0000-7000-8000-000000000010 r2 by solver: Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.; status=claimed
+[evidence] 00000000-0000-7000-8000-00000000000e r2 by researcher: Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on s…; source=repository audit, October 2026 supports=00000000-0000-7000-8000-00000000000c contradicts=-
+[question] 00000000-0000-7000-8000-000000000009 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
+
+# Your targets
+00000000-0000-7000-8000-000000000007
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;
+
+exports[`renderAgentPrompt snapshots > renders the mid-run board for the synthesizer 1`] = `
+"Round 4 of 12.
+
+# Problem (id: 00000000-0000-7000-8000-000000000002)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+- A recommendation that names the main risk
+- Evidence cited for the effort estimate
+
+# Human notes
+- 00000000-0000-7000-8000-000000000017 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# Entries in focus
+## [hypothesis] 00000000-0000-7000-8000-00000000000c (target)
+round 2, by solver
+parents: 00000000-0000-7000-8000-000000000005, 00000000-0000-7000-8000-000000000007
+confidence=0.55 supportedBy=- contradictedBy=-
+Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. Shared tooling removes the drift, and the migration fits in two weeks if the deploy pipelines stay as they are.
+
+## [evidence] 00000000-0000-7000-8000-000000000015
+round 3, by researcher
+parents: 00000000-0000-7000-8000-000000000007, 00000000-0000-7000-8000-00000000000c
+source=general knowledge supports=00000000-0000-7000-8000-00000000000c contradicts=-
+pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+
+## [critique] 00000000-0000-7000-8000-000000000013
+round 3, by critic
+parents: 00000000-0000-7000-8000-00000000000c
+target=00000000-0000-7000-8000-00000000000c severity=major
+No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and the hypothesis does not say how it avoids that.
+
+## [subproblem] 00000000-0000-7000-8000-000000000010
+round 2, by solver, supersedes 00000000-0000-7000-8000-000000000005
+parents: 00000000-0000-7000-8000-000000000002
+status=claimed
+Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.
+
+## [evidence] 00000000-0000-7000-8000-00000000000e
+round 2, by researcher
+parents: 00000000-0000-7000-8000-000000000005
+source=repository audit, October 2026 supports=00000000-0000-7000-8000-00000000000c contradicts=-
+Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on separate dates in each of the last four months.
+
+## [subproblem] 00000000-0000-7000-8000-000000000007
+round 1, by planner
+parents: 00000000-0000-7000-8000-000000000002
+status=open
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+
+# Rest of the board
+[question] 00000000-0000-7000-8000-000000000009 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
+
+# Your targets
+00000000-0000-7000-8000-00000000000c
+
+Return JSON matching the schema. Reference entries only by ids shown above, copied exactly."
+`;

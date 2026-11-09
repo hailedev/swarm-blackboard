@@ -1,4 +1,5 @@
 import { isoFromMs } from '../ports/clock';
+import type { IdGenerator } from '../ports/ids';
 import { buildBoardView, type BoardView } from '../board/board-view';
 import { zeroUsage, type EntryStatus, type Usage } from '../schemas/common';
 import { EntrySchema, type EntryOf } from '../schemas/entry';
@@ -17,14 +18,16 @@ export interface EntryOverrides {
 }
 
 // Builds a valid event log by hand for tests: entries are validated against
-// EntrySchema, ids are sequential, and the view can be materialised at any point.
+// EntrySchema, ids are sequential unless a generator is supplied (the local-model trial
+// passes real UUID v7s), and the view can be materialised at any point.
 export class BoardFixture {
-  readonly ids = new SequentialIdGenerator();
+  readonly ids: IdGenerator;
   readonly runId: string;
   readonly events: BoardEvent[] = [];
   round = 0;
 
-  constructor() {
+  constructor(ids: IdGenerator = new SequentialIdGenerator()) {
+    this.ids = ids;
     this.runId = this.ids.next();
   }
 

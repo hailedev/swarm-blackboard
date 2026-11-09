@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { createFakeModel, type FakeResponse } from '../model/fake-model';
 import { agentContext } from '../testing/agent-context';
 import { BoardFixture } from '../testing/board-fixture';
+import { testRolePrompts } from '../testing/role-prompts';
 import { createRoleAgent } from './agent';
 import { planner } from './roles/planner';
+
+const PROMPT = testRolePrompts().planner;
 
 const board = () => {
   const fx = new BoardFixture();
@@ -35,7 +38,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
   it('repairs once on the same model, telling it what was wrong', async () => {
     const { fx, problem } = board();
     const model = createFakeModel({ script: [invalid, valid(problem.id)] });
-    const agent = createRoleAgent(planner, { model });
+    const agent = createRoleAgent(planner, { model }, PROMPT);
 
     const result = await agent.act(fx.view(), agentContext({ runId: fx.runId, round: 1 }));
 
@@ -45,7 +48,8 @@ describe('createRoleAgent: repair → fallback → discard', () => {
     expect(repair?.prompt).toContain('# Your previous answer was rejected');
     expect(repair?.prompt).toContain('contributions.0.payload.status');
     expect(repair?.prompt).toContain('"status":"later"');
-    expect(repair?.system).toBe(model.calls[0]?.request.system);
+    expect(repair?.system).toBe(PROMPT);
+    expect(model.calls[0]?.request.system).toBe(PROMPT);
     expect(repair?.maxOutputTokens).toBe(4096);
   });
 
@@ -53,7 +57,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
     const { fx, problem } = board();
     const model = createFakeModel({ id: 'local', script: [invalid, invalid] });
     const fallback = createFakeModel({ id: 'haiku', script: [valid(problem.id)] });
-    const agent = createRoleAgent(planner, { model, fallback });
+    const agent = createRoleAgent(planner, { model, fallback }, PROMPT);
 
     const result = await agent.act(fx.view(), agentContext({ runId: fx.runId }));
 
@@ -66,7 +70,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
   it('discards the output when there is no fallback', async () => {
     const { fx } = board();
     const model = createFakeModel({ script: [invalid, invalid] });
-    const result = await createRoleAgent(planner, { model }).act(fx.view(), agentContext());
+    const result = await createRoleAgent(planner, { model }, PROMPT).act(fx.view(), agentContext());
     expect(!result.ok && result.error.error.kind).toBe('invalid_output');
     expect(model.calls.length).toBe(2);
   });
@@ -75,7 +79,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
     const { fx } = board();
     const model = createFakeModel({ script: [invalid, invalid] });
     const fallback = createFakeModel({ script: [invalid] });
-    const result = await createRoleAgent(planner, { model, fallback }).act(
+    const result = await createRoleAgent(planner, { model, fallback }, PROMPT).act(
       fx.view(),
       agentContext(),
     );
@@ -93,7 +97,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
     const { fx } = board();
     const model = createFakeModel({ script: [{ error }] });
     const fallback = createFakeModel({ script: [] });
-    const result = await createRoleAgent(planner, { model, fallback }).act(
+    const result = await createRoleAgent(planner, { model, fallback }, PROMPT).act(
       fx.view(),
       agentContext(),
     );
@@ -108,7 +112,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
       script: [invalid, { error: { kind: 'overloaded', message: '529', attempts: 3 } }],
     });
     const fallback = createFakeModel({ script: [] });
-    const result = await createRoleAgent(planner, { model, fallback }).act(
+    const result = await createRoleAgent(planner, { model, fallback }, PROMPT).act(
       fx.view(),
       agentContext(),
     );
@@ -127,7 +131,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
           error: { kind: 'budget_exhausted' as const, remainingUsd: 0.001, worstCaseUsd: 0.002 },
         }),
     };
-    const result = await createRoleAgent(planner, { model, fallback }).act(
+    const result = await createRoleAgent(planner, { model, fallback }, PROMPT).act(
       fx.view(),
       agentContext({ models: refusing }),
     );

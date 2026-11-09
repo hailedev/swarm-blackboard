@@ -12,6 +12,8 @@ export type {
   Trigger,
 } from './agent';
 export { createRoleAgent, eligible, notEligible } from './agent';
+export type { AgentView, FocusEntry } from './agent-view';
+export { buildAgentView, digestLine, payloadDigest } from './agent-view';
 export * from './eligibility';
 export type { RenderedPrompt } from './prompt';
 export { renderAgentPrompt, renderRepairPrompt } from './prompt';

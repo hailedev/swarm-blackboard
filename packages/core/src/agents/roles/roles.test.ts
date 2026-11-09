@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { testRolePrompts } from '../../testing/role-prompts';
+
+const PROMPTS = testRolePrompts();
+
 import { createFakeModel } from '../../model/fake-model';
 import { agentContext } from '../../testing/agent-context';
 import { BoardFixture } from '../../testing/board-fixture';
@@ -174,7 +178,7 @@ describe('createRoleAgent', () => {
         },
       ],
     });
-    const agent = createRoleAgent(planner, { model });
+    const agent = createRoleAgent(planner, { model }, PROMPTS.planner);
     const result = await agent.act(fx.view(), agentContext({ runId: fx.runId, round: 1 }));
     expect(agent.id).toBe('planner');
     expect(result.ok && result.value.contributions.map((c) => c.content)).toEqual(['Part A']);
@@ -189,7 +193,10 @@ describe('createRoleAgent', () => {
     const model = createFakeModel({
       script: [{ error: { kind: 'network', message: 'offline', attempts: 1 } }],
     });
-    const result = await createRoleAgent(critic, { model }).act(fx.view(), agentContext());
+    const result = await createRoleAgent(critic, { model }, PROMPTS.critic).act(
+      fx.view(),
+      agentContext(),
+    );
     expect(!result.ok && result.error).toEqual({
       kind: 'model',
       error: { kind: 'network', message: 'offline', attempts: 1 },
@@ -208,7 +215,10 @@ describe('createRoleAgent', () => {
     };
     // Rejected on the first answer and again on the repair attempt.
     const model = createFakeModel({ script: [proposal, proposal] });
-    const result = await createRoleAgent(critic, { model }).act(fx.view(), agentContext());
+    const result = await createRoleAgent(critic, { model }, PROMPTS.critic).act(
+      fx.view(),
+      agentContext(),
+    );
     expect(!result.ok && result.error.error.kind).toBe('invalid_output');
     expect(model.calls.map((c) => c.outcome)).toEqual(['invalid_output', 'invalid_output']);
   });

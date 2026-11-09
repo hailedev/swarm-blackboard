@@ -14,6 +14,22 @@ describe('RunConfigSchema', () => {
       synthesisThreshold: 0.8,
       synthesisFromRound: 8,
       stallRounds: 2,
+      view: {
+        maxFocusEntries: 20,
+        maxFocusChars: 12_000,
+        maxEntryChars: 1_000,
+        maxSummaryChars: 4_000,
+      },
+    });
+  });
+
+  it('fills the nested view defaults around a partial override', () => {
+    const config = RunConfigSchema.parse({ view: { maxFocusChars: 100 } });
+    expect(config.view).toEqual({
+      maxFocusEntries: 20,
+      maxFocusChars: 100,
+      maxEntryChars: 1_000,
+      maxSummaryChars: 4_000,
     });
   });
 
@@ -34,6 +50,7 @@ describe('RunConfigSchema', () => {
     ['zero output allowance', { maxOutputTokens: 0 }],
     ['threshold above 1', { synthesisThreshold: 1.2 }],
     ['fractional rounds', { maxRounds: 2.5 }],
+    ['zero focus entries', { view: { maxFocusEntries: 0 } }],
   ])('rejects %s', (_label, input) => {
     expect(RunConfigSchema.safeParse(input).success).toBe(false);
   });
