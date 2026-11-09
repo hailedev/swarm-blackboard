@@ -1,6 +1,6 @@
 # Budget guardrails
 
-**Status:** Phase 2 parts implemented on 2026-11-09 (profiles, per-run cap, pricing, error classification, JSONL ledger, CLI banner); Phase 3 (ledger over `model_calls`) pending. Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
+**Status:** Phase 2 parts implemented on 2026-11-09 (profiles, per-run cap, pricing, error classification, JSONL ledger, CLI banner); the Phase 2 hardening pass of the same day made the token estimate per model with calibration; Phase 3 (ledger over `model_calls`, calibration source) pending. Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
 
 ## Goal
 
@@ -91,10 +91,10 @@ interface RunBudget {
 Enforcement points, all inside the controller:
 
 1. **Before each round:** if `spentUsd >= maxCostUsd` → terminate with reason `budget_cost`. Same for rounds, tokens and wall-clock, each with its own reason.
-2. **Before each model call — reservation:** the controller estimates the prompt's input tokens as ⌈(system + prompt characters) / 3⌉ + 1 000, a flat allowance for the JSON schema the provider receives; there is no provider count-tokens call. With the call's `maxOutputTokens` it computes the worst-case cost of the call. If `spentUsd + worstCase > maxCostUsd`, it first tries to **shrink `maxOutputTokens`** to fit the remaining budget (floor: 256 tokens — below that a structured contribution can't be valid). If it still doesn't fit, the call is skipped and the round ends; if no call in the round can run, the run terminates with `budget_cost`.
+2. **Before each model call — reservation:** the controller estimates the prompt's input tokens as ⌈(system + prompt + serialised JSON schema characters) / charsPerToken⌉; there is no provider count-tokens call. The schema counts because it varies per call (its link fields are an enum of the handles the agent can see). `charsPerToken` is **per model**: 2.0 for Anthropic and 3.0 for Ollama by default, an explicit `charsPerToken` on the alias in `agents.yaml`, or, for API-billed models, a figure **calibrated from the model's own traces**: the pooled Σ chars ÷ Σ reported prompt tokens over its last 50 calls, divided by a 1.15 safety factor, used once at least 5 calls exist and clamped to 1–8. Local models keep the default: Ollama reports only the newly evaluated prompt tokens after a KV-cache hit, so calibrating on its counts would make the estimate optimistic, and for a free model the estimate only guards the context window, where conservative is right. With the call's `maxOutputTokens` it computes the worst-case cost of the call. If `spentUsd + worstCase > maxCostUsd`, it first tries to **shrink `maxOutputTokens`** to fit the remaining budget (floor: 256 tokens — below that a structured contribution can't be valid). If it still doesn't fit, the call is skipped and the round ends; if no call in the round can run, the run terminates with `budget_cost`.
 3. **Parallel calls** each reserve before dispatch, so two agents can't both spend the last 10 cents.
 4. **After each call:** actual cost from returned usage replaces the reservation.
-5. **Estimate drift is visible, not silent:** every trace records the estimated input tokens next to the actual prompt tokens (input + cache read + cache write). When the actual exceeds the estimate by more than 20 %, the controller logs a warning naming both numbers. The first real run (2026-11-09, `cheap` profile) measured actual ÷ estimate at 1.3–1.5 for Claude Haiku on board-heavy prompts and 0.6–1.1 for the local Qwen model: the 3-characters-per-token assumption undershoots Claude's tokenizer on UUID-dense text. Retuning the constant is a follow-up; the cap is still protected by the output allowance, which dominates the worst case.
+5. **Estimate drift is visible, not silent:** every trace records the estimate (`chars`, `charsPerToken`, `tokens`) next to the actual prompt tokens (input + cache read + cache write). When the actual exceeds the estimate by more than 20 %, the controller logs a warning naming both numbers. The first real run (2026-11-09, `cheap` profile) measured actual ÷ estimate at 1.3–1.5 for Claude Haiku on board-heavy prompts and 0.6–1.1 for the local Qwen model: one constant of 3 characters per token undershot Claude's tokenizer on UUID-dense text. That is why the figure is now per model and calibrated, and why agents reference entries by short handles rather than UUIDs. The cap is also protected by the output allowance, which dominates the worst case.
 
 Only cost is reserved per call. The token budget (`maxTokens`) is checked before each round, like rounds and wall-clock, so a run can overshoot it by at most one round of calls.
 
@@ -168,7 +168,9 @@ The provider layer maps every failure to a typed `ProviderError`:
 | `MONTHLY_BUDGET_USD` | `5.00` | `.env` |
 | `warnAtFraction` | `0.8` | run config |
 | Reservation floor | 256 output tokens | core constant |
-| Input-token estimate | 3 characters per token + 1 000 schema tokens | core constants |
+| Chars per token | 2.0 Anthropic, 3.0 Ollama, 3 fakes; `charsPerToken` on an alias overrides | provider constants, `agents.yaml` |
+| Calibration (API models) | last 50 traces, pooled chars ÷ tokens, ÷ 1.15, at least 5 samples, clamped 1–8 | core `calibrateCharsPerToken`; samples from the host's `model_calls` |
+| Schema size in the estimate | serialised JSON schema characters; 3 000 when it cannot be rendered | core `schemaChars` |
 | Estimate undershoot warning | actual prompt tokens > 1.2 × estimate | core constant |
 | Retry attempts (rate limit / overload / network) | 3, exponential from 1 s | provider config |
 
@@ -190,7 +192,8 @@ The provider layer maps every failure to a typed `ProviderError`:
 ## 8. Phase mapping
 
 - **Phase 2 (done 2026-11-09):** profiles and loader validation; `RunBudget` with reservation; price table; usage capture incl. cache tokens; `ProviderError` classification; `SpendLedger` interface in core with the JSONL implementation; CLI banner and `--profile` / `--yes`.
-- **Phase 3:** `SpendLedger` backed by `model_calls`; `profile` on `POST /runs`; `monthly_budget` pause/resume through the API.
+- **Phase 2 hardening (2026-11-09):** per-model `charsPerToken` with the schema counted; calibration arithmetic in core; agents link by handle so prompts carry no UUIDs.
+- **Phase 3:** `SpendLedger` backed by `model_calls`; calibration samples read from `model_calls`; `profile` on `POST /runs`; `monthly_budget` pause/resume through the API.
 - **Phase 4:** cost meter with both gauges; start-run dialog.
 
 Suggested line for the Phase 2 kick-off prompt:

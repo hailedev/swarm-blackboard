@@ -72,6 +72,8 @@ Model assignment is configuration, not code — any role can be flipped to any p
 
 **Agent board view.** An agent never sees the raw board. It sees a role-specific, size-bounded view: the problem, the entries its trigger matched, their linked neighbours, and a rolling summary of everything else. This is the primary defence against context bloat. (Phase 2 builds the view per round as a pure function of the board, with bounds in `RunConfig.view`; the incremental summary cache of §2.3 step 1 is deferred until a run shows it matters.)
 
+**Handles, not ids.** Models never generate ids. The view names every entry by a short handle: its type letter plus its ordinal in commit order (`P1` problem, `S2` subproblem, `H3` hypothesis, `E7` evidence, `C2` critique, `Q1` question, `D1` decision, `A1` synthesis, `N1` human note), stable for the life of the run. The agent's output schema is built per call: every link field is an enum of the handles its view names, and `supersedes` an enum of the live entries of the same type, so a provider that decodes against the schema cannot produce a dangling link and one that does not fails validation into the repair path. Core resolves handles back to UUIDs the moment the model's answer validates; the board, the event log and everything after the agent stay in UUID space (hardening pass, 2026-11-09; the re-run of the local-model trial is recorded in ADR-0008).
+
 ### 2.3 The controller
 
 One cycle = one round:
