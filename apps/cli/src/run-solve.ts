@@ -7,7 +7,6 @@ import {
   calendarMonth,
   createController,
   createDefaultAgents,
-  InMemoryBoardStore,
   isPaidProvider,
   PRICE_TABLE_STALE_AFTER_DAYS,
   priceTableAgeDays,
@@ -18,42 +17,37 @@ import {
   type Clock,
   type Controller,
   type ControllerError,
-  type IdGenerator,
   type Model,
+  type ModelCallTrace,
   type ModelPricing,
   type PeriodBudget,
-  type ResolvedModel,
   type RunConfigInput,
   type RunProfile,
 } from '@team/core';
-import {
-  createScriptedModels,
-  SCENARIO_TOKENS,
-  SequentialIdGenerator,
-  type ScenarioPricing,
-} from '@team/core/testing';
-import {
-  createFakeModel,
-  createModelFactory,
-  describeFactoryError,
-  describeOllamaPreflightError,
-  preflightOllama,
-  PRICE_TABLE,
-  pricingFor,
-  traceModel,
-  type ModelCallTrace,
-} from '@team/providers';
-
+import { createScriptedModels, SCENARIO_TOKENS, type ScenarioPricing } from '@team/core/testing';
 import {
   createCliLogger,
   createUuidV7Generator,
   loadPromptFiles,
   loadRosterFile,
+  ModelCallStore,
   monthlyBudgetFromEnv,
+  openDatabase,
+  SqliteBoardStore,
+  SqliteSpendLedger,
   systemClock,
   type Env,
+  type OpenedDatabase,
 } from '@team/host';
-import { JsonlSpendLedger, spendRecordFromTrace } from './adapters/jsonl-spend-ledger';
+import {
+  createFakeModel,
+  createProfileModels,
+  describeProfileModelsError,
+  PRICE_TABLE,
+  pricingFor,
+  traceModel,
+} from '@team/providers';
+
 import {
   renderBoard,
   renderBudgetBanner,
@@ -69,6 +63,7 @@ export interface SolveIo {
 }
 
 export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
+export const DEFAULT_DATABASE_URL = 'file:./data/team.db';
 
 export const USAGE = [
   'Usage: pnpm solve "<problem>" [--profile <name>] [--yes] [--max-cost <usd>] [--trace <file>]',
@@ -76,18 +71,19 @@ export const USAGE = [
   '',
   '  --profile <name>  profile from agents.yaml (default: its defaultProfile)',
   '  --yes             skip the confirmation a paid profile asks for',
-  '  --max-cost <usd>  per-run cost cap (default 0.25)',
+  '  --max-cost <usd>  per-run cap (default 0.25)',
   '  --trace <file>    append every model call to <file> as JSON lines, as it happens',
   '  --fake            run the scripted swarm (FakeModel) instead of real models',
   '  --max-rounds N    hard limit on rounds (default 12)',
   '  --parallelism N   agents per round (default 2)',
   '  --roster <file>   roster to load (default ./agents.yaml)',
-  '  --ledger <file>   spend ledger (default ./data/spend.jsonl)',
+  '  --db <url>        SQLite database for runs, traces and the spend ledger (default',
+  `                    DATABASE_URL or ${DEFAULT_DATABASE_URL}; ":memory:" keeps nothing)`,
   '  --json <file>     write every board event to <file> as JSON',
   '  --verbose         print controller info logs',
   '',
   'Environment (.env): ANTHROPIC_API_KEY for paid profiles; OLLAMA_BASE_URL for local',
-  `models (default ${DEFAULT_OLLAMA_BASE_URL}).`,
+  `models (default ${DEFAULT_OLLAMA_BASE_URL}); DATABASE_URL for the database.`,
 ];
 
 const options = {
@@ -98,11 +94,13 @@ const options = {
   'max-rounds': { type: 'string' },
   parallelism: { type: 'string' },
   roster: { type: 'string', default: 'agents.yaml' },
-  ledger: { type: 'string', default: 'data/spend.jsonl' },
+  db: { type: 'string' },
   trace: { type: 'string' },
   json: { type: 'string' },
   verbose: { type: 'boolean', default: false },
 } as const;
+
+type Values = ReturnType<typeof parseArgs<{ options: typeof options }>>['values'];
 
 const parseArguments = (argv: readonly string[]) => {
   try {
@@ -182,17 +180,8 @@ const pricingOf = (model: RunProfile['fallback']): ModelPricing | null | Error =
 interface RunModels {
   roles: Record<AgentRole, Model>;
   fallback: Model | undefined;
-  ids: IdGenerator;
   label: string;
 }
-
-const localTags = (profile: RunProfile): string[] => [
-  ...new Set(
-    [...AGENT_ROLES.map((role) => profile.roles[role]), profile.fallback]
-      .filter((m): m is ResolvedModel => m !== null && !isPaidProvider(m.provider))
-      .map((m) => m.model),
-  ),
-];
 
 export const main = async (
   argv: readonly string[],
@@ -248,9 +237,65 @@ export const main = async (
     return 2;
   }
 
-  // Every model call is traced; billed calls go to the ledger, and with --trace every
-  // call is appended to the trace file as it happens, so an interrupted run keeps its trace.
-  const ledger = new JsonlSpendLedger(values.ledger);
+  // One database for runs, traces and the spend ledger, shared with the server (ADR-0010).
+  let opened: OpenedDatabase;
+  try {
+    opened = openDatabase(values.db ?? env['DATABASE_URL'] ?? DEFAULT_DATABASE_URL);
+  } catch (cause) {
+    io.write(
+      `cannot open the database: ${cause instanceof Error ? cause.message : 'unknown error'}`,
+    );
+    return 2;
+  }
+  try {
+    return await solve({
+      values,
+      problem,
+      config,
+      profile: profile.value,
+      prompts: prompts.value,
+      opened,
+      io,
+      env,
+      clock,
+    });
+  } finally {
+    opened.close();
+  }
+};
+
+interface SolveInput {
+  values: Values;
+  problem: string;
+  config: RunConfigInput;
+  profile: RunProfile;
+  prompts: Record<AgentRole, string>;
+  opened: OpenedDatabase;
+  io: SolveIo;
+  env: Env;
+  clock: Clock;
+}
+
+const solve = async ({
+  values,
+  problem,
+  config,
+  profile,
+  prompts,
+  opened,
+  io,
+  env,
+  clock,
+}: SolveInput): Promise<number> => {
+  const logger = createCliLogger(io.write.bind(io), values.verbose);
+  const ids = createUuidV7Generator(clock);
+  const store = new SqliteBoardStore(opened.db);
+  const calls = new ModelCallStore(opened.db, { ids, logger });
+  const ledger = new SqliteSpendLedger(opened.db);
+  const now = (): number => clock.nowMs();
+
+  // Every model call is traced into model_calls; with --trace every call is also appended
+  // to the trace file as it happens, so an interrupted run keeps its trace.
   const pendingWrites: Promise<void>[] = [];
   let traceCount = 0;
   const traceFile = values.trace;
@@ -261,23 +306,21 @@ export const main = async (
   };
   const sink = (trace: ModelCallTrace): void => {
     traceCount += 1;
-    const record = spendRecordFromTrace(trace);
-    if (record !== null) pendingWrites.push(ledger.record(record));
+    calls.sink(trace);
     pendingWrites.push(appendTrace(trace));
   };
-  const now = (): number => clock.nowMs();
 
-  // Models: real ones from the factory (nothing is spent before the key check and the
-  // Ollama pre-flight pass), or scripted stand-ins priced like the profile under --fake.
+  // Models: real ones from the shared builder (nothing is spent before the key check and
+  // the Ollama pre-flight pass), or scripted stand-ins priced like the profile under --fake.
   const ref: { controller: Controller | undefined } = { controller: undefined };
   let models: RunModels;
   if (values.fake) {
-    const pricing = pricingForProfile(profile.value);
+    const pricing = pricingForProfile(profile);
     if (pricing instanceof Error) {
       io.write(pricing.message);
       return 2;
     }
-    const fallbackPricing = pricingOf(profile.value.fallback);
+    const fallbackPricing = pricingOf(profile.fallback);
     if (fallbackPricing instanceof Error) {
       io.write(fallbackPricing.message);
       return 2;
@@ -291,64 +334,36 @@ export const main = async (
         AGENT_ROLES.map((role) => [role, traceModel(scripted[role], sink, now)]),
       ) as Record<AgentRole, Model>,
       fallback:
-        profile.value.fallback === null
+        profile.fallback === null
           ? undefined
           : traceModel(
               createFakeModel({
-                id: `fake-fallback-${profile.value.fallback.alias}`,
+                id: `fake-fallback-${profile.fallback.alias}`,
                 pricing: fallbackPricing,
                 script: () => ({ object: { contributions: [] }, usage: SCENARIO_TOKENS }),
               }),
               sink,
               now,
             ),
-      // Deterministic ids in --fake mode make the demo reproducible.
-      ids: new SequentialIdGenerator(),
       label: 'scripted models',
     };
   } else {
-    const ollamaBaseUrl = env['OLLAMA_BASE_URL'] ?? DEFAULT_OLLAMA_BASE_URL;
-    const factory = createModelFactory({
+    const built = await createProfileModels(profile, {
       anthropicApiKey: env['ANTHROPIC_API_KEY'],
-      ollamaBaseUrl,
+      ollamaBaseUrl: env['OLLAMA_BASE_URL'] ?? DEFAULT_OLLAMA_BASE_URL,
       priceTable: PRICE_TABLE,
       sink,
       now,
+      charsPerToken: (resolved, providerDefault) => calls.charsPerToken(resolved, providerDefault),
+      onProgress: (line) => {
+        io.write(line);
+      },
     });
-    const roles: Partial<Record<AgentRole, Model>> = {};
-    for (const role of AGENT_ROLES) {
-      const built = factory.modelFor(profile.value.roles[role]);
-      if (!built.ok) {
-        io.write(describeFactoryError(built.error));
-        return 2;
-      }
-      roles[role] = built.value;
+    if (!built.ok) {
+      io.write(describeProfileModelsError(built.error));
+      return 2;
     }
-    let fallback: Model | undefined;
-    if (profile.value.fallback !== null) {
-      const built = factory.modelFor(profile.value.fallback);
-      if (!built.ok) {
-        io.write(describeFactoryError(built.error));
-        return 2;
-      }
-      fallback = built.value;
-    }
-    const tags = localTags(profile.value);
-    if (tags.length > 0) {
-      io.write(`Checking Ollama at ${ollamaBaseUrl} and warming ${tags.join(', ')}…`);
-      const ready = await preflightOllama({ baseUrl: ollamaBaseUrl, models: tags });
-      if (!ready.ok) {
-        io.write(describeOllamaPreflightError(ready.error));
-        return 2;
-      }
-      io.write(`Ollama ${ready.value.version} is ready.`);
-    }
-    models = {
-      roles: roles as Record<AgentRole, Model>,
-      fallback,
-      ids: createUuidV7Generator(clock),
-      label: 'real models',
-    };
+    models = { roles: built.value.roles, fallback: built.value.fallback, label: 'real models' };
   }
 
   const ageDays = priceTableAgeDays(PRICE_TABLE, clock.nowMs());
@@ -365,7 +380,7 @@ export const main = async (
     return 2;
   }
   let periodBudget: PeriodBudget | undefined;
-  if (profile.value.paid) {
+  if (profile.paid) {
     periodBudget = { ...settings.value, ledger };
     const period = calendarMonth(clock.nowMs(), settings.value.timeZone);
     if (!period.ok) {
@@ -380,7 +395,7 @@ export const main = async (
       return 2;
     }
     renderBudgetBanner({
-      profile: profile.value,
+      profile,
       maxCostUsd: config.maxCostUsd ?? 0.25,
       month: {
         spentUsd,
@@ -403,18 +418,18 @@ export const main = async (
     }
   }
 
-  const agents = createDefaultAgents(models.roles, prompts.value, models.fallback);
+  const agents = createDefaultAgents(models.roles, prompts, models.fallback);
 
   const events: BoardEvent[] = [];
   const controller = createController({
-    store: new InMemoryBoardStore(),
+    store,
     clock,
-    ids: models.ids,
+    ids,
     // Failures are rendered from events below; the CLI logger skips those warnings.
-    logger: createCliLogger(io.write.bind(io), values.verbose),
+    logger,
     agents,
     periodBudget,
-    profile: profile.value,
+    profile,
     onEvent: (event) => {
       events.push(event);
       if (event.type === 'agents_selected')
@@ -444,7 +459,7 @@ export const main = async (
   }
   io.write(`Problem: ${problem}`);
   io.write(
-    `Run ${controller.runId} — profile "${profile.value.name}", ${models.label}, ${String(agents.length)} agents`,
+    `Run ${controller.runId} — profile "${profile.name}", ${models.label}, ${String(agents.length)} agents`,
   );
   io.write('');
 
@@ -464,6 +479,9 @@ export const main = async (
   }
   if (traceFile !== undefined) {
     io.write(`Wrote ${String(traceCount)} model-call traces to ${traceFile}`);
+  }
+  if (opened.path !== ':memory:') {
+    io.write(`Recorded in ${opened.path}`);
   }
   return 0;
 };

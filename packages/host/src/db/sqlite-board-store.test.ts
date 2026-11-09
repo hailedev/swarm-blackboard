@@ -12,10 +12,12 @@ import {
   nullLogger,
   type BoardEvent,
   type Controller,
+  type IdGenerator,
 } from '@team/core';
 import {
   createScriptedModels,
   ManualClock,
+  TEST_EPOCH_MS,
   SequentialIdGenerator,
   testRolePrompts,
 } from '@team/core/testing';
@@ -25,6 +27,8 @@ import { z } from 'zod';
 
 import { databasePathFromUrl, IN_MEMORY, openDatabase, type OpenedDatabase } from './open';
 import { agentConfigs, entries, runs } from './schema';
+import { createUuidV7Generator } from '../adapters/uuid-v7';
+import { RunRepository } from './run-repository';
 import { SqliteBoardStore } from './sqlite-board-store';
 
 const FIXTURE = fileURLToPath(
@@ -48,7 +52,11 @@ const memory = (): OpenedDatabase => {
 };
 
 // The CLI's --fake run: scripted models, the default roster, four rounds to `completed`.
-const scriptedRun = async (store: SqliteBoardStore) => {
+const scriptedRun = async (
+  store: SqliteBoardStore,
+  ids: IdGenerator = new SequentialIdGenerator(),
+  clock = new ManualClock(),
+) => {
   const events: BoardEvent[] = [];
   const ref: { controller: Controller | undefined } = { controller: undefined };
   const models = createScriptedModels(() => {
@@ -57,8 +65,8 @@ const scriptedRun = async (store: SqliteBoardStore) => {
   });
   const controller = createController({
     store,
-    clock: new ManualClock(),
-    ids: new SequentialIdGenerator(),
+    clock,
+    ids,
     logger: nullLogger,
     agents: createDefaultAgents(models, testRolePrompts()),
     onEvent: (event) => events.push(event),
@@ -213,5 +221,32 @@ describe('SqliteBoardStore', () => {
     const replayed = await new SqliteBoardStore(again.db).eventsFor(controller.runId);
     expect(replayed.at(-1)?.type).toBe('run_terminated');
     expect(again.path.endsWith('team.db')).toBe(true);
+  });
+});
+
+describe('RunRepository', () => {
+  it('lists runs newest first and reads one back with its config and totals', async () => {
+    const { db } = memory();
+    const store = new SqliteBoardStore(db);
+    const first = await scriptedRun(store);
+    const later = new ManualClock(TEST_EPOCH_MS + 60_000);
+    const second = await scriptedRun(store, createUuidV7Generator(later), later);
+    const repository = new RunRepository(db);
+    expect(repository.list().map((r) => r.id)).toEqual([
+      second.controller.runId,
+      first.controller.runId,
+    ]);
+    const run = repository.get(first.controller.runId);
+    expect(run).toMatchObject({
+      id: first.controller.runId,
+      problem: 'Should we adopt a monorepo?',
+      status: 'completed',
+      reason: 'completed',
+      profileName: null,
+      endedAt: first.events.at(-1)?.at,
+      totals: first.summary.totals,
+    });
+    expect(run?.config.maxRounds).toBe(12);
+    expect(repository.get('nope')).toBeUndefined();
   });
 });

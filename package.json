@@ -19,6 +19,7 @@
     "test:coverage": "vitest run --coverage",
     "solve": "tsx apps/cli/src/solve.ts",
     "db:generate": "pnpm --filter @team/host db:generate",
+    "ledger:import": "tsx apps/cli/src/import-ledger.ts",
     "trial:local": "tsx apps/cli/src/trial.ts"
   },
   "devDependencies": {

@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ManualClock } from '@team/core/testing';
+import { ManualClock, SequentialIdGenerator } from '@team/core/testing';
+import { ModelCallStore, openDatabase, RunRepository, SqliteSpendLedger } from '@team/host';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { main, USAGE, type SolveIo } from './run-solve';
@@ -47,21 +48,27 @@ const closedOllamaUrl = async (): Promise<string> => {
   return `http://127.0.0.1:${String(port)}`;
 };
 
-// Every test points at the repository roster and an empty ledger in a temp dir, so the
-// real data/spend.jsonl is never read or written.
-const base = async (...args: string[]): Promise<string[]> => [
+// Every test points at the repository roster and an in-memory database, so the real
+// data/team.db is never read or written.
+const base = (...args: string[]): string[] => [
   '--fake',
   '--roster',
   ROSTER,
-  '--ledger',
-  join(await tempDir(), 'spend.jsonl'),
+  '--db',
+  ':memory:',
   ...args,
 ];
+
+const runIdFrom = (lines: readonly string[]): string => {
+  const id = lines.find((l) => l.startsWith('Run '))?.split(' ')[1];
+  if (id === undefined) throw new Error('no run line');
+  return id;
+};
 
 describe('pnpm solve', () => {
   it('runs the scripted swarm to completion and prints the board round by round', async () => {
     const { lines, io } = capture();
-    const code = await main(['Should we adopt a monorepo?', ...(await base())], io);
+    const code = await main(['Should we adopt a monorepo?', ...base()], io);
     const text = lines.join('\n');
     expect(code).toBe(0);
     expect(text).toContain('Problem: Should we adopt a monorepo?');
@@ -71,10 +78,12 @@ describe('pnpm solve', () => {
     expect(text).toContain('== Round 3: critic + solver ==');
     expect(text).toContain('== Round 4: critic + synthesizer ==');
     expect(text).toContain('-- synthesis (1 live) --');
+    expect(text).toContain('  A1   synthesizer r4  v1, conf 0.90, cites');
     expect(text).toContain('== Done: completed after 4 rounds ==');
     expect(text).toContain('cost $0.0000');
     expect(text).toContain('Answer:');
     expect(text).not.toContain('Budget check');
+    expect(text).not.toContain('Recorded in');
     expect(text).not.toContain('[info]');
     expect(text).not.toContain('[warn]');
     expect(text).not.toContain(' ! ');
@@ -83,7 +92,7 @@ describe('pnpm solve', () => {
   it('honours --max-rounds, --parallelism and --verbose', async () => {
     const { lines, io } = capture();
     const code = await main(
-      ['P', ...(await base('--max-rounds', '2', '--parallelism', '1', '--verbose'))],
+      ['P', ...base('--max-rounds', '2', '--parallelism', '1', '--verbose')],
       io,
     );
     const text = lines.join('\n');
@@ -96,7 +105,7 @@ describe('pnpm solve', () => {
   it('writes the event log as JSON when asked, with the profile on run_started', async () => {
     const file = join(await tempDir(), 'events.json');
     const { lines, io } = capture();
-    const code = await main(['P', ...(await base('--json', file, '--max-cost', '0.5'))], io);
+    const code = await main(['P', ...base('--json', file, '--max-cost', '0.5')], io);
     expect(code).toBe(0);
     const events = JSON.parse(await readFile(file, 'utf8')) as {
       type: string;
@@ -112,10 +121,40 @@ describe('pnpm solve', () => {
     expect(lines.at(-1)).toBe(`Wrote ${String(events.length)} events to ${file}`);
   });
 
+  it('records the run, its entries and every model call in the database', async () => {
+    const url = `file:${join(await tempDir(), 'team.db')}`;
+    const { lines, io } = capture();
+    const code = await main(['P', '--fake', '--roster', ROSTER, '--db', url], io);
+    expect(code).toBe(0);
+    expect(lines.at(-1)).toMatch(/^Recorded in .*team\.db$/);
+    const runId = runIdFrom(lines);
+    const opened = openDatabase(url);
+    try {
+      const repository = new RunRepository(opened.db);
+      expect(repository.get(runId)).toMatchObject({
+        id: runId,
+        problem: 'P',
+        status: 'completed',
+        reason: 'completed',
+        profileName: 'dev',
+        totals: { rounds: 4 },
+      });
+      expect(repository.get(runId)?.totals.entries).toBeGreaterThan(5);
+      expect(repository.list().map((r) => r.id)).toEqual([runId]);
+      const calls = new ModelCallStore(opened.db, { ids: new SequentialIdGenerator() });
+      const traced = calls.forRun(runId);
+      expect(traced.length).toBe(7);
+      expect(traced.every((c) => c.billing === 'fake' && c.outcome === 'ok')).toBe(true);
+      expect(traced[0]?.estimateCharsPerToken).toBe(3);
+    } finally {
+      opened.close();
+    }
+  });
+
   describe('paid profiles', () => {
     it('shows the budget banner and refuses without --yes when nobody can confirm', async () => {
       const { lines, io } = capture();
-      const code = await main(['P', ...(await base('--profile', 'cheap'))], io);
+      const code = await main(['P', ...base('--profile', 'cheap')], io);
       const text = lines.join('\n');
       expect(code).toBe(2);
       expect(text).toContain('== Budget check: profile "cheap" ==');
@@ -136,17 +175,17 @@ describe('pnpm solve', () => {
         asked.push(question);
         return Promise.resolve(false);
       });
-      const code = await main(['P', ...(await base('--profile', 'quality'))], io);
+      const code = await main(['P', ...base('--profile', 'quality')], io);
       expect(code).toBe(2);
       expect(asked).toEqual(['Proceed? [y/N] ']);
       expect(lines.at(-1)).toBe('Aborted.');
     });
 
     it('runs after a yes, pricing the stand-ins like the profile and billing nothing', async () => {
-      const ledgerPath = join(await tempDir(), 'spend.jsonl');
+      const url = `file:${join(await tempDir(), 'team.db')}`;
       const { lines, io } = capture(() => Promise.resolve(true));
       const code = await main(
-        ['P', '--fake', '--roster', ROSTER, '--ledger', ledgerPath, '--profile', 'cheap'],
+        ['P', '--fake', '--roster', ROSTER, '--db', url, '--profile', 'cheap'],
         io,
         { MONTHLY_BUDGET_USD: '2', BUDGET_TIMEZONE: 'UTC' },
       );
@@ -157,36 +196,47 @@ describe('pnpm solve', () => {
       expect(text).toContain('== Done: completed after 4 rounds ==');
       // Haiku-priced planner, critic and synthesizer calls; local roles are free.
       expect(text).toMatch(/cost \$0\.00(1|2)\d/);
-      await expect(readFile(ledgerPath, 'utf8')).rejects.toThrow();
+      // Nothing was billed to the API, so the shared ledger still reads zero.
+      const opened = openDatabase(url);
+      try {
+        const calls = new ModelCallStore(opened.db, { ids: new SequentialIdGenerator() });
+        expect(calls.forRun(runIdFrom(lines)).every((c) => c.billing === 'fake')).toBe(true);
+        const everything = { start: '2000-01-01T00:00:00.000Z', end: '2100-01-01T00:00:00.000Z' };
+        expect(await new SqliteSpendLedger(opened.db).spentUsd(everything)).toBe(0);
+      } finally {
+        opened.close();
+      }
     });
 
     it('refuses to start when the month cannot absorb the per-run cap', async () => {
-      const ledgerPath = join(await tempDir(), 'spend.jsonl');
-      const spent = {
+      const url = `file:${join(await tempDir(), 'team.db')}`;
+      // An earlier paid call this month, as the shared ledger would hold it.
+      const seeded = openDatabase(url);
+      new ModelCallStore(seeded.db, { ids: new SequentialIdGenerator() }).record({
         at: new Date().toISOString(),
-        runId: 'earlier',
-        role: 'critic',
         modelId: 'claude-sonnet-5-5',
-        inputTokens: 1,
-        outputTokens: 1,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
-        costUsd: 4.9,
-      };
-      await writeFile(ledgerPath, `${JSON.stringify(spent)}\n`);
+        billing: 'api',
+        tags: { role: 'critic', runId: 'earlier', round: 1 },
+        request: { system: 's', prompt: 'p', maxOutputTokens: 512 },
+        outcome: 'ok',
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          costUsd: 4.9,
+        },
+        estimate: { chars: 2, charsPerToken: 2, tokens: 1 },
+        actualInputTokens: 1,
+        warnings: [],
+        latencyMs: 1,
+        response: {},
+        error: null,
+      });
+      seeded.close();
       const { lines, io } = capture();
       const code = await main(
-        [
-          'P',
-          '--fake',
-          '--roster',
-          ROSTER,
-          '--ledger',
-          ledgerPath,
-          '--profile',
-          'quality',
-          '--yes',
-        ],
+        ['P', '--fake', '--roster', ROSTER, '--db', url, '--profile', 'quality', '--yes'],
         io,
       );
       expect(code).toBe(2);
@@ -200,14 +250,14 @@ describe('pnpm solve', () => {
 
     it('rejects an unknown profile with the valid names, and a bad monthly budget', async () => {
       const unknown = capture();
-      expect(await main(['P', ...(await base('--profile', 'prod'))], unknown.io)).toBe(2);
+      expect(await main(['P', ...base('--profile', 'prod')], unknown.io)).toBe(2);
       expect(unknown.lines).toEqual([
         'unknown profile "prod"; valid profiles are "dev", "cheap", "quality"',
       ]);
 
       const badEnv = capture();
       expect(
-        await main(['P', ...(await base('--profile', 'cheap', '--yes'))], badEnv.io, {
+        await main(['P', ...base('--profile', 'cheap', '--yes')], badEnv.io, {
           MONTHLY_BUDGET_USD: 'lots',
         }),
       ).toBe(2);
@@ -218,7 +268,7 @@ describe('pnpm solve', () => {
   it('warns when the price table is stale, without failing', async () => {
     const { lines, io } = capture();
     const farFuture = new ManualClock(Date.UTC(2030, 0, 1));
-    const code = await main(['P', ...(await base('--max-rounds', '1'))], io, {}, farFuture);
+    const code = await main(['P', ...base('--max-rounds', '1')], io, {}, farFuture);
     expect(code).toBe(0);
     expect(lines[0]).toMatch(
       /^\[warn\] the price table is \d+ days old \(as of \d{4}-\d{2}-\d{2}\)/,
@@ -228,7 +278,7 @@ describe('pnpm solve', () => {
   it('appends every model call to the trace file as JSON lines', async () => {
     const file = join(await tempDir(), 'nested', 'trace.jsonl');
     const { lines, io } = capture();
-    const code = await main(['P', ...(await base('--trace', file))], io);
+    const code = await main(['P', ...base('--trace', file)], io);
     expect(code).toBe(0);
     const traces = (await readFile(file, 'utf8'))
       .trim()
@@ -247,15 +297,7 @@ describe('pnpm solve', () => {
     it('refuses a paid profile without an API key before showing the banner', async () => {
       const { lines, io } = capture();
       const code = await main(
-        [
-          'P',
-          '--roster',
-          ROSTER,
-          '--ledger',
-          join(await tempDir(), 'spend.jsonl'),
-          '--profile',
-          'cheap',
-        ],
+        ['P', '--roster', ROSTER, '--db', ':memory:', '--profile', 'cheap'],
         io,
         { OLLAMA_BASE_URL: await closedOllamaUrl() },
       );
@@ -268,11 +310,9 @@ describe('pnpm solve', () => {
     it('refuses a local profile when Ollama is unreachable, before spending anything', async () => {
       const url = await closedOllamaUrl();
       const { lines, io } = capture();
-      const code = await main(
-        ['P', '--roster', ROSTER, '--ledger', join(await tempDir(), 'spend.jsonl')],
-        io,
-        { OLLAMA_BASE_URL: url },
-      );
+      const code = await main(['P', '--roster', ROSTER, '--db', ':memory:'], io, {
+        OLLAMA_BASE_URL: url,
+      });
       expect(code).toBe(2);
       expect(lines[0]).toBe(`Checking Ollama at ${url} and warming qwen3.6:35b-a3b-q8_0…`);
       expect(lines[1]).toContain(`Ollama is unreachable at ${url} (`);

@@ -24,3 +24,5 @@ export { importSpendJsonl } from './db/import-spend-jsonl';
 export type { ModelCallRow, ModelCallStoreOptions, ModelCallSummary } from './db/model-call-store';
 export { ModelCallStore } from './db/model-call-store';
 export { SqliteSpendLedger } from './db/sqlite-spend-ledger';
+export type { RunRecord, StoredRunStatus } from './db/run-repository';
+export { RunRepository, StoredRunStatusSchema } from './db/run-repository';

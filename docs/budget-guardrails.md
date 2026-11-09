@@ -124,8 +124,7 @@ interface PeriodBudget {
 ```
 
 - `SpendLedger` is an **interface defined in core**, implemented by the host. Core never touches storage. Period bounds are ISO-8601 strings (dates are strings at boundaries), `end` exclusive.
-- **Phase 2 (CLI):** the ledger is an append-only `data/spend.jsonl` — one line per paid call: timestamp, model, tokens, cost. Sum for the period.
-- **Phase 3 (server):** the ledger is `SELECT SUM(cost_usd) FROM model_calls WHERE billing = 'api' AND created_at >= :start`. Same interface, so core and its tests don't change.
+- **One ledger per machine (ADR-0010):** the ledger is `SELECT SUM(cost_usd) FROM model_calls WHERE billing = 'api' AND at >= :start AND at < :end` over the SQLite database named by `DATABASE_URL` (default `data/team.db`). The CLI, the server and `pnpm test:llm` all record every model call there, so there is exactly one month-to-date figure. Phase 2's append-only `data/spend.jsonl` was imported once with `pnpm ledger:import` and is no longer written.
 - **Before starting a run** on a paid profile: refuse if `spentThisMonth + run.maxCostUsd > limitUsd`. The message says how much is left and what cap would fit. The `dev` profile is never refused — it spends nothing.
 - **Before each round:** re-read the ledger. If `spentThisMonth >= limitUsd`, the run **pauses** (not fails) with reason `monthly_budget`; it can be resumed next month or after the limit is raised. If spend crosses `warnAtFraction`, emit a `budget_warning` event once per run.
 - Month boundaries are calendar months in `timezone`. This won't match the Console's reset to the minute; the Console limit is the backstop for that gap.
@@ -193,7 +192,7 @@ The provider layer maps every failure to a typed `ProviderError`:
 
 - **Phase 2 (done 2026-11-09):** profiles and loader validation; `RunBudget` with reservation; price table; usage capture incl. cache tokens; `ProviderError` classification; `SpendLedger` interface in core with the JSONL implementation; CLI banner and `--profile` / `--yes`.
 - **Phase 2 hardening (2026-11-09):** per-model `charsPerToken` with the schema counted; calibration arithmetic in core; agents link by handle so prompts carry no UUIDs.
-- **Phase 3:** `SpendLedger` backed by `model_calls`; calibration samples read from `model_calls`; `profile` on `POST /runs`; `monthly_budget` pause/resume through the API.
+- **Phase 3:** `SpendLedger` backed by `model_calls` in the shared database, which the CLI and the contract tests write too (ADR-0010); calibration samples read from `model_calls`; `profile` on `POST /runs`; `monthly_budget` pause/resume through the API.
 - **Phase 4:** cost meter with both gauges; start-run dialog.
 
 Suggested line for the Phase 2 kick-off prompt:
