@@ -12,15 +12,9 @@ export interface RetryPolicy {
 
 export const DEFAULT_RETRY_POLICY: Omit<RetryPolicy, 'sleep'> = { attempts: 3, baseDelayMs: 1_000 };
 
-// Timers come from the runtime. This package has no Node type definitions yet (they arrive
-// with the AI SDK adapters), so the global is typed structurally here.
-interface TimerHost {
-  setTimeout(callback: () => void, ms: number): unknown;
-}
-
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
-    (globalThis as unknown as TimerHost).setTimeout(resolve, ms);
+    setTimeout(resolve, ms);
   });
 
 type RetryableError = Extract<ModelError, { attempts: number }>;
