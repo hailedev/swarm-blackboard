@@ -14,11 +14,12 @@ import {
   type Contribution,
 } from '@team/core';
 import { agentContext, freshBoard, lateBoard } from '@team/core/testing';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createAnthropicModel, type AnthropicStructuredOutputMode } from './anthropic';
+import { openLlmTestLedger, type LlmTestLedger } from './llm-test-ledger';
 import { PRICE_TABLE } from './pricing';
-import { traceModel, type ModelCallTrace } from './trace';
+import type { ModelCallTrace } from './trace';
 
 // Contract test against the real Anthropic API (pnpm test:llm). Skipped without a key.
 // It uses the real per-call role schemas on purpose: their minItems/maxItems, numeric
@@ -36,10 +37,15 @@ const pricing = PRICE_TABLE.models[MODEL_ID];
 const prompt = (role: AgentRole): string =>
   readFileSync(fileURLToPath(new URL(`../../../prompts/${role}.md`, import.meta.url)), 'utf8');
 
+// Every call below is recorded in model_calls, the shared spend ledger (ADR-0010).
+let ledger: LlmTestLedger | undefined;
+
 const haiku = (mode?: AnthropicStructuredOutputMode) => {
-  if (apiKey === undefined || pricing === undefined) throw new Error('precondition');
+  if (apiKey === undefined || pricing === undefined || ledger === undefined) {
+    throw new Error('precondition');
+  }
   const traces: ModelCallTrace[] = [];
-  const model = traceModel(
+  const model = ledger.recorded(
     createAnthropicModel({ modelId: MODEL_ID, apiKey, pricing, structuredOutputMode: mode }),
     (trace) => traces.push(trace),
   );
@@ -63,6 +69,13 @@ const linkIssues = (contributions: readonly Contribution[], view: BoardView): st
 };
 
 describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real API)', () => {
+  beforeAll(() => {
+    ledger = openLlmTestLedger();
+  });
+  afterAll(() => {
+    ledger?.close();
+  });
+
   it('decomposes a fresh board with the planner schema, with usage, cost and a trace', async () => {
     const board = freshBoard();
     const view = board.fx.view();
@@ -141,8 +154,10 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
   }, 60_000);
 
   it('classifies a bad key as auth, with no retry', async () => {
-    if (pricing === undefined) throw new Error('precondition');
-    const model = createAnthropicModel({ modelId: MODEL_ID, apiKey: 'sk-ant-bogus', pricing });
+    if (pricing === undefined || ledger === undefined) throw new Error('precondition');
+    const model = ledger.recorded(
+      createAnthropicModel({ modelId: MODEL_ID, apiKey: 'sk-ant-bogus', pricing }),
+    );
     const result = await model.generateObject({
       schema: plannerOutputSchema(UUID_REFERENCES),
       system: 's',

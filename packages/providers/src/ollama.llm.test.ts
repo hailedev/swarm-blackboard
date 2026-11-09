@@ -14,10 +14,11 @@ import {
   type BoardView,
 } from '@team/core';
 import { agentContext, midRunBoard } from '@team/core/testing';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { createOllamaModel, OLLAMA_THINK_TOKENS } from './ollama';
+import { openLlmTestLedger, type LlmTestLedger } from './llm-test-ledger';
+import { createOllamaModel, OLLAMA_THINK_TOKENS, type OllamaModelOptions } from './ollama';
 import { preflightOllama, probeOllamaFormat } from './ollama-preflight';
 import { withRetry } from './retry';
 
@@ -73,14 +74,26 @@ const STRICT_PROMPTS = [
   'Statement: remote build caching always keeps CI under ten minutes.',
 ];
 
+// Every adapter call below is recorded in model_calls like any other (ADR-0010); local
+// calls are free, but the trace viewer and the estimate drift check see them.
+let ledger: LlmTestLedger | undefined;
+const ollama = (options: Partial<OllamaModelOptions> = {}) => {
+  if (ledger === undefined) throw new Error('precondition');
+  return ledger.recorded(createOllamaModel({ modelId, baseUrl, ...options }));
+};
+
 describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
   beforeAll(async () => {
+    ledger = openLlmTestLedger();
     const ready = await preflightOllama({ baseUrl, models: [modelId] });
     if (!ready.ok) throw new Error(JSON.stringify(ready.error));
   }, 300_000);
+  afterAll(() => {
+    ledger?.close();
+  });
 
   it('honours a strict JSON-schema format on three different prompts, through the adapter and raw', async () => {
-    const model = createOllamaModel({ modelId, baseUrl });
+    const model = ollama();
     const viaAdapter: string[] = [];
     for (const p of STRICT_PROMPTS) {
       const result = await model.generateObject({
@@ -113,7 +126,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
   it('runs the researcher end to end: valid first attempts dominate and every link resolves', async () => {
     const board = midRunBoard();
     const view = board.fx.view();
-    const model = createOllamaModel({ modelId, baseUrl });
+    const model = ollama();
     const targetSets = [
       board.subproblems.map((s) => s.id),
       board.hypotheses.map((h) => h.id),
@@ -156,7 +169,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
       targetIds: board.subproblems.map((s) => s.id),
     });
     const req = request('solver', view, ctx);
-    const model = createOllamaModel({ modelId, baseUrl, think: true });
+    const model = ollama({ think: true });
     const result = await model.generateObject({
       schema: req.schema,
       system: req.system,
@@ -181,7 +194,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
   }, 600_000);
 
   it('respects the output allowance through num_predict', async () => {
-    const model = createOllamaModel({ modelId, baseUrl });
+    const model = ollama();
     const result = await model.generateObject({
       schema: researcherOutputSchema(UUID_REFERENCES),
       system: 'Write as much evidence as you can.',

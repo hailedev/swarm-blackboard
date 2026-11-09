@@ -17,6 +17,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@team/host": "workspace:*",
     "@types/node": "22.20.5"
   }
 }
