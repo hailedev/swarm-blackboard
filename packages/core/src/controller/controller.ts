@@ -140,6 +140,8 @@ export interface Controller {
   requestPause(): void;
   /** End the run as `user_stopped` after the round in flight, if any. */
   requestStop(): void;
+  /** End the run as `user_stopped`: at once when it is paused, after the round in flight otherwise. */
+  stop(): Promise<Result<void, ControllerError>>;
   /** Pick a paused run up again; `run()` or `runRound()` then continues it. */
   resume(): Promise<Result<void, ControllerError>>;
   /** Commit a human note now; the next round sees it (docs/PLAN.md §2.3, human-in-the-loop). */
@@ -734,6 +736,16 @@ export const createController = (
     });
   };
 
+  const stop: Controller['stop'] = async () => {
+    if (config === undefined || budgets === undefined) return err({ kind: 'not_started' });
+    if (ended === null) {
+      stopRequested = true;
+      return ok(undefined);
+    }
+    if (ended.status !== 'paused') return err({ kind: 'terminated', reason: ended.reason });
+    return terminate(budgets, completedRounds, 'user_stopped');
+  };
+
   const resume: Controller['resume'] = async () => {
     if (config === undefined || budgets === undefined) return err({ kind: 'not_started' });
     if (ended === null || ended.status !== 'paused') return err({ kind: 'not_paused' });
@@ -793,6 +805,7 @@ export const createController = (
       stopRequested = true;
     },
     resume,
+    stop,
     injectNote,
     currentView: () => view,
     get flags(): Readonly<ControlFlags> {

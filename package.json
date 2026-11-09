@@ -13,6 +13,7 @@
     "lint:fix": "eslint . --fix && prettier --write .",
     "format": "prettier --write .",
     "typecheck": "tsc -p tsconfig.json && pnpm -r run typecheck",
+    "dev": "tsx watch apps/server/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:llm": "vitest run --mode llm",

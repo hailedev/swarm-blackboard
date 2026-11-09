@@ -383,3 +383,27 @@ const rehydrateConfig = () =>
       maxSummaryChars: 4_000,
     },
   }) as const;
+
+describe('stop()', () => {
+  it('ends a paused run at once and a live run after its round', async () => {
+    const { controller, events } = scripted({
+      onEvent: (event, c) => {
+        if (event.type === 'round_completed' && event.round === 1) c.requestPause();
+      },
+    });
+    expect(!(await controller.stop()).ok).toBe(true);
+    await controller.start({ content: 'P' });
+    await controller.run();
+    expect(controller.ended).toEqual({ status: 'paused', reason: 'user_paused' });
+    expect((await controller.stop()).ok).toBe(true);
+    expect(controller.ended).toEqual({ status: 'stopped', reason: 'user_stopped' });
+    expect(events.at(-1)).toMatchObject({ type: 'run_terminated', round: 1, status: 'stopped' });
+    expect(!(await controller.stop()).ok).toBe(true);
+
+    const live = scripted();
+    await live.controller.start({ content: 'P' });
+    expect((await live.controller.stop()).ok).toBe(true);
+    const result = await live.controller.run();
+    expect(result.ok && [result.value.status, result.value.rounds]).toEqual(['stopped', 0]);
+  });
+});
