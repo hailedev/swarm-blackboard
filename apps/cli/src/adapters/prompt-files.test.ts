@@ -41,7 +41,7 @@ describe('loadPromptFiles', () => {
       const text = prompts.value[role];
       expect(text.startsWith(`# ${role[0]?.toUpperCase() ?? ''}${role.slice(1)}`)).toBe(true);
       expect(text).toContain('Return only JSON matching the schema');
-      expect(text).toContain('Never invent an id');
+      expect(text).toContain('Never invent a handle');
     }
   });
 
