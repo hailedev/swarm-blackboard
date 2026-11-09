@@ -98,6 +98,16 @@ Enforcement points, all inside the controller:
 
 Only cost is reserved per call. The token budget (`maxTokens`) is checked before each round, like rounds and wall-clock, so a run can overshoot it by at most one round of calls.
 
+### Local context guard
+
+A local model costs nothing, so what its estimate protects is the context window: Ollama silently drops the start of a prompt longer than `num_ctx`, which is where the role instructions and the problem are. The Ollama adapter therefore refuses a call before it is sent when
+
+> estimated prompt tokens + `maxOutputTokens` + thinking allowance > `num_ctx`
+
+with the estimate of point 2 at the model's `charsPerToken` (3.0 by default, deliberately conservative), a thinking allowance of 8 192 tokens for an alias with `think: true` and none otherwise, and `num_ctx` 32 768 unless the alias sets `numCtx`. This covers every call that reaches Ollama through the adapter, repair attempts and a local fallback included.
+
+A refusal is an `invalid_request` (§4) whose message names each term of the sum. It is traced, not retried and not sent to the fallback; the agent contributes nothing that round and the run goes on, with the reason on the event log as `agent_failed`. The board view is **not** trimmed to make a prompt fit: its bounds (`RunConfig.view`) are fixed per run, and at their defaults the largest prompt of the recorded twelve-round run (`fixtures/runs/2026-11-09-cheap-release-process`) was about 25 000 characters, some 8–9 thousand estimated tokens with its schema, so the guard is reached only by an oversized problem statement or human note (both always shown in full), raised bounds, or a small `numCtx`. An agent refused for that reason is refused again each round, and the run then ends as `stalled`.
+
 Why reservation and not just a post-hoc check: a post-hoc check lets the last call overshoot by a whole call's cost, which on Sonnet with a large board view can be several cents — a meaningful fraction of a $0.25 cap.
 
 ### Cost accounting

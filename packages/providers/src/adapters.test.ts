@@ -128,6 +128,41 @@ describe('createOllamaModel', () => {
     expect(model.charsPerToken).toBe(OLLAMA_CHARS_PER_TOKEN);
   });
 
+  it('counts the thinking room against the context window and says so when it is what does not fit', async () => {
+    const mock = new MockLanguageModelV4({ doGenerate: ok });
+    const options = { modelId: 'm', baseUrl: 'http://mini:11434', numCtx: 8_192 };
+    // 9 000 prompt characters at three per token plus a 512 allowance is well inside
+    // 8 192 tokens; the default 8 192 of thinking room on top is not.
+    const medium = request({ prompt: 'x'.repeat(9_000) });
+    const estimated = estimateInputTokens(medium, OLLAMA_CHARS_PER_TOKEN);
+    expect(estimated + 512).toBeLessThan(8_192);
+    expect(estimated + 512 + OLLAMA_THINK_TOKENS).toBeGreaterThan(8_192);
+    expect(estimated + 512 + 1_000).toBeLessThan(8_192);
+
+    const quiet = createOllamaModel({ ...options, languageModel: mock });
+    expect((await quiet.generateObject(medium)).ok).toBe(true);
+    expect(mock.doGenerateCalls.length).toBe(1);
+
+    const thinking = createOllamaModel({ ...options, think: true, languageModel: mock });
+    const refused = await thinking.generateObject(medium);
+    expect(!refused.ok && refused.error).toEqual({
+      kind: 'invalid_request',
+      message: `prompt (~${String(estimated)} tokens) plus output allowance (512) and thinking allowance (${String(OLLAMA_THINK_TOKENS)}) exceeds the 8192-token context of m`,
+    });
+    // Refused before dispatch: the only call the provider saw is the non-thinking one.
+    expect(mock.doGenerateCalls.length).toBe(1);
+
+    // With thinking room that does fit, the same request goes out.
+    const frugal = createOllamaModel({
+      ...options,
+      think: true,
+      thinkTokens: 1_000,
+      languageModel: mock,
+    });
+    expect((await frugal.generateObject(medium)).ok).toBe(true);
+    expect(mock.doGenerateCalls.length).toBe(2);
+  });
+
   it('builds the API URL from the server root', () => {
     expect(ollamaApiUrl('http://mini:11434')).toBe('http://mini:11434/api');
     expect(ollamaApiUrl('http://mini:11434///')).toBe('http://mini:11434/api');

@@ -68,16 +68,18 @@ export const createOllamaModel = (options: OllamaModelOptions): Model => {
       },
     }),
     // Better a clear refusal than a prompt Ollama truncates from the front, where the
-    // role instructions and the problem are.
+    // role instructions and the problem are. The message names every term of the sum, so
+    // a refusal caused by the thinking room does not read as an oversized prompt.
     refuse: (request) => {
       const estimated = estimateInputTokens(request, charsPerToken);
-      const needed = estimated + (request.maxOutputTokens ?? 0) + thinkTokens;
-      return needed > numCtx
-        ? {
-            kind: 'invalid_request',
-            message: `prompt (~${String(estimated)} tokens) plus output allowance (${String(request.maxOutputTokens ?? 0)}) exceeds the ${String(numCtx)}-token context of ${options.modelId}`,
-          }
-        : undefined;
+      const allowance = request.maxOutputTokens ?? 0;
+      const needed = estimated + allowance + thinkTokens;
+      if (needed <= numCtx) return undefined;
+      const thinking = think ? ` and thinking allowance (${String(thinkTokens)})` : '';
+      return {
+        kind: 'invalid_request',
+        message: `prompt (~${String(estimated)} tokens) plus output allowance (${String(allowance)})${thinking} exceeds the ${String(numCtx)}-token context of ${options.modelId}`,
+      };
     },
     timeoutMs: options.timeoutMs ?? OLLAMA_TIMEOUT_MS,
     now: options.now,
