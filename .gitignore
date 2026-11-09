@@ -12,6 +12,8 @@ data/
 # Test and coverage output
 coverage/
 .vitest/
+test-results/
+playwright-report/
 
 # Build output
 dist/

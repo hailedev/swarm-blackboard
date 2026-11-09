@@ -22,14 +22,15 @@ export default defineConfig(({ mode }) => {
         test: {
           name,
           root,
-          include: llm ? ['**/*.llm.test.ts'] : ['**/*.test.ts'],
+          // `.tsx` for the web app's component tests, rendered to static markup in Node.
+          include: llm ? ['**/*.llm.test.ts'] : ['**/*.test.ts', '**/*.test.tsx'],
           exclude: ['**/node_modules/**', '**/dist/**', ...(llm ? [] : ['**/*.llm.test.ts'])],
         },
       })),
       coverage: {
         provider: 'v8',
         include: ['packages/*/src/**', 'apps/*/src/**', 'evals/src/**'],
-        exclude: ['**/*.test.ts'],
+        exclude: ['**/*.test.ts', '**/*.test.tsx'],
         reporter: ['text', 'html', 'lcov'],
         // CLAUDE.md: core coverage target is 90 %. A phase is not done while this is red.
         thresholds: {

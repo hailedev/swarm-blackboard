@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 // Node built-ins that packages/core must never import.
@@ -39,7 +40,15 @@ const nodeBuiltins = [
 ];
 
 export default defineConfig([
-  globalIgnores(['**/node_modules/', '**/dist/', '**/coverage/', '**/.vitest/', 'data/']),
+  globalIgnores([
+    '**/node_modules/',
+    '**/dist/',
+    '**/coverage/',
+    '**/.vitest/',
+    '**/test-results/',
+    '**/playwright-report/',
+    'data/',
+  ]),
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   {
@@ -66,6 +75,37 @@ export default defineConfig([
               group: ['node:*', ...nodeBuiltins.flatMap((name) => [name, `${name}/*`])],
               message:
                 'packages/core has no I/O (CLAUDE.md architecture rule 1). Inject it through an interface instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The web app: the rules of hooks, and nothing in the bundle that needs Node. The
+    // server's API contract (`@team/server/api`) and core are the only workspace imports
+    // a browser can load (ADR-0011).
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat.recommended],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@team/server',
+              message: 'Importing the server entry point starts a server. Use @team/server/api.',
+            },
+            { name: '@team/host', message: '@team/host needs Node; the browser cannot load it.' },
+            {
+              name: '@team/providers',
+              message: 'Model calls go through the server, never from the browser.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['node:*', ...nodeBuiltins.flatMap((name) => [name, `${name}/*`])],
+              message: 'apps/web/src runs in the browser: no Node built-ins.',
             },
           ],
         },
