@@ -1,8 +1,9 @@
 import {
+  buildAgentRequest,
   linkProblems,
-  renderAgentPrompt,
-  ResearcherOutputSchema,
+  resolveHandles,
   roleDefinitions,
+  type AgentRequest,
   type AgentRole,
   type Model,
   type ModelError,
@@ -24,7 +25,7 @@ import { systemClock } from '../adapters/system-clock';
 // The Phase 2 local-model trial (docs/PLAN.md §4 notes, ADR-0008): which local model
 // backs the worker roles. Ranked on structured-output reliability first, link validity
 // second, speed third. Every call goes through the same adapter the swarm uses, on the
-// real role prompts and realistic boards with real UUID v7 ids.
+// real role prompts, realistic boards and the per-call handle schema an agent would send.
 
 export type Outcome = 'ok' | 'schema' | 'truncated' | 'empty' | 'provider';
 
@@ -41,8 +42,10 @@ export interface TrialCell {
   errorKind: string | null;
   issues: readonly string[];
   contributions: number;
-  /** Link problems reported by the controller's commit validation, over all contributions. */
+  /** Unresolvable handles plus the controller's commit-time link problems, over all contributions. */
   linkProblems: number;
+  /** Handles the prompt named, i.e. the size of the enum the schema carried. */
+  handles: number;
   latencyMs: number;
   /** Prompt tokens the provider reported; null on an Ollama KV-cache hit. */
   inputTokens: number | null;
@@ -64,7 +67,7 @@ export interface ModelReport {
     { ok: true; version: string; loadMs: number } | { ok: false; error: OllamaPreflightError };
   /** Strict enum/integer schema sent raw as `format`: is the format honoured at all? */
   strictProbe: ProbeReport | null;
-  /** The real Researcher schema (with uuid patterns) sent raw as `format`. */
+  /** The real Researcher schema (handle enums) sent raw as `format`, one prompt each. */
   researcherProbe: ProbeReport | null;
   cells: TrialCell[];
 }
@@ -261,8 +264,7 @@ const runCell = async (
     think: boolean;
     board: BoardName;
     rep: number;
-    system: string;
-    prompt: string;
+    request: AgentRequest;
     runId: string;
     round: number;
     view: ReturnType<ReturnType<typeof boardOf>['sample']['fx']['view']>;
@@ -270,9 +272,9 @@ const runCell = async (
   },
 ): Promise<TrialCell> => {
   const result = await model.generateObject({
-    schema: roleDefinitions[input.role].outputSchema,
-    system: input.system,
-    prompt: input.prompt,
+    schema: input.request.schema,
+    system: input.request.system,
+    prompt: input.request.prompt,
     maxOutputTokens: input.maxOutputTokens,
     tags: { role: input.role, runId: input.runId, round: input.round },
   });
@@ -282,10 +284,15 @@ const runCell = async (
     think: input.think,
     board: input.board,
     rep: input.rep,
+    handles: input.request.handles.length,
   };
   if (result.ok) {
     const { contributions } = result.value.object;
-    const problems = contributions.flatMap((c) => linkProblems(c, input.view));
+    // What the controller would do: resolve handles, then validate the links.
+    const resolved = resolveHandles(contributions, input.view);
+    const problems = resolved.ok
+      ? resolved.value.flatMap((c) => linkProblems(c, input.view))
+      : resolved.error;
     return {
       ...base,
       outcome: 'ok',
@@ -365,10 +372,10 @@ export const runTrial = async (options: TrialOptions): Promise<TrialReport> => {
       `   strict schema honoured ${String(report.strictProbe.valid)}/${String(report.strictProbe.total)}`,
     );
 
-    // The real Researcher schema, raw: uuid patterns and all.
+    // The real Researcher schema, raw: each prompt with the handle enum built for it.
     const mid = boardOf('mid-run');
     const midView = mid.sample.fx.view();
-    const researcherPrompts = [0, 1, 2].map((rep) => {
+    const researcherRequests = [0, 1, 2].flatMap((rep) => {
       const trigger = roleDefinitions.researcher.trigger(
         midView,
         agentContext({ runId: mid.sample.fx.runId, round: mid.round }),
@@ -378,20 +385,30 @@ export const runTrial = async (options: TrialOptions): Promise<TrialReport> => {
         round: mid.round,
         targetIds: targetVariant(trigger.targetIds, rep),
       });
-      return renderAgentPrompt('researcher', midView, ctx, options.prompts.researcher).prompt;
+      const built = buildAgentRequest(
+        roleDefinitions.researcher,
+        midView,
+        ctx,
+        options.prompts.researcher,
+      );
+      return built.ok ? [built.value] : [];
     });
     options.log(`   format probe: researcher schema`);
-    report.researcherProbe = probeReport(
-      await probeOllamaFormat({
-        baseUrl: options.baseUrl,
-        model: modelId,
-        schema: ResearcherOutputSchema,
-        system: options.prompts.researcher,
-        prompts: researcherPrompts,
-        numPredict: maxOutputTokens,
-        now,
-      }),
-    );
+    const researcherResults: OllamaFormatProbeResult[] = [];
+    for (const request of researcherRequests) {
+      researcherResults.push(
+        ...(await probeOllamaFormat({
+          baseUrl: options.baseUrl,
+          model: modelId,
+          schema: request.schema,
+          system: request.system,
+          prompts: [request.prompt],
+          numPredict: maxOutputTokens,
+          now,
+        })),
+      );
+    }
+    report.researcherProbe = probeReport(researcherResults);
     options.log(
       `   researcher schema honoured ${String(report.researcherProbe.valid)}/${String(report.researcherProbe.total)}`,
     );
@@ -414,15 +431,25 @@ export const runTrial = async (options: TrialOptions): Promise<TrialReport> => {
               round,
               targetIds: targetVariant(trigger.targetIds, rep),
             });
-            const rendered = renderAgentPrompt(role, view, ctx, options.prompts[role]);
+            const built = buildAgentRequest(
+              roleDefinitions[role],
+              view,
+              ctx,
+              options.prompts[role],
+            );
+            if (!built.ok) {
+              options.log(
+                `   ${role.padEnd(10)} ${boardName.padEnd(10)}: nothing visible, skipped`,
+              );
+              continue;
+            }
             const cell = await runCell(model, {
               modelId,
               role,
               think,
               board: boardName,
               rep,
-              system: rendered.system,
-              prompt: rendered.prompt,
+              request: built.value,
               runId: sample.fx.runId,
               round,
               view,
@@ -430,7 +457,7 @@ export const runTrial = async (options: TrialOptions): Promise<TrialReport> => {
             });
             report.cells.push(cell);
             options.log(
-              `   ${role.padEnd(10)} think=${think ? 'on ' : 'off'} ${boardName.padEnd(10)} rep ${String(rep + 1)}: ${cell.outcome.padEnd(9)} ${seconds(cell.latencyMs).padStart(6)} s  out ${String(cell.outputTokens).padStart(5)}  links ${String(cell.linkProblems)}${cell.warnings.length > 0 ? `  warnings ${cell.warnings.join(' | ')}` : ''}`,
+              `   ${role.padEnd(10)} think=${think ? 'on ' : 'off'} ${boardName.padEnd(10)} rep ${String(rep + 1)}: ${cell.outcome.padEnd(9)} ${seconds(cell.latencyMs).padStart(6)} s  out ${String(cell.outputTokens).padStart(5)}  links ${String(cell.linkProblems)}  handles ${String(cell.handles)}${cell.warnings.length > 0 ? `  warnings ${cell.warnings.join(' | ')}` : ''}`,
             );
           }
         }

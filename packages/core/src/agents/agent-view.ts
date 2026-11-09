@@ -1,5 +1,6 @@
 import type { BoardView } from '../board/board-view';
 import type { Entry, EntryOf } from '../schemas/entry';
+import { compareHandles, type Handle } from '../schemas/handle';
 import type { AgentRole } from '../schemas/role';
 import type { ViewBounds } from '../schemas/run-config';
 import { latestSynthesis } from './eligibility';
@@ -8,6 +9,9 @@ import { latestSynthesis } from './eligibility';
 // the entries its trigger matched, their linked neighbours, and a rolling summary of
 // everything else. A pure function of the materialised board, so the same board and
 // bounds always render the same prompt and the prompt can be snapshot-tested.
+//
+// Entries are named by handle (H3, E7, …), never by id: the handles the view names are
+// exactly the links the agent may make, and the model's output schema is an enum of them.
 
 export interface FocusEntry {
   entry: Entry;
@@ -27,35 +31,78 @@ export interface AgentView {
   summary: readonly string[];
   /** Live entries that appear only in a collapsed tally. */
   omitted: number;
+  /** Every handle the view names, by type then ordinal: the entries the agent may link to. */
+  handles: readonly Handle[];
 }
 
 const SEPARATE_TYPES: ReadonlySet<Entry['type']> = new Set(['problem', 'human_note']);
 const DIGEST_CONTENT_CHARS = 140;
 const TALLY_IDS = 12;
 
-const list = (ids: readonly string[]): string => ids.join(',') || '-';
+/** Names an entry the way agents see it. An id the board does not know renders as "?". */
+export type HandleOf = (id: string) => string;
+
+export const handleOf =
+  (view: BoardView): HandleOf =>
+  (id) =>
+    view.handleOf(id) ?? '?';
+
+const list = (h: HandleOf, ids: readonly string[]): string => ids.map(h).join(',') || '-';
+
+/** The entry ids an entry's payload points at, in the order the digest prints them. */
+export const payloadReferences = (entry: Entry): string[] => {
+  switch (entry.type) {
+    case 'hypothesis':
+      return [...entry.payload.supportedBy, ...entry.payload.contradictedBy];
+    case 'evidence':
+      return [...entry.payload.supports, ...entry.payload.contradicts];
+    case 'critique':
+      return [
+        entry.payload.target,
+        ...(entry.payload.resolvedBy === undefined ? [] : [entry.payload.resolvedBy]),
+      ];
+    case 'question':
+      return entry.payload.answeredBy === undefined ? [] : [entry.payload.answeredBy];
+    case 'decision':
+      return [entry.payload.chosen, ...entry.payload.rejected];
+    case 'synthesis':
+      return [...entry.payload.cites];
+    case 'problem':
+    case 'subproblem':
+    case 'human_note':
+      return [];
+  }
+};
+
+/** Every id an entry names: parents, what it supersedes and its payload references. */
+export const referencedIds = (entry: Entry): string[] => [
+  ...entry.parents,
+  ...(entry.supersedes === undefined ? [] : [entry.supersedes]),
+  ...payloadReferences(entry),
+];
 
 /** The type-specific fields of an entry on one line, for digests and focus headers. */
-export const payloadDigest = (entry: Entry): string => {
+export const payloadDigest = (view: BoardView, entry: Entry): string => {
+  const h = handleOf(view);
   switch (entry.type) {
     case 'problem':
       return `constraints=${String(entry.payload.constraints.length)} criteria=${String(entry.payload.successCriteria.length)}`;
     case 'subproblem':
       return `status=${entry.payload.status}`;
     case 'hypothesis':
-      return `confidence=${String(entry.payload.confidence)} supportedBy=${list(entry.payload.supportedBy)} contradictedBy=${list(entry.payload.contradictedBy)}`;
+      return `confidence=${String(entry.payload.confidence)} supportedBy=${list(h, entry.payload.supportedBy)} contradictedBy=${list(h, entry.payload.contradictedBy)}`;
     case 'evidence':
-      return `source=${entry.payload.source} supports=${list(entry.payload.supports)} contradicts=${list(entry.payload.contradicts)}`;
+      return `source=${entry.payload.source} supports=${list(h, entry.payload.supports)} contradicts=${list(h, entry.payload.contradicts)}`;
     case 'critique':
-      return `target=${entry.payload.target} severity=${entry.payload.severity}${entry.payload.resolvedBy === undefined ? '' : ` resolvedBy=${entry.payload.resolvedBy}`}`;
+      return `target=${h(entry.payload.target)} severity=${entry.payload.severity}${entry.payload.resolvedBy === undefined ? '' : ` resolvedBy=${h(entry.payload.resolvedBy)}`}`;
     case 'question':
       return entry.payload.answeredBy === undefined
         ? 'open'
-        : `answeredBy=${entry.payload.answeredBy}`;
+        : `answeredBy=${h(entry.payload.answeredBy)}`;
     case 'decision':
-      return `chosen=${entry.payload.chosen} rejected=${list(entry.payload.rejected)}`;
+      return `chosen=${h(entry.payload.chosen)} rejected=${list(h, entry.payload.rejected)}`;
     case 'synthesis':
-      return `version=${String(entry.payload.version)} confidence=${String(entry.payload.confidence)} cites=${list(entry.payload.cites)}`;
+      return `version=${String(entry.payload.version)} confidence=${String(entry.payload.confidence)} cites=${list(h, entry.payload.cites)}`;
     case 'human_note':
       return `priority=${entry.payload.priority}`;
   }
@@ -66,9 +113,9 @@ const oneLine = (text: string, max: number): string => {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
 };
 
-/** One line for an entry outside the focus set. Ids stay complete so links remain possible. */
-export const digestLine = (entry: Entry): string =>
-  `[${entry.type}] ${entry.id} r${String(entry.round)} by ${entry.author}: ${oneLine(entry.content, DIGEST_CONTENT_CHARS)}; ${payloadDigest(entry)}`;
+/** One line for an entry outside the focus set; its payload links stay visible. */
+export const digestLine = (view: BoardView, entry: Entry): string =>
+  `[${entry.type}] ${handleOf(view)(entry.id)} r${String(entry.round)} by ${entry.author}: ${oneLine(entry.content, DIGEST_CONTENT_CHARS)}; ${payloadDigest(view, entry)}`;
 
 const liveEntry = (view: BoardView, id: string): Entry | undefined => {
   const entry = view.byId(id);
@@ -106,21 +153,11 @@ const neighboursOf = (view: BoardView, entry: Entry): Entry[] => {
       out.push(...view.evidenceSupporting(entry.id), ...view.evidenceContradicting(entry.id));
       break;
     case 'evidence':
-      out.push(...liveByIds(view, [...entry.payload.supports, ...entry.payload.contradicts]));
-      break;
     case 'critique':
-      out.push(...liveByIds(view, [entry.payload.target]));
-      break;
     case 'decision':
-      out.push(...liveByIds(view, [entry.payload.chosen, ...entry.payload.rejected]));
-      break;
     case 'synthesis':
-      out.push(...liveByIds(view, entry.payload.cites));
-      break;
     case 'question':
-      if (entry.payload.answeredBy !== undefined) {
-        out.push(...liveByIds(view, [entry.payload.answeredBy]));
-      }
+      out.push(...liveByIds(view, payloadReferences(entry)));
       break;
     case 'problem':
     case 'subproblem':
@@ -206,12 +243,14 @@ export const buildAgentView = (
     .filter((entry) => !shownSeparately(entry) && !inFocus.has(entry.id))
     .sort(newestFirst);
   const summary: string[] = [];
+  const digested: Entry[] = [];
   const collapsed: Entry[] = [];
   let summaryChars = 0;
   for (const entry of rest) {
-    const line = digestLine(entry);
+    const line = digestLine(view, entry);
     if (collapsed.length === 0 && summaryChars + line.length <= bounds.maxSummaryChars) {
       summary.push(line);
+      digested.push(entry);
       summaryChars += line.length;
     } else {
       collapsed.push(entry);
@@ -221,13 +260,36 @@ export const buildAgentView = (
   for (const entry of collapsed) {
     byType.set(entry.type, [...(byType.get(entry.type) ?? []), entry]);
   }
+  const tallied: Entry[] = [];
   for (const [type, entries] of byType) {
-    const ids = entries.slice(0, TALLY_IDS).map((entry) => entry.id);
-    const more = entries.length - ids.length;
+    const named = entries.slice(0, TALLY_IDS);
+    tallied.push(...named);
+    const more = entries.length - named.length;
     summary.push(
-      `… ${String(entries.length)} older ${type} ${entries.length === 1 ? 'entry' : 'entries'}: ${ids.join(', ')}${more > 0 ? ` and ${String(more)} more` : ''}`,
+      `… ${String(entries.length)} older ${type} ${entries.length === 1 ? 'entry' : 'entries'}: ${named.map((entry) => handleOf(view)(entry.id)).join(', ')}${more > 0 ? ` and ${String(more)} more` : ''}`,
     );
   }
 
-  return { problem, humanNotes, focus, summary, omitted: collapsed.length };
+  // Every handle the rendered view will print: the problem and notes, focus entries with
+  // all their references, digested entries with their payload references, tallied entries.
+  const named = new Set<string>();
+  if (problem !== undefined) named.add(problem.id);
+  for (const note of humanNotes) named.add(note.id);
+  for (const { entry } of focus) {
+    named.add(entry.id);
+    for (const id of referencedIds(entry)) named.add(id);
+  }
+  for (const entry of digested) {
+    named.add(entry.id);
+    for (const id of payloadReferences(entry)) named.add(id);
+  }
+  for (const entry of tallied) named.add(entry.id);
+  const handles = [...named]
+    .flatMap((id) => {
+      const handle = view.handleOf(id);
+      return handle === undefined ? [] : [handle];
+    })
+    .sort(compareHandles);
+
+  return { problem, humanNotes, focus, summary, omitted: collapsed.length, handles };
 };

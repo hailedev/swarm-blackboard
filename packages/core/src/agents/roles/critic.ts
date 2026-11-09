@@ -1,19 +1,20 @@
 import { z } from 'zod';
 
-import { CritiqueContributionSchema, QuestionContributionSchema } from '../../schemas/contribution';
+import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { hypothesesWithNewEvidence, hypothesesWithoutCritique } from '../eligibility';
 
 // Structurally unable to propose: the schema admits critiques and questions only (ADR-0005).
-export const CriticOutputSchema = z.object({
-  contributions: z
-    .array(z.discriminatedUnion('type', [CritiqueContributionSchema, QuestionContributionSchema]))
-    .max(6),
-});
+export const criticOutputSchema = (refs: ReferenceSchemas) => {
+  const s = contributionSchemas(refs);
+  return z.object({
+    contributions: z.array(z.discriminatedUnion('type', [s.critique, s.question])).max(6),
+  });
+};
 
 export const critic: RoleDefinition = {
   role: 'critic',
-  outputSchema: CriticOutputSchema,
+  outputSchema: criticOutputSchema,
   trigger(view, ctx) {
     const hypotheses = view.liveOfType('hypothesis').map((h) => h.id);
     if (ctx.flags.criticForced && hypotheses.length > 0) {

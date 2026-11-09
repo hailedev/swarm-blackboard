@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { createFakeModel, type FakeResponse } from '../model/fake-model';
+import { ok } from '../ports/result';
 import { agentContext } from '../testing/agent-context';
 import { BoardFixture } from '../testing/board-fixture';
 import { testRolePrompts } from '../testing/role-prompts';
-import { createRoleAgent } from './agent';
+import { createRoleAgent, type ModelGateway } from './agent';
 import { planner } from './roles/planner';
 
 const PROMPT = testRolePrompts().planner;
@@ -15,14 +16,15 @@ const board = () => {
   return { fx, problem };
 };
 
-const valid = (problemId: string): FakeResponse => ({
+// Models answer by handle: the problem is P1 on every board here.
+const valid: FakeResponse = {
   object: {
     contributions: [
-      { type: 'subproblem', content: 'Part A', parents: [problemId], payload: { status: 'open' } },
+      { type: 'subproblem', content: 'Part A', parents: ['P1'], payload: { status: 'open' } },
     ],
   },
   usage: { inputTokens: 100, outputTokens: 50 },
-});
+};
 
 // `status: 'later'` is not a subproblem status, so the schema rejects it.
 const invalid: FakeResponse = {
@@ -37,12 +39,14 @@ const invalid: FakeResponse = {
 describe('createRoleAgent: repair → fallback → discard', () => {
   it('repairs once on the same model, telling it what was wrong', async () => {
     const { fx, problem } = board();
-    const model = createFakeModel({ script: [invalid, valid(problem.id)] });
+    const model = createFakeModel({ script: [invalid, valid] });
     const agent = createRoleAgent(planner, { model }, PROMPT);
 
     const result = await agent.act(fx.view(), agentContext({ runId: fx.runId, round: 1 }));
 
     expect(result.ok && result.value.contributions.map((c) => c.content)).toEqual(['Part A']);
+    // Handles come back as entry ids.
+    expect(result.ok && result.value.contributions[0]?.parents).toEqual([problem.id]);
     expect(model.calls.map((c) => c.outcome)).toEqual(['invalid_output', 'ok']);
     const repair = model.calls[1]?.request;
     expect(repair?.prompt).toContain('# Your previous answer was rejected');
@@ -54,9 +58,9 @@ describe('createRoleAgent: repair → fallback → discard', () => {
   });
 
   it('falls back to the profile fallback with the original prompt when repair also fails', async () => {
-    const { fx, problem } = board();
+    const { fx } = board();
     const model = createFakeModel({ id: 'local', script: [invalid, invalid] });
-    const fallback = createFakeModel({ id: 'haiku', script: [valid(problem.id)] });
+    const fallback = createFakeModel({ id: 'haiku', script: [valid] });
     const agent = createRoleAgent(planner, { model, fallback }, PROMPT);
 
     const result = await agent.act(fx.view(), agentContext({ runId: fx.runId }));
@@ -138,5 +142,54 @@ describe('createRoleAgent: repair → fallback → discard', () => {
     expect(!result.ok && result.error.error.kind).toBe('budget_exhausted');
     expect(model.calls.length).toBe(0);
     expect(fallback.calls.length).toBe(0);
+  });
+
+  it('treats a handle the board does not know as a schema failure and repairs', async () => {
+    // A gateway that skips schema validation, the way a provider that ignores the enum would.
+    const { fx } = board();
+    const prompts: string[] = [];
+    const bypass: ModelGateway = {
+      call: (model, request) => {
+        prompts.push(request.prompt);
+        const parents = prompts.length === 1 ? ['H9'] : ['P1'];
+        return Promise.resolve(
+          ok({
+            object: {
+              contributions: [
+                { type: 'subproblem', content: 'x', parents, payload: { status: 'open' } },
+              ],
+            } as never,
+            usage: {
+              inputTokens: 1,
+              outputTokens: 1,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              costUsd: 0,
+            },
+            latencyMs: 0,
+            modelId: model.id,
+            warnings: [],
+          }),
+        );
+      },
+    };
+    const model = createFakeModel({ script: [] });
+    const result = await createRoleAgent(planner, { model }, PROMPT).act(
+      fx.view(),
+      agentContext({ models: bypass }),
+    );
+    expect(result.ok).toBe(true);
+    expect(prompts.length).toBe(2);
+    expect(prompts[1]).toContain('contributions.0.parents.0: unknown handle "H9"');
+  });
+
+  it('refuses to call a model when the board names nothing to link to', async () => {
+    const model = createFakeModel({ script: [valid] });
+    const result = await createRoleAgent(planner, { model }, PROMPT).act(
+      new BoardFixture().view(),
+      agentContext(),
+    );
+    expect(!result.ok && result.error.error.kind).toBe('invalid_request');
+    expect(model.calls.length).toBe(0);
   });
 });

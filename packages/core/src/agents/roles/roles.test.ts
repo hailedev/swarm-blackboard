@@ -5,6 +5,7 @@ import { testRolePrompts } from '../../testing/role-prompts';
 const PROMPTS = testRolePrompts();
 
 import { createFakeModel } from '../../model/fake-model';
+import { UUID_REFERENCES } from '../../schemas/contribution';
 import { agentContext } from '../../testing/agent-context';
 import { BoardFixture } from '../../testing/board-fixture';
 import { createRoleAgent } from '../agent';
@@ -140,18 +141,31 @@ describe('role output schemas', () => {
   };
 
   it('the critic cannot propose hypotheses or syntheses', () => {
-    expect(critic.outputSchema.safeParse({ contributions: [question] }).success).toBe(true);
-    expect(critic.outputSchema.safeParse({ contributions: [hypothesis] }).success).toBe(false);
-    expect(critic.outputSchema.safeParse({ contributions: [synthesis] }).success).toBe(false);
+    expect(
+      critic.outputSchema(UUID_REFERENCES).safeParse({ contributions: [question] }).success,
+    ).toBe(true);
+    expect(
+      critic.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+    ).toBe(false);
+    expect(
+      critic.outputSchema(UUID_REFERENCES).safeParse({ contributions: [synthesis] }).success,
+    ).toBe(false);
   });
 
   it('the synthesizer returns exactly one synthesis', () => {
-    expect(synthesizer.outputSchema.safeParse({ contributions: [synthesis] }).success).toBe(true);
-    expect(synthesizer.outputSchema.safeParse({ contributions: [] }).success).toBe(false);
     expect(
-      synthesizer.outputSchema.safeParse({ contributions: [synthesis, synthesis] }).success,
+      synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [synthesis] }).success,
+    ).toBe(true);
+    expect(synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [] }).success).toBe(
+      false,
+    );
+    expect(
+      synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [synthesis, synthesis] })
+        .success,
     ).toBe(false);
-    expect(synthesizer.outputSchema.safeParse({ contributions: [hypothesis] }).success).toBe(false);
+    expect(
+      synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+    ).toBe(false);
   });
 
   it('researcher produces evidence only; planner and solver stay in their lanes', () => {
@@ -161,12 +175,24 @@ describe('role output schemas', () => {
       parents: [],
       payload: { source: 's', supports: [], contradicts: [] },
     };
-    expect(researcher.outputSchema.safeParse({ contributions: [evidence] }).success).toBe(true);
-    expect(researcher.outputSchema.safeParse({ contributions: [hypothesis] }).success).toBe(false);
-    expect(planner.outputSchema.safeParse({ contributions: [question] }).success).toBe(true);
-    expect(planner.outputSchema.safeParse({ contributions: [hypothesis] }).success).toBe(false);
-    expect(solver.outputSchema.safeParse({ contributions: [hypothesis] }).success).toBe(true);
-    expect(solver.outputSchema.safeParse({ contributions: [evidence] }).success).toBe(false);
+    expect(
+      researcher.outputSchema(UUID_REFERENCES).safeParse({ contributions: [evidence] }).success,
+    ).toBe(true);
+    expect(
+      researcher.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+    ).toBe(false);
+    expect(
+      planner.outputSchema(UUID_REFERENCES).safeParse({ contributions: [question] }).success,
+    ).toBe(true);
+    expect(
+      planner.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+    ).toBe(false);
+    expect(
+      solver.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+    ).toBe(true);
+    expect(
+      solver.outputSchema(UUID_REFERENCES).safeParse({ contributions: [evidence] }).success,
+    ).toBe(false);
   });
 });
 
@@ -182,7 +208,7 @@ describe('createRoleAgent', () => {
               {
                 type: 'subproblem',
                 content: 'Part A',
-                parents: [problem.id],
+                parents: ['P1'],
                 payload: { status: 'open' },
               },
             ],
@@ -194,6 +220,7 @@ describe('createRoleAgent', () => {
     const result = await agent.act(fx.view(), agentContext({ runId: fx.runId, round: 1 }));
     expect(agent.id).toBe('planner');
     expect(result.ok && result.value.contributions.map((c) => c.content)).toEqual(['Part A']);
+    expect(result.ok && result.value.contributions[0]?.parents).toEqual([problem.id]);
     const call = model.calls[0];
     expect(call?.request.tags).toEqual({ role: 'planner', runId: fx.runId, round: 1 });
     expect(call?.request.prompt).toContain(problem.content);

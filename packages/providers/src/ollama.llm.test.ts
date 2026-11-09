@@ -3,11 +3,15 @@ import { createServer, type AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 import {
+  buildAgentRequest,
   linkProblems,
-  renderAgentPrompt,
-  ResearcherOutputSchema,
-  SolverOutputSchema,
+  researcherOutputSchema,
+  resolveHandles,
+  roleDefinitions,
+  UUID_REFERENCES,
+  type AgentRequest,
   type AgentRole,
+  type BoardView,
 } from '@team/core';
 import { agentContext, midRunBoard } from '@team/core/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -43,6 +47,16 @@ const prompt = (role: AgentRole): string =>
   readFileSync(fileURLToPath(new URL(`../../../prompts/${role}.md`, import.meta.url)), 'utf8');
 
 const tags = (role: AgentRole, runId: string) => ({ role, runId, round: 4 });
+
+const request = (
+  role: AgentRole,
+  view: BoardView,
+  ctx: Parameters<typeof buildAgentRequest>[2],
+): AgentRequest => {
+  const built = buildAgentRequest(roleDefinitions[role], view, ctx, prompt(role));
+  if (!built.ok) throw new Error('the board names nothing');
+  return built.value;
+};
 
 // Tight enough that an unconstrained model would stray: an enum, a bounded integer and a
 // bounded array. No ids, so hallucinated UUIDs cannot muddy the result.
@@ -96,7 +110,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
     ]);
   }, 600_000);
 
-  it('runs the researcher end to end: valid first attempts dominate and failures are schema-level', async () => {
+  it('runs the researcher end to end: valid first attempts dominate and every link resolves', async () => {
     const board = midRunBoard();
     const view = board.fx.view();
     const model = createOllamaModel({ modelId, baseUrl });
@@ -108,11 +122,11 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
     const outcomes: string[] = [];
     for (const targetIds of targetSets) {
       const ctx = agentContext({ runId: board.fx.runId, round: 4, targetIds });
-      const rendered = renderAgentPrompt('researcher', view, ctx, prompt('researcher'));
+      const req = request('researcher', view, ctx);
       const result = await model.generateObject({
-        schema: ResearcherOutputSchema,
-        system: rendered.system,
-        prompt: rendered.prompt,
+        schema: req.schema,
+        system: req.system,
+        prompt: req.prompt,
         maxOutputTokens: 2_048,
         tags: tags('researcher', board.fx.runId),
       });
@@ -120,10 +134,13 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
       if (result.ok) {
         expect(result.value.usage.inputTokens).toBeGreaterThan(0);
         expect(result.value.usage.costUsd).toBe(0);
-        // Link validity (ids that exist on the board) is what the trial measures; here it
-        // only has to be something the commit path can report.
-        const problems = result.value.object.contributions.flatMap((c) => linkProblems(c, view));
-        expect(Array.isArray(problems)).toBe(true);
+        // The schema's enums are the handles the prompt named, so every reference the
+        // model made resolves to an entry and passes the commit-time link check.
+        const resolved = resolveHandles(result.value.object.contributions, view);
+        expect(resolved.ok, JSON.stringify(resolved)).toBe(true);
+        if (resolved.ok) {
+          expect(resolved.value.flatMap((c) => linkProblems(c, view))).toEqual([]);
+        }
       }
     }
     expect(outcomes.filter((o) => o === 'ok').length).toBeGreaterThanOrEqual(2);
@@ -138,18 +155,17 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
       round: 4,
       targetIds: board.subproblems.map((s) => s.id),
     });
-    const rendered = renderAgentPrompt('solver', view, ctx, prompt('solver'));
+    const req = request('solver', view, ctx);
     const model = createOllamaModel({ modelId, baseUrl, think: true });
     const result = await model.generateObject({
-      schema: SolverOutputSchema,
-      system: rendered.system,
-      prompt: rendered.prompt,
+      schema: req.schema,
+      system: req.system,
+      prompt: req.prompt,
       maxOutputTokens: 4_096,
       tags: tags('solver', board.fx.runId),
     });
     // Thinking must not eat the allowance any more: the answer is either valid or a
-    // schema-level rejection of real JSON (local models mangle ids; the trial measures
-    // that), never an empty reply or a truncation.
+    // schema-level rejection of real JSON, never an empty reply or a truncation.
     const acceptable =
       result.ok ||
       (result.error.kind === 'invalid_output' &&
@@ -167,7 +183,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
   it('respects the output allowance through num_predict', async () => {
     const model = createOllamaModel({ modelId, baseUrl });
     const result = await model.generateObject({
-      schema: ResearcherOutputSchema,
+      schema: researcherOutputSchema(UUID_REFERENCES),
       system: 'Write as much evidence as you can.',
       prompt: 'List twenty facts about the history of version control systems.',
       maxOutputTokens: 48,
@@ -207,7 +223,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
       { attempts: 3, sleep: () => Promise.resolve() },
     );
     const result = await model.generateObject({
-      schema: ResearcherOutputSchema,
+      schema: researcherOutputSchema(UUID_REFERENCES),
       system: 's',
       prompt: 'p',
       maxOutputTokens: 64,

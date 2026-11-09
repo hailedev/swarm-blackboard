@@ -33,6 +33,7 @@ describe('renderAgentPrompt snapshots', () => {
       PROMPTS.planner,
     );
     expect(planner.prompt).toMatchSnapshot();
+    expect(planner.handles).toEqual(['P1']);
 
     const late = lateBoard();
     const view = late.fx.view();
@@ -48,28 +49,36 @@ describe('renderAgentPrompt snapshots', () => {
 });
 
 describe('renderAgentPrompt', () => {
-  it('shows the problem with its id, every human note, the targets and the active flags', () => {
-    const { fx, problem, hypotheses } = midRunBoard();
+  it('shows the problem by handle, every human note, the targets and the active flags', () => {
+    const { fx, hypotheses } = midRunBoard();
     const target = hypotheses[0];
     if (target === undefined) throw new Error('fixture changed');
-    const { prompt } = renderAgentPrompt(
+    const { prompt, handles } = renderAgentPrompt(
       'critic',
       fx.view(),
       agentContext({ round: 4, targetIds: [target.id], flags: { criticForced: true } }),
       PROMPTS.critic,
     );
     expect(prompt).toContain('Round 4 of 12.');
-    expect(prompt).toContain(`# Problem (id: ${problem.id})`);
+    expect(prompt).toContain('# Problem (P1)');
     expect(prompt).toContain('Constraints:\n- No more than two weeks of migration effort');
     expect(prompt).toContain('Success criteria:\n- A recommendation that names the main risk');
-    expect(prompt).toContain('# Human notes\n- ');
+    expect(prompt).toContain('# Human notes\n- N1 (priority high): ');
     expect(prompt).toContain(
       'Prefer any option that keeps the three deploy pipelines independent.',
     );
-    expect(prompt).toContain(`## [hypothesis] ${target.id} (target)`);
-    expect(prompt).toContain(`# Your targets\n${target.id}`);
+    expect(prompt).toContain('## [hypothesis] H1 (target)');
+    expect(prompt).toContain('parents: S1, S2');
+    expect(prompt).toContain('source=repository audit, October 2026 supports=H1 contradicts=-');
+    expect(prompt).toContain('# Your targets\nH1');
     expect(prompt).toContain('Control flags: criticForced');
-    expect(prompt).toMatch(/Return JSON matching the schema\.[^\n]*copied exactly\.$/);
+    expect(prompt).toMatch(
+      /Return JSON matching the schema\. Reference entries only by the handles shown above \(P problem, [^)]*N human note\), copied exactly\.$/,
+    );
+    // Every handle the prompt names, and nothing else, is offered as a link.
+    expect(handles).toEqual(['P1', 'S1', 'S2', 'S3', 'H1', 'E1', 'E2', 'C1', 'Q1', 'N1']);
+    for (const handle of handles) expect(prompt).toMatch(new RegExp(`\\b${handle}\\b`));
+    expect(prompt).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-7/);
   });
 
   it('hides superseded entries and shows what a live entry supersedes', () => {
@@ -82,17 +91,17 @@ describe('renderAgentPrompt', () => {
       agentContext({ round: 4, targetIds: [claimed.id] }),
       PROMPTS.solver,
     );
-    expect(prompt).toContain(`## [subproblem] ${claimed.id} (target)`);
-    expect(prompt).toContain(`supersedes ${claimed.supersedes}`);
-    expect(prompt).not.toContain(`## [subproblem] ${claimed.supersedes}`);
-    expect(prompt).not.toContain(`[subproblem] ${claimed.supersedes} r`);
+    expect(prompt).toContain('## [subproblem] S3 (target)');
+    expect(prompt).toContain('round 2, by solver, supersedes S1');
+    expect(prompt).not.toContain('## [subproblem] S1');
+    expect(prompt).not.toContain('[subproblem] S1 r');
   });
 
   it('copes with an empty board and no targets', () => {
-    const { prompt } = renderAgentPrompt(
+    const { prompt, handles } = renderAgentPrompt(
       'solver',
       new BoardFixture().view(),
-      agentContext(),
+      agentContext({ targetIds: ['not-an-id'] }),
       PROMPTS.solver,
     );
     expect(prompt).toContain('# Problem\n(no problem entry on the board)');
@@ -101,6 +110,7 @@ describe('renderAgentPrompt', () => {
     expect(prompt).toContain('# Your targets\n(none: act on the board as a whole)');
     expect(prompt).not.toContain('# Human notes');
     expect(prompt).not.toContain('Control flags');
+    expect(handles).toEqual([]);
   });
 });
 
@@ -111,5 +121,13 @@ describe('renderRepairPrompt', () => {
     expect(repaired).toContain('- a: bad');
     expect(repaired).toContain(`${'x'.repeat(4_000)}…`);
     expect(repaired).not.toContain('x'.repeat(4_001));
+    expect(repaired).toMatch(/by the handles shown on the board, copied exactly\.$/);
+  });
+
+  it('clips an issue that lists every allowed handle', () => {
+    const issue = `parents.0: Invalid option: expected one of ${Array.from({ length: 80 }, (_, i) => `"H${String(i)}"`).join('|')}`;
+    const repaired = renderRepairPrompt('BOARD', { issues: [issue], raw: '{}' });
+    expect(repaired).toContain(`- ${issue.slice(0, 200)}…`);
+    expect(repaired).not.toContain(issue);
   });
 });

@@ -49,9 +49,6 @@ const stubAgent = (
 ): Agent => ({
   id,
   role: 'solver',
-  outputSchema: {
-    safeParse: () => ({ success: true, data: { contributions: [] } }),
-  } as unknown as Agent['outputSchema'],
   trigger: () =>
     options.priority === null
       ? notEligible('off')
@@ -72,7 +69,6 @@ const EmptyOutputSchema = z.object({ contributions: z.array(z.never()) });
 const gatewayAgent = (id: string, model: Model, priority: number): Agent => ({
   id,
   role: 'solver',
-  outputSchema: EmptyOutputSchema,
   trigger: () => eligible(priority, [], 'on'),
   async act(_view, ctx) {
     const response = await ctx.models.call(model, {
@@ -429,7 +425,6 @@ describe('createController', () => {
     });
 
     it('settles the tokens of an invalid answer and attributes every call to the entry', async () => {
-      const problemId = () => events.find((e) => e.type === 'entry_committed')?.entry.id ?? '';
       const bad: FakeResponse = {
         object: {
           contributions: [
@@ -449,7 +444,7 @@ describe('createController', () => {
                     {
                       type: 'subproblem',
                       content: 'A',
-                      parents: [problemId()],
+                      parents: ['P1'],
                       payload: { status: 'open' },
                     },
                   ],
@@ -457,7 +452,7 @@ describe('createController', () => {
                 usage: { inputTokens: 300, outputTokens: 60 },
               },
       });
-      const { controller, events } = harness([
+      const { controller } = harness([
         createRoleAgent(planner, { model }, testRolePrompts().planner),
       ]);
       await controller.start({ content: 'P' });

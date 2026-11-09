@@ -3,10 +3,11 @@ import type { ZodType } from 'zod';
 import type { BoardView } from '../board/board-view';
 import type { Model, ModelError, ModelRequest, ModelResponse } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
-import type { Contribution } from '../schemas/contribution';
+import type { Contribution, ReferenceSchemas } from '../schemas/contribution';
 import type { AgentRole } from '../schemas/role';
 import type { RunConfig } from '../schemas/run-config';
-import { renderAgentPrompt, renderRepairPrompt } from './prompt';
+import { buildAgentRequest, resolveHandles } from './handles';
+import { renderRepairPrompt } from './prompt';
 
 // Controller-owned flags the triggers may read (docs/PLAN.md §2.3 steps 7–8).
 export interface ControlFlags {
@@ -63,12 +64,14 @@ export const notEligible = (reason: string): Trigger => ({
   reason,
 });
 
+/** What a model returns: contributions whose references are handles until resolved. */
 export interface AgentOutput {
   contributions: readonly Contribution[];
 }
 
 export type AgentError = { kind: 'model'; error: CallError };
 
+/** What an agent hands the controller: contributions whose references are entry ids. */
 export interface AgentResult {
   contributions: readonly Contribution[];
 }
@@ -78,15 +81,15 @@ export interface AgentResult {
 export interface Agent {
   readonly id: string;
   readonly role: AgentRole;
-  readonly outputSchema: ZodType<AgentOutput>;
   trigger(view: BoardView, ctx: AgentContext): Trigger;
   act(view: BoardView, ctx: AgentContext): Promise<Result<AgentResult, AgentError>>;
 }
 
-// What a role module declares; `createRoleAgent` binds it to models.
+// What a role module declares; `createRoleAgent` binds it to models. The output schema is
+// built per call from the references the agent's view names (agents/handles.ts).
 export interface RoleDefinition {
   readonly role: AgentRole;
-  readonly outputSchema: ZodType<AgentOutput>;
+  outputSchema(refs: ReferenceSchemas): ZodType<AgentOutput>;
   trigger(view: BoardView, ctx: AgentContext): Trigger;
 }
 
@@ -96,10 +99,28 @@ export interface RoleModels {
   fallback?: Model;
 }
 
-const accept = (response: ModelResponse<AgentOutput>): Result<AgentResult, AgentError> =>
-  ok({ contributions: response.object.contributions });
-
 const reject = (error: CallError): Result<AgentResult, AgentError> => err({ kind: 'model', error });
+
+// One call, with the model's handles mapped back to entry ids before anyone else sees the
+// contributions. The enum came from the same view, so an unknown handle means a bug rather
+// than a model error, but it takes the schema-failure path all the same.
+const callAndResolve = async (
+  ctx: AgentContext,
+  model: Model,
+  request: ModelRequest<AgentOutput>,
+  view: BoardView,
+): Promise<Result<AgentResult, CallError>> => {
+  const response = await ctx.models.call(model, request);
+  if (!response.ok) return err(response.error);
+  const resolved = resolveHandles(response.value.object.contributions, view);
+  if (resolved.ok) return ok({ contributions: resolved.value });
+  return err({
+    kind: 'invalid_output',
+    issues: resolved.error,
+    raw: JSON.stringify(response.value.object),
+    usage: response.value.usage,
+  });
+};
 
 // The malformed-output path (docs/PLAN.md §2.3 step 5): validate → one repair attempt
 // on the same model → the profile's fallback model → discard. Only schema failures take
@@ -112,31 +133,38 @@ export const createRoleAgent = (
 ): Agent => ({
   id: definition.role,
   role: definition.role,
-  outputSchema: definition.outputSchema,
   trigger: (view, ctx) => definition.trigger(view, ctx),
   async act(view, ctx) {
-    const { system, prompt } = renderAgentPrompt(definition.role, view, ctx, rolePrompt);
+    const built = buildAgentRequest(definition, view, ctx, rolePrompt);
+    if (!built.ok) {
+      return reject({
+        kind: 'invalid_request',
+        message: 'nothing on the board is visible to this agent, so it has nothing to link to',
+      });
+    }
     const request: ModelRequest<AgentOutput> = {
-      schema: definition.outputSchema,
-      system,
-      prompt,
+      schema: built.value.schema,
+      system: built.value.system,
+      prompt: built.value.prompt,
       maxOutputTokens: ctx.config.maxOutputTokens,
       tags: { role: definition.role, runId: ctx.runId, round: ctx.round },
     };
-    const first = await ctx.models.call(models.model, request);
-    if (first.ok) return accept(first.value);
+    const first = await callAndResolve(ctx, models.model, request, view);
+    if (first.ok) return first;
     if (first.error.kind !== 'invalid_output') return reject(first.error);
 
-    const repaired = await ctx.models.call(models.model, {
-      ...request,
-      prompt: renderRepairPrompt(prompt, first.error),
-    });
-    if (repaired.ok) return accept(repaired.value);
+    const repaired = await callAndResolve(
+      ctx,
+      models.model,
+      { ...request, prompt: renderRepairPrompt(request.prompt, first.error) },
+      view,
+    );
+    if (repaired.ok) return repaired;
     if (repaired.error.kind !== 'invalid_output' || models.fallback === undefined) {
       return reject(repaired.error);
     }
 
-    const fallback = await ctx.models.call(models.fallback, request);
-    return fallback.ok ? accept(fallback.value) : reject(fallback.error);
+    const fallback = await callAndResolve(ctx, models.fallback, request, view);
+    return fallback.ok ? fallback : reject(fallback.error);
   },
 });

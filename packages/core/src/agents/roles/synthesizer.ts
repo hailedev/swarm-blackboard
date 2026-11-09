@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
-import { SynthesisContributionSchema } from '../../schemas/contribution';
+import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { synthesisCandidates } from '../eligibility';
 
-export const SynthesizerOutputSchema = z.object({
-  contributions: z.array(SynthesisContributionSchema).min(1).max(1),
-});
+/** Exactly one synthesis, linking only through `refs`. */
+export const synthesizerOutputSchema = (refs: ReferenceSchemas) =>
+  z.object({ contributions: z.array(contributionSchemas(refs).synthesis).min(1).max(1) });
 
 // Contributes the draft answer. Eligible when a hypothesis has no blocking critique, or
 // from `synthesisFromRound` onwards regardless of board state (docs/PLAN.md §2.2). The
@@ -15,7 +15,7 @@ export const SynthesizerOutputSchema = z.object({
 // otherwise starving the run of any answer until the round cap.
 export const synthesizer: RoleDefinition = {
   role: 'synthesizer',
-  outputSchema: SynthesizerOutputSchema,
+  outputSchema: synthesizerOutputSchema,
   trigger(view, ctx) {
     const candidates = synthesisCandidates(view).map((h) => h.id);
     if (ctx.round >= ctx.config.synthesisFromRound) {

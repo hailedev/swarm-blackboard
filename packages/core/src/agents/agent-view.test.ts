@@ -38,8 +38,11 @@ describe('buildAgentView', () => {
     expect(ids(agentView)).toEqual(expect.arrayContaining(board.subproblems.map((s) => s.id)));
     // Everything else is one digest line; the open question is not linked to the target.
     expect(ids(agentView)).not.toContain(q1.id);
-    expect(agentView.summary).toEqual([digestLine(q1)]);
+    expect(agentView.summary).toEqual([digestLine(view, q1)]);
     expect(agentView.omitted).toBe(0);
+    // The handles the view names: problem, note, focus entries and their references
+    // (S1 only as a superseded parent), the digested question.
+    expect(agentView.handles).toEqual(['P1', 'S1', 'S2', 'S3', 'H1', 'E1', 'E2', 'C1', 'Q1', 'N1']);
   });
 
   it('never shows superseded entries and ignores target ids that are not live', () => {
@@ -49,7 +52,7 @@ describe('buildAgentView', () => {
     const superseded = must(claimed.supersedes);
     const agentView = buildAgentView(view, 'solver', [superseded, 'not-an-id'], bounds());
     expect(ids(agentView)).not.toContain(superseded);
-    expect(agentView.summary.join('\n')).not.toContain(superseded);
+    expect(agentView.summary.join('\n')).not.toContain('[subproblem] S1 ');
     expect(agentView.focus.every((f) => !f.isTarget)).toBe(true);
   });
 
@@ -102,6 +105,7 @@ describe('buildAgentView', () => {
       { supersedes: q1.id, content: q1.content },
     );
     const view = fx.view();
+    const h = (entry: Entry): string => must(view.handleOf(entry.id));
 
     const fromDecision = buildAgentView(view, 'critic', [decision.id], bounds());
     expect(ids(fromDecision)).toEqual(expect.arrayContaining([decision.id, hyp2.id, loser.id]));
@@ -113,11 +117,14 @@ describe('buildAgentView', () => {
     const planner = buildAgentView(view, 'planner', [], bounds());
     expect(ids(planner)).not.toContain(answered.id);
 
-    for (const entry of view.live) expect(digestLine(entry)).toContain(entry.id);
-    expect(digestLine(decision)).toContain(`chosen=${hyp2.id} rejected=${loser.id}`);
-    expect(digestLine(answered)).toContain(`answeredBy=${answer.id}`);
-    expect(digestLine(board.problem)).toContain('constraints=2 criteria=2');
-    expect(digestLine(synthesis)).toContain('version=1 confidence=0.6 cites=');
+    for (const entry of view.live) {
+      expect(digestLine(view, entry)).toContain(`[${entry.type}] ${h(entry)} r`);
+      expect(digestLine(view, entry)).not.toContain(entry.id);
+    }
+    expect(digestLine(view, decision)).toContain(`chosen=${h(hyp2)} rejected=${h(loser)}`);
+    expect(digestLine(view, answered)).toContain(`answeredBy=${h(answer)}`);
+    expect(digestLine(view, board.problem)).toContain('constraints=2 criteria=2');
+    expect(digestLine(view, synthesis)).toContain('version=1 confidence=0.6 cites=H2,E1,E2');
   });
 
   it('clips long content and stops admitting entries at the focus bounds', () => {
@@ -170,23 +177,25 @@ describe('buildAgentView', () => {
     );
     const newest = must(entries[14]);
     const secondNewest = must(entries[13]);
-    const twoLines = 2 * digestLine(newest).length;
-    const agentView = buildAgentView(
-      fx.view(),
-      'critic',
-      [],
-      bounds({ maxSummaryChars: twoLines }),
-    );
+    const view = fx.view();
+    const twoLines = 2 * digestLine(view, newest).length;
+    const agentView = buildAgentView(view, 'critic', [], bounds({ maxSummaryChars: twoLines }));
 
     expect(agentView.focus).toEqual([]);
-    expect(agentView.summary.slice(0, 2)).toEqual([digestLine(newest), digestLine(secondNewest)]);
+    expect(agentView.summary.slice(0, 2)).toEqual([
+      digestLine(view, newest),
+      digestLine(view, secondNewest),
+    ]);
     const tallies = agentView.summary.slice(2);
     expect(tallies.length).toBe(2);
     expect(tallies.join('\n')).toMatch(/… 8 older subproblem entries: /);
     expect(tallies.join('\n')).toMatch(/… 5 older question entries: /);
     expect(agentView.omitted).toBe(13);
     const subproblemTally = tallies.find((t) => t.includes('subproblem')) ?? '';
-    expect(subproblemTally.match(/0000-7000-8000/g)?.length).toBe(8);
+    expect(subproblemTally.match(/\bS\d+\b/g)?.length).toBe(8);
+    // Tallied entries are named, so they can be linked to.
+    expect(agentView.handles.filter((h) => h.startsWith('S')).length).toBe(10);
+    expect(agentView.handles.filter((h) => h.startsWith('Q')).length).toBe(5);
 
     // At most 12 ids per tally, then a count.
     const many = Array.from({ length: 14 }, (_, i) =>
@@ -199,6 +208,8 @@ describe('buildAgentView', () => {
     const crowded = buildAgentView(fx.view(), 'critic', [], bounds({ maxSummaryChars: 1 }));
     const evidenceTally = crowded.summary.find((t) => t.includes('older evidence')) ?? '';
     expect(evidenceTally).toContain(` and ${String(many.length - 12)} more`);
-    expect(evidenceTally.match(/0000-7000-8000/g)?.length).toBe(12);
+    expect(evidenceTally.match(/\bE\d+\b/g)?.length).toBe(12);
+    // The two unnamed evidence entries are not offered as links.
+    expect(crowded.handles.filter((h) => h.startsWith('E')).length).toBe(12);
   });
 });

@@ -20,6 +20,7 @@ const cell = (overrides: Partial<TrialCell>): TrialCell => ({
   issues: [],
   contributions: 2,
   linkProblems: 0,
+  handles: 10,
   latencyMs: 10_000,
   inputTokens: 1_500,
   outputTokens: 300,

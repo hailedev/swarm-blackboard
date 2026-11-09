@@ -2,10 +2,16 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import {
+  buildAgentRequest,
   linkProblems,
-  PlannerOutputSchema,
-  renderAgentPrompt,
-  SynthesizerOutputSchema,
+  plannerOutputSchema,
+  resolveHandles,
+  roleDefinitions,
+  UUID_REFERENCES,
+  type AgentRequest,
+  type AgentRole,
+  type BoardView,
+  type Contribution,
 } from '@team/core';
 import { agentContext, freshBoard, lateBoard } from '@team/core/testing';
 import { describe, expect, it } from 'vitest';
@@ -15,9 +21,9 @@ import { PRICE_TABLE } from './pricing';
 import { traceModel, type ModelCallTrace } from './trace';
 
 // Contract test against the real Anthropic API (pnpm test:llm). Skipped without a key.
-// It uses the real role schemas on purpose: their minItems/maxItems, numeric bounds and
-// uuid patterns are exactly what a native structured-output grammar might reject, and a
-// rejection would surface as invalid_request on every round of a paid run.
+// It uses the real per-call role schemas on purpose: their minItems/maxItems, numeric
+// bounds and handle enums are exactly what a native structured-output grammar might
+// reject, and a rejection would surface as invalid_request on every round of a paid run.
 
 try {
   process.loadEnvFile(fileURLToPath(new URL('../../../.env', import.meta.url)));
@@ -27,7 +33,7 @@ try {
 const apiKey = process.env['ANTHROPIC_API_KEY'];
 const MODEL_ID = 'claude-haiku-5-5';
 const pricing = PRICE_TABLE.models[MODEL_ID];
-const prompt = (role: string): string =>
+const prompt = (role: AgentRole): string =>
   readFileSync(fileURLToPath(new URL(`../../../prompts/${role}.md`, import.meta.url)), 'utf8');
 
 const haiku = (mode?: AnthropicStructuredOutputMode) => {
@@ -40,17 +46,33 @@ const haiku = (mode?: AnthropicStructuredOutputMode) => {
   return { model, traces };
 };
 
+const request = (
+  role: AgentRole,
+  view: BoardView,
+  ctx: Parameters<typeof buildAgentRequest>[2],
+): AgentRequest => {
+  const built = buildAgentRequest(roleDefinitions[role], view, ctx, prompt(role));
+  if (!built.ok) throw new Error('the board names nothing');
+  return built.value;
+};
+
+/** The controller's commit-time check: handles resolve, and the links they make are valid. */
+const linkIssues = (contributions: readonly Contribution[], view: BoardView): string[] => {
+  const resolved = resolveHandles(contributions, view);
+  return resolved.ok ? resolved.value.flatMap((c) => linkProblems(c, view)) : resolved.error;
+};
+
 describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real API)', () => {
   it('decomposes a fresh board with the planner schema, with usage, cost and a trace', async () => {
     const board = freshBoard();
     const view = board.fx.view();
     const ctx = agentContext({ runId: board.fx.runId, targetIds: [board.problem.id] });
-    const rendered = renderAgentPrompt('planner', view, ctx, prompt('planner'));
+    const req = request('planner', view, ctx);
     const { model, traces } = haiku();
     const result = await model.generateObject({
-      schema: PlannerOutputSchema,
-      system: rendered.system,
-      prompt: rendered.prompt,
+      schema: req.schema,
+      system: req.system,
+      prompt: req.prompt,
       maxOutputTokens: 4_096,
       tags: { role: 'planner', runId: board.fx.runId, round: 1 },
     });
@@ -60,8 +82,7 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
     expect(result.value.usage.inputTokens).toBeGreaterThan(0);
     expect(result.value.usage.outputTokens).toBeGreaterThan(0);
     expect(result.value.usage.costUsd).toBeGreaterThan(0);
-    const links = result.value.object.contributions.flatMap((c) => linkProblems(c, view));
-    expect(links).toEqual([]);
+    expect(linkIssues(result.value.object.contributions, view)).toEqual([]);
     expect(traces[0]).toMatchObject({ outcome: 'ok', billing: 'api', modelId: MODEL_ID });
     expect(traces[0]?.actualInputTokens).toBeGreaterThan(0);
     expect(traces[0]?.estimatedInputTokens).toBeGreaterThan(0);
@@ -75,21 +96,28 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
       round: 5,
       targetIds: board.hypotheses.map((h) => h.id),
     });
-    const rendered = renderAgentPrompt('synthesizer', view, ctx, prompt('synthesizer'));
+    const req = request('synthesizer', view, ctx);
     const { model } = haiku();
     const result = await model.generateObject({
-      schema: SynthesizerOutputSchema,
-      system: rendered.system,
-      prompt: rendered.prompt,
+      schema: req.schema,
+      system: req.system,
+      prompt: req.prompt,
       maxOutputTokens: 4_096,
       tags: { role: 'synthesizer', runId: board.fx.runId, round: 5 },
     });
     expect(result.ok, JSON.stringify(result)).toBe(true);
     if (!result.ok) return;
     const [synthesis] = result.value.object.contributions;
-    expect(synthesis?.payload.version).toBe(2);
-    expect(synthesis?.supersedes).toBe(board.synthesis?.id);
-    expect(result.value.object.contributions.flatMap((c) => linkProblems(c, view))).toEqual([]);
+    expect(synthesis?.type).toBe('synthesis');
+    if (synthesis?.type !== 'synthesis') return;
+    expect(synthesis.payload.version).toBe(2);
+    // The model names the earlier synthesis by handle; resolved, it is the entry id.
+    const previous = board.synthesis;
+    if (previous === undefined) throw new Error('fixture changed');
+    expect(synthesis.supersedes).toBe(view.handleOf(previous.id));
+    const resolved = resolveHandles(result.value.object.contributions, view);
+    expect(resolved.ok && resolved.value[0]?.supersedes).toBe(previous.id);
+    expect(linkIssues(result.value.object.contributions, view)).toEqual([]);
   }, 60_000);
 
   // The JSON-tool path is the fallback for a schema the native grammar rejects. The API
@@ -100,12 +128,12 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
     const board = freshBoard();
     const view = board.fx.view();
     const ctx = agentContext({ runId: board.fx.runId, targetIds: [board.problem.id] });
-    const rendered = renderAgentPrompt('planner', view, ctx, prompt('planner'));
+    const req = request('planner', view, ctx);
     const { model } = haiku('jsonTool');
     const result = await model.generateObject({
-      schema: PlannerOutputSchema,
-      system: rendered.system,
-      prompt: rendered.prompt,
+      schema: req.schema,
+      system: req.system,
+      prompt: req.prompt,
       maxOutputTokens: 4_096,
       tags: { role: 'planner', runId: board.fx.runId, round: 1 },
     });
@@ -116,7 +144,7 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
     if (pricing === undefined) throw new Error('precondition');
     const model = createAnthropicModel({ modelId: MODEL_ID, apiKey: 'sk-ant-bogus', pricing });
     const result = await model.generateObject({
-      schema: PlannerOutputSchema,
+      schema: plannerOutputSchema(UUID_REFERENCES),
       system: 's',
       prompt: 'p',
       maxOutputTokens: 256,

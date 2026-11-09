@@ -1,23 +1,22 @@
 import { z } from 'zod';
 
-import {
-  QuestionContributionSchema,
-  SubproblemContributionSchema,
-} from '../../schemas/contribution';
+import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { boardIsNew } from '../eligibility';
 
-export const PlannerOutputSchema = z.object({
-  contributions: z
-    .array(z.discriminatedUnion('type', [SubproblemContributionSchema, QuestionContributionSchema]))
-    .max(8),
-});
+/** Up to 8 subproblems or questions, linking only through `refs`. */
+export const plannerOutputSchema = (refs: ReferenceSchemas) => {
+  const s = contributionSchemas(refs);
+  return z.object({
+    contributions: z.array(z.discriminatedUnion('type', [s.subproblem, s.question])).max(8),
+  });
+};
 
 // Contributes subproblems and reframes. Eligible when the board is new or a stall
 // has been detected.
 export const planner: RoleDefinition = {
   role: 'planner',
-  outputSchema: PlannerOutputSchema,
+  outputSchema: plannerOutputSchema,
   trigger(view, ctx) {
     const problem = view.problem();
     if (problem !== undefined && boardIsNew(view)) {

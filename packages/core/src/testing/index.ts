@@ -7,6 +7,7 @@ export type { SampleBoard } from './sample-boards';
 export { decomposedBoard, freshBoard, lateBoard, midRunBoard } from './sample-boards';
 export {
   createScriptedModels,
+  handlesOf,
   SCENARIO_CALL_COST_USD,
   SCENARIO_PRICING,
   SCENARIO_TOKENS,
