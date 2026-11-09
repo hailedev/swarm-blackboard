@@ -37,11 +37,10 @@ describe('loadRosterFile', () => {
     expect(!missing.ok && missing.error).toMatch(/^cannot read .*nope\.yaml: /);
 
     const broken = join(dir, 'broken.yaml');
-    await writeFile(broken, 'models:\n  - oops\n');
+    await writeFile(broken, 'models: {\n  local: oops\n');
     const syntax = await loadRosterFile(broken);
-    expect(!syntax.ok && syntax.error).toMatch(
-      /broken\.yaml: line 2: sequences are not supported$/,
-    );
+    expect(!syntax.ok && syntax.error).toMatch(/broken\.yaml: \S/);
+    expect(!syntax.ok && syntax.error).not.toContain('\n');
 
     const unknown = join(dir, 'unknown.yaml');
     await writeFile(

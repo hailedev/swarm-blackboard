@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@team/core": "workspace:*",
-    "@team/providers": "workspace:*"
+    "@team/providers": "workspace:*",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@types/node": "22.20.5"

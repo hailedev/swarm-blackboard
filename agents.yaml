@@ -3,9 +3,6 @@
 # Agents are defined once. A profile picks a model alias per role and one fallback for
 # schema failures. The default profile spends nothing; a paid profile is always an
 # explicit choice per run (`pnpm solve "…" --profile quality`).
-#
-# Read by apps/cli/src/adapters/yaml-subset.ts: block mappings, single-line `{ }` flow
-# mappings, scalars and comments only.
 
 defaultProfile: dev
 

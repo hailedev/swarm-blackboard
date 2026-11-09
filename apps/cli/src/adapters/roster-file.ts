@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { describeRosterError, err, loadRoster, type Result, type Roster } from '@team/core';
-
-import { parseYamlSubset } from './yaml-subset';
+import { parse } from 'yaml';
 
 const messageOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : 'unknown error';
@@ -17,9 +16,9 @@ export const loadRosterFile = async (path: string): Promise<Result<Roster, strin
   }
   let raw: unknown;
   try {
-    raw = parseYamlSubset(text);
+    raw = parse(text);
   } catch (cause) {
-    return err(`${path}: ${messageOf(cause)}`);
+    return err(`${path}: ${messageOf(cause).replace(/\s+/g, ' ').trim()}`);
   }
   const roster = loadRoster(raw);
   return roster.ok ? roster : err(`${path}: ${describeRosterError(roster.error)}`);
