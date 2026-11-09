@@ -19,3 +19,8 @@ export type { Db, OpenedDatabase } from './db/open';
 export { databasePathFromUrl, IN_MEMORY, openDatabase } from './db/open';
 export * as schema from './db/schema';
 export { SqliteBoardStore } from './db/sqlite-board-store';
+export type { SpendImportReport } from './db/import-spend-jsonl';
+export { importSpendJsonl } from './db/import-spend-jsonl';
+export type { ModelCallRow, ModelCallStoreOptions, ModelCallSummary } from './db/model-call-store';
+export { ModelCallStore } from './db/model-call-store';
+export { SqliteSpendLedger } from './db/sqlite-spend-ledger';
