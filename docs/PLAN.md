@@ -88,7 +88,7 @@ One cycle = one round:
    - stall (no new entries for 2 rounds) → one Planner reframe, then stop;
    - any budget hit: rounds, tokens, dollars, wall-clock.
 
-**Budgets are hard limits enforced in the controller, not requests in prompts.** Default run config: `maxRounds: 12`, `maxCostUsd: 2.00`, `maxWallClockMin: 15`, `parallelism: 2`, `synthesisThreshold: 0.8`.
+**Budgets are hard limits enforced in the controller, not requests in prompts.** Default run config: `maxRounds: 12`, `maxCostUsd: 0.25`, `maxTokens: 400_000`, `maxWallClockMs: 15 min`, `parallelism: 2`, `synthesisThreshold: 0.8`. Every model call reserves its worst-case cost before dispatch, a paid profile is checked against the monthly ledger, and provider errors are classified rather than retried blindly — see `docs/budget-guardrails.md`.
 
 **Human-in-the-loop:** pause / resume; inject a `human_note` (highest priority next round); pin or dismiss entries; force synthesis; stop.
 
@@ -134,21 +134,7 @@ One cycle = one round:
 - Pin every version at scaffold time. AI SDK majors move quickly, and the Ollama provider tracks the current provider spec.
 - Local model choice: trial 2–3 candidates in Phase 2. Rank on structured-output reliability first, reasoning quality second — a worker that returns malformed JSON half the time is worse than a slightly weaker one that doesn't.
 
-**Suggested `agents.yaml` shape**
-
-```yaml
-defaults:
-  anthropic: { provider: anthropic, model: claude-sonnet-5-5 }
-  bidder:    { provider: anthropic, model: claude-haiku-5-5 }
-  local:     { provider: ollama, model: <chosen-in-phase-2>, baseURL: http://<mac-mini>:11434 }
-
-agents:
-  planner:     { model: anthropic, prompt: prompts/planner.md }
-  researcher:  { model: local,     prompt: prompts/researcher.md, fallback: anthropic }
-  solver:      { model: local,     prompt: prompts/solver.md,     fallback: anthropic }
-  critic:      { model: anthropic, prompt: prompts/critic.md }
-  synthesizer: { model: anthropic, prompt: prompts/synthesizer.md }
-```
+**`agents.yaml` shape.** Profiles map every role to a model alias and name one fallback for the whole profile (ADR-0009; the file itself is at the repository root). The `dev` profile runs every role locally with no fallback and is the default; `cheap` and `quality` are explicit choices per run. The full shape and the loader rules are in `docs/budget-guardrails.md` §1.
 
 ---
 
@@ -205,8 +191,11 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 - [ ] `packages/providers`: Anthropic + Ollama via AI SDK; structured output; retries and timeouts; token and cost accounting; `FakeModel` is re-exported here (defined in `packages/core/src/model/`, Phase 1, so core can test itself without a workspace cycle).
 - [ ] Role prompts for all five agents; agent board-view builder with size bounds and rolling summary.
-- [ ] `agents.yaml` roster loader; per-role provider/model/fallback.
-- [ ] Malformed-output path: repair → fallback to Claude → discard and log.
+- [x] `agents.yaml` roster loader with profiles; one fallback per profile; load-time validation (ADR-0009).
+- [x] Malformed-output path: repair → profile fallback → discard and log.
+- [x] Budget guardrails, core (`docs/budget-guardrails.md` §2, §3, §5): per-call reservation that shrinks `maxOutputTokens` to the 256-token floor or skips the call; price table schema and pure cost functions; usage with cache tokens; shared run-end reason enum with paused/failed states; `SpendLedger`/`PeriodBudget` with monthly refusal, pause and one `budget_warning`.
+- [x] Budget guardrails, providers (§2, §4): dated price table; `ProviderError` classification; retry with exponential backoff (3 attempts from 1 s); per-call tracing.
+- [x] Budget guardrails, CLI (§5, §8): `--profile`, `--yes`, `--max-cost`; confirmation banner; JSONL spend ledger in `data/spend.jsonl`; stale-price-table warning; `.env` loading.
 - [ ] Trial 2–3 local models; record results in an ADR.
 - [ ] Tests: provider contract tests (skipped without keys / Ollama); prompt snapshot tests; repair and fallback paths with `FakeModel`.
 - **DoD:** the CLI solves a real problem end-to-end with the hybrid roster; full trace saved to JSON.
@@ -258,7 +247,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 | Risk | Mitigation |
 |---|---|
-| Cost runaway | Hard budgets in the controller; cheap bidding model; local workers; live cost meter |
+| Cost runaway | Hard budgets in the controller with per-call reservation; monthly spend ledger; `dev` profile that cannot spend; cheap bidding model; local workers; live cost meter (`docs/budget-guardrails.md`) |
 | Groupthink / premature convergence | Critic cannot propose; diversity rule in selection; hypotheses must link evidence; devil's-advocate prompt variant |
 | Context bloat | Bounded per-agent views; rolling summary; supersede instead of pile-up |
 | Non-termination | Stall detection + a single reframe + hard caps |
