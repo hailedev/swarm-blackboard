@@ -8,7 +8,6 @@ import {
   renderFailure,
   renderRoundHeader,
   renderSummary,
-  shortId,
 } from './render';
 
 describe('renderBoard', () => {
@@ -34,21 +33,23 @@ describe('renderBoard', () => {
     fx.entry('synthesis', { version: 2, confidence: 0.9, cites: [fresh.id] });
     fx.entry('human_note', { priority: 'high' }, { author: 'human' });
 
+    // Entries are named by handle: P1, then H1 (old) and H2 (fresh), E1, C1, Q1, S1, D1, A1, N1.
     const text = renderBoard(fx.view()).join('\n');
     expect(text).toContain('-- problem (1 live) --');
+    expect(text).toContain('  P1   human       r0  0 constraints, 0 criteria');
     expect(text).toContain('-- hypothesis (1 live, 1 superseded or dismissed) --');
-    expect(text).toContain(
-      `${shortId(fresh.id)} solver      r1  conf 0.85, 0 for / 0 against (supersedes ${shortId(old.id)})`,
-    );
+    expect(text).toContain('  H2   solver      r1  conf 0.85, 0 for / 0 against (supersedes H1)');
     expect(text).toContain('Use SQLite for now');
-    expect(text).toContain(`major -> ${shortId(fresh.id)} (resolved)`);
-    expect(text).toContain(`answered by ${shortId(evidence.id)}`);
+    expect(text).toContain('source: docs; supports H2');
+    expect(text).toContain('major -> H2 (resolved)');
+    expect(text).toContain('answered by E1');
     expect(text).toContain('done [pinned]');
-    expect(text).toContain(`chose ${shortId(fresh.id)}, rejected ${shortId(old.id)}`);
+    expect(text).toContain('chose H2, rejected H1');
     expect(text).toContain('v2, conf 0.90, cites 1');
     expect(text).toContain('priority high');
-    expect(text).toContain('source: docs; supports');
-    expect(text).not.toContain(`${shortId(old.id)} hypothesis-author`);
+    expect(text).not.toContain('H1   hypothesis-author');
+    expect(text).not.toContain('#');
+    expect([fresh.id, old.id, evidence.id].some((id) => text.includes(id))).toBe(false);
   });
 
   it('skips lanes with no entries and truncates long content', () => {

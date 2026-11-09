@@ -1,5 +1,6 @@
 import type { Entry, EntryOf } from '../schemas/entry';
 import type { BoardEvent } from '../schemas/event';
+import { handleFor, type Handle } from '../schemas/handle';
 import type { EntryType } from '../schemas/payloads';
 
 // The materialised "current view" of a run: a pure fold over its event log.
@@ -22,6 +23,9 @@ export interface BoardView {
   readonly lastEntryRound: number | null;
 
   byId(id: string): Entry | undefined;
+  /** The entry's handle (H3, E7, …): its type letter and ordinal in commit order. */
+  handleOf(id: string): Handle | undefined;
+  byHandle(handle: Handle): Entry | undefined;
   isLive(id: string): boolean;
   problem(): EntryOf<'problem'> | undefined;
   liveOfType<T extends EntryType>(type: T): readonly EntryOf<T>[];
@@ -54,12 +58,17 @@ class MaterialisedBoardView implements BoardView {
   readonly lastEntryRound: number | null;
 
   readonly #byId = new Map<string, Entry>();
+  readonly #handleById = new Map<string, Handle>();
+  readonly #byHandle = new Map<Handle, Entry>();
   readonly #supersededBy = new Map<string, Entry>();
   readonly #children = new Map<string, Entry[]>();
 
   constructor(runId: string, events: readonly BoardEvent[]) {
     this.runId = runId;
     const entries: Entry[] = [];
+    // Handles count every committed entry of a type, live or not, so an entry's handle
+    // never changes when a later entry supersedes or dismisses one before it.
+    const committedOfType = new Map<EntryType, number>();
     let round = 0;
     for (const event of events) {
       if (event.type === 'round_started') round = Math.max(round, event.round);
@@ -67,6 +76,11 @@ class MaterialisedBoardView implements BoardView {
       const entry = event.entry;
       entries.push(entry);
       this.#byId.set(entry.id, entry);
+      const ordinal = (committedOfType.get(entry.type) ?? 0) + 1;
+      committedOfType.set(entry.type, ordinal);
+      const handle = handleFor(entry.type, ordinal);
+      this.#handleById.set(entry.id, handle);
+      this.#byHandle.set(handle, entry);
       if (entry.supersedes !== undefined) this.#supersededBy.set(entry.supersedes, entry);
       for (const parent of entry.parents) {
         const siblings = this.#children.get(parent) ?? [];
@@ -83,6 +97,14 @@ class MaterialisedBoardView implements BoardView {
 
   byId(id: string): Entry | undefined {
     return this.#byId.get(id);
+  }
+
+  handleOf(id: string): Handle | undefined {
+    return this.#handleById.get(id);
+  }
+
+  byHandle(handle: Handle): Entry | undefined {
+    return this.#byHandle.get(handle);
   }
 
   isLive(id: string): boolean {

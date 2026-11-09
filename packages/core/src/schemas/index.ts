@@ -2,6 +2,7 @@ export * from './common';
 export * from './contribution';
 export * from './entry';
 export * from './event';
+export * from './handle';
 export * from './payloads';
 export * from './pricing';
 export * from './role';

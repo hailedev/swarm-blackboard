@@ -15,6 +15,43 @@ describe('buildBoardView', () => {
     expect(view.isLive('nope')).toBe(false);
     expect(view.chain('nope')).toEqual([]);
     expect(view.childrenOf('nope')).toEqual([]);
+    expect(view.handleOf('nope')).toBeUndefined();
+    expect(view.byHandle('H1')).toBeUndefined();
+  });
+
+  it('assigns handles per type in commit order, stable under supersede and dismiss', () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    fx.startRound(1);
+    const h1 = fx.entry('hypothesis', { confidence: 0.5, supportedBy: [], contradictedBy: [] });
+    const e1 = fx.entry('evidence', { source: 'a', supports: [h1.id], contradicts: [] });
+    const h2 = fx.entry('hypothesis', { confidence: 0.6, supportedBy: [], contradictedBy: [] });
+    fx.startRound(2);
+    // Supersede H1 and dismiss H2: both keep their handles, the newcomers get the next ones.
+    const h3 = fx.entry(
+      'hypothesis',
+      { confidence: 0.8, supportedBy: [e1.id], contradictedBy: [] },
+      { supersedes: h1.id },
+    );
+    const h4 = fx.entry(
+      'hypothesis',
+      { confidence: 0.6, supportedBy: [], contradictedBy: [] },
+      { supersedes: h2.id, status: 'dismissed' },
+    );
+    const note = fx.entry('human_note', { priority: 'high' }, { author: 'human' });
+    const synthesis = fx.entry('synthesis', { version: 1, confidence: 0.7, cites: [h3.id] });
+
+    const view = fx.view();
+    const handles = [problem, h1, e1, h2, h3, h4, note, synthesis].map((e) => view.handleOf(e.id));
+    expect(handles).toEqual(['P1', 'H1', 'E1', 'H2', 'H3', 'H4', 'N1', 'A1']);
+    for (const entry of view.entries) {
+      const handle = view.handleOf(entry.id);
+      expect(handle).toBeDefined();
+      if (handle !== undefined) expect(view.byHandle(handle)?.id).toBe(entry.id);
+    }
+    expect(view.isLive(h1.id)).toBe(false);
+    expect(view.handleOf(h1.id)).toBe('H1');
+    expect(view.byHandle('H9')).toBeUndefined();
   });
 
   it('keeps every committed entry in order and tracks rounds', () => {

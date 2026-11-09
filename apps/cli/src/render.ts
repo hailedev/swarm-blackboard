@@ -10,14 +10,15 @@ import {
   type RunSummary,
 } from '@team/core';
 
-export const shortId = (id: string): string => `#${id.slice(-4)}`;
-
 const oneLine = (text: string, max = 96): string => {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
 };
 
-const badge = (entry: Entry): string => {
+/** Entries are named by their board handles (H3, E7), the same names the agents use. */
+type HandleOf = (id: string) => string;
+
+const badge = (entry: Entry, h: HandleOf): string => {
   switch (entry.type) {
     case 'problem':
       return `${String(entry.payload.constraints.length)} constraints, ${String(entry.payload.successCriteria.length)} criteria`;
@@ -26,15 +27,15 @@ const badge = (entry: Entry): string => {
     case 'hypothesis':
       return `conf ${entry.payload.confidence.toFixed(2)}, ${String(entry.payload.supportedBy.length)} for / ${String(entry.payload.contradictedBy.length)} against`;
     case 'evidence':
-      return `source: ${entry.payload.source}; supports ${entry.payload.supports.map(shortId).join(' ') || '-'}`;
+      return `source: ${entry.payload.source}; supports ${entry.payload.supports.map(h).join(' ') || '-'}`;
     case 'critique':
-      return `${entry.payload.severity} -> ${shortId(entry.payload.target)}${entry.payload.resolvedBy === undefined ? '' : ' (resolved)'}`;
+      return `${entry.payload.severity} -> ${h(entry.payload.target)}${entry.payload.resolvedBy === undefined ? '' : ' (resolved)'}`;
     case 'question':
       return entry.payload.answeredBy === undefined
         ? 'open'
-        : `answered by ${shortId(entry.payload.answeredBy)}`;
+        : `answered by ${h(entry.payload.answeredBy)}`;
     case 'decision':
-      return `chose ${shortId(entry.payload.chosen)}, rejected ${entry.payload.rejected.map(shortId).join(' ')}`;
+      return `chose ${h(entry.payload.chosen)}, rejected ${entry.payload.rejected.map(h).join(' ')}`;
     case 'synthesis':
       return `v${String(entry.payload.version)}, conf ${entry.payload.confidence.toFixed(2)}, cites ${String(entry.payload.cites.length)}`;
     case 'human_note':
@@ -45,6 +46,7 @@ const badge = (entry: Entry): string => {
 // Lanes by entry type (docs/PLAN.md §3), live entries only, with counts of what
 // has been superseded or dismissed.
 export const renderBoard = (view: BoardView): string[] => {
+  const h: HandleOf = (id) => view.handleOf(id) ?? '?';
   const lines: string[] = [];
   for (const type of ENTRY_TYPES) {
     const all = view.entries.filter((entry) => entry.type === type);
@@ -57,9 +59,9 @@ export const renderBoard = (view: BoardView): string[] => {
     for (const entry of live) {
       const status = entry.status === 'active' ? '' : ` [${entry.status}]`;
       const supersedes =
-        entry.supersedes === undefined ? '' : ` (supersedes ${shortId(entry.supersedes)})`;
+        entry.supersedes === undefined ? '' : ` (supersedes ${h(entry.supersedes)})`;
       lines.push(
-        `  ${shortId(entry.id)} ${entry.author.padEnd(11)} r${String(entry.round)}  ${badge(entry)}${status}${supersedes}`,
+        `  ${h(entry.id).padEnd(4)} ${entry.author.padEnd(11)} r${String(entry.round)}  ${badge(entry, h)}${status}${supersedes}`,
       );
       lines.push(`        ${oneLine(entry.content)}`);
     }
