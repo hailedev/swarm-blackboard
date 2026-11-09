@@ -2,6 +2,7 @@
 
 - **Status:** accepted
 - **Date:** 2026-11-09
+- **Amended:** 2026-11-09, dependency note in Consequences (the subset YAML reader gave way to the `yaml` package)
 
 ## Context
 
@@ -26,7 +27,7 @@ ADR-0006 assigned a provider and model per role in `agents.yaml` and had every l
 - `+` The file shape already names the Phase 5 bidder, so the roster does not change shape when it arrives.
 - `−` A fallback cannot differ per role (say, Sonnet only when the Critic fails). Acceptable: that is a role choice, so make it one in the profile.
 - `−` Every profile must list every role; adding a role touches every profile. The loader reports the omission, so it cannot go unnoticed.
-- `−` The CLI reads `agents.yaml` with a strict YAML subset (block and single-line flow mappings, scalars, comments) rather than a new dependency. The file must stay that simple; the reader is one file to swap for the `yaml` package when it outgrows that.
+- `−` Reading `agents.yaml` needs a YAML parser. The CLI first shipped a strict subset reader to avoid a dependency; on 2026-11-09 Hai approved the `yaml` package (pinned 2.9.1) and the subset reader was deleted, so the file may use any YAML the package accepts. The roster rules themselves are still validated in core.
 
 ## Alternatives considered
 

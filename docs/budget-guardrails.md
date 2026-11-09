@@ -1,6 +1,6 @@
 # Budget guardrails
 
-**Status:** spec for Phase 2 (profiles, per-run cap, pricing, error handling) and Phase 3 (persistent monthly ledger). Referenced from `docs/PLAN.md`.
+**Status:** Phase 2 parts implemented on 2026-11-09 (profiles, per-run cap, pricing, error classification, JSONL ledger, CLI banner); Phase 3 (ledger over `model_calls`) pending. Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
 
 ## Goal
 
@@ -91,9 +91,12 @@ interface RunBudget {
 Enforcement points, all inside the controller:
 
 1. **Before each round:** if `spentUsd >= maxCostUsd` → terminate with reason `budget_cost`. Same for rounds, tokens and wall-clock, each with its own reason.
-2. **Before each model call — reservation:** the controller knows the prompt's input tokens (from the provider's count or a conservative estimate) and the call's `maxOutputTokens`. It computes the worst-case cost of the call. If `spentUsd + worstCase > maxCostUsd`, it first tries to **shrink `maxOutputTokens`** to fit the remaining budget (floor: 256 tokens — below that a structured contribution can't be valid). If it still doesn't fit, the call is skipped and the round ends; if no call in the round can run, the run terminates with `budget_cost`.
+2. **Before each model call — reservation:** the controller estimates the prompt's input tokens as ⌈(system + prompt characters) / 3⌉ + 1 000, a flat allowance for the JSON schema the provider receives; there is no provider count-tokens call. With the call's `maxOutputTokens` it computes the worst-case cost of the call. If `spentUsd + worstCase > maxCostUsd`, it first tries to **shrink `maxOutputTokens`** to fit the remaining budget (floor: 256 tokens — below that a structured contribution can't be valid). If it still doesn't fit, the call is skipped and the round ends; if no call in the round can run, the run terminates with `budget_cost`.
 3. **Parallel calls** each reserve before dispatch, so two agents can't both spend the last 10 cents.
 4. **After each call:** actual cost from returned usage replaces the reservation.
+5. **Estimate drift is visible, not silent:** every trace records the estimated input tokens next to the actual prompt tokens (input + cache read + cache write). When the actual exceeds the estimate by more than 20 %, the controller logs a warning naming both numbers.
+
+Only cost is reserved per call. The token budget (`maxTokens`) is checked before each round, like rounds and wall-clock, so a run can overshoot it by at most one round of calls.
 
 Why reservation and not just a post-hoc check: a post-hoc check lets the last call overshoot by a whole call's cost, which on Sonnet with a large board view can be several cents — a meaningful fraction of a $0.25 cap.
 
@@ -110,7 +113,7 @@ Why reservation and not just a post-hoc check: a post-hoc check lets the last ca
 
 ```ts
 interface SpendLedger {
-  spentUsd(period: { start: Date; end: Date }): Promise<number>;
+  spentUsd(period: { start: string; end: string }): Promise<number>; // ISO-8601, end exclusive
 }
 interface PeriodBudget {
   limitUsd: number;         // MONTHLY_BUDGET_USD, default 5.00
@@ -120,7 +123,7 @@ interface PeriodBudget {
 }
 ```
 
-- `SpendLedger` is an **interface defined in core**, implemented by the host. Core never touches storage.
+- `SpendLedger` is an **interface defined in core**, implemented by the host. Core never touches storage. Period bounds are ISO-8601 strings (dates are strings at boundaries), `end` exclusive.
 - **Phase 2 (CLI):** the ledger is an append-only `data/spend.jsonl` — one line per paid call: timestamp, model, tokens, cost. Sum for the period.
 - **Phase 3 (server):** the ledger is `SELECT SUM(cost_usd) FROM model_calls WHERE billing = 'api' AND created_at >= :start`. Same interface, so core and its tests don't change.
 - **Before starting a run** on a paid profile: refuse if `spentThisMonth + run.maxCostUsd > limitUsd`. The message says how much is left and what cap would fit. The `dev` profile is never refused — it spends nothing.
@@ -152,7 +155,7 @@ The provider layer maps every failure to a typed `ProviderError`:
 - **CLI:** before a paid-profile run, print profile, resolved models, per-run cap, month-to-date spend vs limit, then require `--yes` or an interactive confirmation.
 - **Web UI (Phase 4):** the start-run dialog shows the same; the cost meter shows run spend vs cap **and** month spend vs limit, turning amber at 80 % and red at 100 %.
 - **Run record:** stores the budget snapshot, the profile, resolved models, final spend, and the termination reason.
-- **Reasons are an enum** shared by core, API and UI: `completed`, `budget_cost`, `budget_rounds`, `budget_tokens`, `budget_time`, `monthly_budget`, `stalled`, `billing`, `auth`, `rate_limit`, `provider_unreachable`, `user_stopped`.
+- **Reasons are an enum** shared by core, API and UI: `completed`, `budget_cost`, `budget_rounds`, `budget_tokens`, `budget_time`, `monthly_budget`, `stalled`, `no_eligible_agents`, `billing`, `auth`, `rate_limit`, `provider_unreachable`, `user_stopped`. Statuses are `completed`, `failed`, `paused` and `stopped`: `billing` and `auth` end a run as `failed`; `monthly_budget`, `rate_limit` and `provider_unreachable` leave it `paused`; `user_stopped` ends it as `stopped`; every other reason, budget stops included, ends it as `completed`.
 
 ---
 
@@ -165,6 +168,8 @@ The provider layer maps every failure to a typed `ProviderError`:
 | `MONTHLY_BUDGET_USD` | `5.00` | `.env` |
 | `warnAtFraction` | `0.8` | run config |
 | Reservation floor | 256 output tokens | core constant |
+| Input-token estimate | 3 characters per token + 1 000 schema tokens | core constants |
+| Estimate undershoot warning | actual prompt tokens > 1.2 × estimate | core constant |
 | Retry attempts (rate limit / overload / network) | 3, exponential from 1 s | provider config |
 
 ---
@@ -178,12 +183,13 @@ The provider layer maps every failure to a typed `ProviderError`:
 - `dev` profile: every role resolves local, fallback `none`; a `dev`-like profile with a paid fallback is rejected at load.
 - Error classification: `billing` → `failed`, zero retries, no fallback call recorded; `rate_limit` → three attempts then `paused`; `schema` → fallback per profile.
 - Snapshot the CLI confirmation banner.
+- Estimate undershoot: a model reporting more than 1.2 × the estimated prompt tokens makes the controller log a warning; a smaller overshoot does not.
 
 ---
 
 ## 8. Phase mapping
 
-- **Phase 2:** profiles and loader validation; `RunBudget` with reservation; price table; usage capture incl. cache tokens; `ProviderError` classification; `SpendLedger` interface in core with the JSONL implementation; CLI banner and `--profile` / `--yes`.
+- **Phase 2 (done 2026-11-09):** profiles and loader validation; `RunBudget` with reservation; price table; usage capture incl. cache tokens; `ProviderError` classification; `SpendLedger` interface in core with the JSONL implementation; CLI banner and `--profile` / `--yes`.
 - **Phase 3:** `SpendLedger` backed by `model_calls`; `profile` on `POST /runs`; `monthly_budget` pause/resume through the API.
 - **Phase 4:** cost meter with both gauges; start-run dialog.
 
