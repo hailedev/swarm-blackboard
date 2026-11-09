@@ -7,6 +7,7 @@ import {
   fitCall,
   MIN_OUTPUT_TOKENS,
   SCHEMA_OVERHEAD_TOKENS,
+  estimateUndershot,
 } from './reservation';
 
 // $1 in, $5 out, cache writes at 1.25x: the prompt is charged at $1.25 per MTok.
@@ -99,5 +100,14 @@ describe('fitCall', () => {
       remainingUsd: 0.001,
     });
     expect(fit.fits).toBe(false);
+  });
+});
+
+describe('estimateUndershot', () => {
+  it('flags only an actual prompt more than 20% above the estimate', () => {
+    expect(estimateUndershot(1000, 1200)).toBe(false);
+    expect(estimateUndershot(1000, 1201)).toBe(true);
+    expect(estimateUndershot(1000, 900)).toBe(false);
+    expect(estimateUndershot(0, 1)).toBe(true);
   });
 });

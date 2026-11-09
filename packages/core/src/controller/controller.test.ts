@@ -16,7 +16,7 @@ import { InMemoryBoardStore } from '../board/in-memory-board-store';
 import { createFakeModel, type FakeResponse } from '../model/fake-model';
 import type { Model, ModelError } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
-import { nullLogger } from '../ports/logger';
+import { nullLogger, type Logger } from '../ports/logger';
 import type { PeriodBudget } from '../ports/spend-ledger';
 import { zeroUsage } from '../schemas/common';
 import type { Contribution } from '../schemas/contribution';
@@ -41,6 +41,7 @@ const stubAgent = (
   id: string,
   options: {
     priority?: number | null;
+    targetIds?: readonly string[];
     act?: (ctx: AgentContext) => Result<AgentResult, AgentError> | Contribution[];
     onCtx?: (ctx: AgentContext) => void;
   } = {},
@@ -51,7 +52,9 @@ const stubAgent = (
     safeParse: () => ({ success: true, data: { contributions: [] } }),
   } as unknown as Agent['outputSchema'],
   trigger: () =>
-    options.priority === null ? notEligible('off') : eligible(options.priority ?? 50, [], 'on'),
+    options.priority === null
+      ? notEligible('off')
+      : eligible(options.priority ?? 50, options.targetIds ?? [], 'on'),
   act: (_view, ctx) => {
     options.onCtx?.(ctx);
     const produced = options.act?.(ctx) ?? [];
@@ -279,7 +282,66 @@ describe('createController', () => {
     expect(events.map((e) => e.type)).toEqual(['run_started', 'entry_committed', 'run_terminated']);
   });
 
+  it('hands each selected agent the ids its trigger matched, and triggers none', async () => {
+    const seen: (readonly string[])[] = [];
+    const agent = stubAgent('a', {
+      targetIds: ['t1', 't2'],
+      onCtx: (ctx) => {
+        seen.push(ctx.targetIds);
+      },
+    });
+    const triggerCtx: AgentContext[] = [];
+    const originalTrigger = agent.trigger.bind(agent);
+    agent.trigger = (view, ctx) => {
+      triggerCtx.push(ctx);
+      return originalTrigger(view, ctx);
+    };
+    const { controller } = harness([agent]);
+    await controller.start({ content: 'P' });
+    await controller.runRound();
+    expect(seen).toEqual([['t1', 't2']]);
+    expect(triggerCtx.map((c) => c.targetIds)).toEqual([[]]);
+  });
+
   describe('per-call reservation (docs/budget-guardrails.md §2)', () => {
+    it('warns when a model reports far more prompt tokens than were estimated', async () => {
+      const warned: { message: string; fields: Record<string, unknown> | undefined }[] = [];
+      const logger: Logger = {
+        ...nullLogger,
+        warn: (message, fields) => {
+          warned.push({ message, fields });
+        },
+      };
+      // The gateway agent's prompt estimates to 1002 tokens: 1200 is within 20 %, while
+      // 1000 uncached plus 1000 cache-read tokens is a 2000-token prompt and is not.
+      const model = createFakeModel({
+        script: [
+          { object: { contributions: [] }, usage: { inputTokens: 1200, outputTokens: 1 } },
+          {
+            object: { contributions: [] },
+            usage: { inputTokens: 1000, outputTokens: 1, cacheReadTokens: 1000 },
+          },
+        ],
+      });
+      const { controller } = harness([gatewayAgent('a', model, 90)], { logger });
+      await controller.start({ content: 'P' }, { parallelism: 1 });
+      await controller.runRound();
+      const undershoot = () =>
+        warned.filter((w) => w.message === 'input token estimate undershot by more than 20%');
+      expect(undershoot()).toEqual([]);
+      await controller.runRound();
+      expect(undershoot().map((w) => w.fields)).toEqual([
+        {
+          runId: controller.runId,
+          round: 2,
+          agentId: 'a',
+          modelId: 'fake',
+          estimated: 1002,
+          actual: 2000,
+        },
+      ]);
+    });
+
     it('shrinks the output allowance to fit, then skips calls below the floor and stops', async () => {
       const { controller, models, events } = scripted();
       await controller.start({ content: 'P' }, { maxCostUsd: 0.005 });

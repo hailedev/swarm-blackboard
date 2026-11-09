@@ -19,9 +19,11 @@ export { calendarMonth } from './period';
 export type { Fit, FitInput } from './reservation';
 export {
   ESTIMATE_CHARS_PER_TOKEN,
+  ESTIMATE_UNDERSHOOT_WARN_FRACTION,
   MIN_OUTPUT_TOKENS,
   SCHEMA_OVERHEAD_TOKENS,
   estimateInputTokens,
+  estimateUndershot,
   fitCall,
 } from './reservation';
 export type { Candidate } from './selection';

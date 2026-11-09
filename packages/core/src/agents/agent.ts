@@ -32,6 +32,8 @@ export interface AgentContext {
   round: number;
   config: RunConfig;
   flags: ControlFlags;
+  /** Entries the agent's trigger matched this round; empty while triggers are evaluated. */
+  targetIds: readonly string[];
   models: ModelGateway;
 }
 

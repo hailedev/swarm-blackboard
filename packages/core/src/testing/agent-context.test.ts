@@ -12,13 +12,20 @@ describe('agentContext', () => {
       criticForced: false,
       decisionRequired: false,
     });
+    expect(ctx.targetIds).toEqual([]);
   });
 
   it('applies overrides', () => {
-    const ctx = agentContext({ round: 4, config: { maxRounds: 5 }, flags: { criticForced: true } });
+    const ctx = agentContext({
+      round: 4,
+      config: { maxRounds: 5 },
+      flags: { criticForced: true },
+      targetIds: ['t1'],
+    });
     expect(ctx.round).toBe(4);
     expect(ctx.config.maxRounds).toBe(5);
     expect(ctx.flags.criticForced).toBe(true);
     expect(ctx.flags.stallDetected).toBe(false);
+    expect(ctx.targetIds).toEqual(['t1']);
   });
 });

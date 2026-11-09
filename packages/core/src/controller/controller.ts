@@ -15,7 +15,7 @@ import type { Logger } from '../ports/logger';
 import type { Model, ModelError, ModelRequest, ModelResponse } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
 import type { PeriodBudget } from '../ports/spend-ledger';
-import { addUsage, HUMAN_AUTHOR, zeroUsage, type Usage } from '../schemas/common';
+import { addUsage, HUMAN_AUTHOR, promptTokens, zeroUsage, type Usage } from '../schemas/common';
 import { ProblemEntrySchema, type Entry, type EntryOf } from '../schemas/entry';
 import type {
   AgentFailureReason,
@@ -40,7 +40,7 @@ import { BudgetTracker } from './budgets';
 import { prepareEntries } from './commit';
 import { ConflictTracker } from './conflict';
 import { calendarMonth } from './period';
-import { estimateInputTokens, fitCall } from './reservation';
+import { estimateInputTokens, estimateUndershot, fitCall } from './reservation';
 import { selectAgents } from './selection';
 import { checkTermination } from './termination';
 
@@ -329,15 +329,29 @@ export const createController = (
       } finally {
         if (outcome === undefined) tracker.release(reservation);
       }
-      if (outcome.ok) {
-        tracker.settle(reservation, outcome.value.usage);
-        settled.push({ agentId, usage: outcome.value.usage });
-      } else if (outcome.error.kind === 'invalid_output') {
-        // The model answered, so the tokens were billed even though the answer is unusable.
-        tracker.settle(reservation, outcome.error.usage);
-        settled.push({ agentId, usage: outcome.error.usage });
-      } else {
+      // On invalid_output the model answered, so the tokens were billed even though the
+      // answer is unusable; on any other error nothing was billed.
+      const usage = outcome.ok
+        ? outcome.value.usage
+        : outcome.error.kind === 'invalid_output'
+          ? outcome.error.usage
+          : null;
+      if (usage === null) {
         tracker.release(reservation);
+        return outcome;
+      }
+      tracker.settle(reservation, usage);
+      settled.push({ agentId, usage });
+      const actual = promptTokens(usage);
+      if (estimateUndershot(inputTokens, actual)) {
+        deps.logger.warn('input token estimate undershot by more than 20%', {
+          runId,
+          round,
+          agentId,
+          modelId: model.id,
+          estimated: inputTokens,
+          actual,
+        });
       }
       return outcome;
     },
@@ -474,7 +488,7 @@ export const createController = (
     const shared = { runId, round, config: runConfig, flags: { ...flags } };
     const evaluations = deps.agents.map((agent) => ({
       agent,
-      trigger: agent.trigger(roundView, { ...shared, models: unusedGateway }),
+      trigger: agent.trigger(roundView, { ...shared, targetIds: [], models: unusedGateway }),
     }));
     const eligible: EligibilityRecord[] = evaluations
       .filter((e) => e.trigger.eligible)
@@ -491,10 +505,11 @@ export const createController = (
       history,
     );
     history.push(selectedIds);
-    const selectedAgents = selectedIds.flatMap((id) => {
+    const selected = selectedIds.flatMap((id) => {
       const found = evaluations.find((e) => e.agent.id === id);
-      return found === undefined ? [] : [found.agent];
+      return found === undefined ? [] : [found];
     });
+    const selectedAgents = selected.map((e) => e.agent);
     const selectedEvent = await emit({
       type: 'agents_selected',
       round,
@@ -507,9 +522,10 @@ export const createController = (
     //    budget through its own gateway before its first call is dispatched.
     const settled: SettledCall[] = [];
     const results = await Promise.all(
-      selectedAgents.map((agent) =>
+      selected.map(({ agent, trigger }) =>
         runAgent(agent, roundView, {
           ...shared,
+          targetIds: trigger.targetIds,
           models: gatewayFor(tracker, runConfig, agent.id, round, settled),
         }),
       ),

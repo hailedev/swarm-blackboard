@@ -14,6 +14,13 @@ export const estimateInputTokens = (request: { system: string; prompt: string })
   Math.ceil((request.system.length + request.prompt.length) / ESTIMATE_CHARS_PER_TOKEN) +
   SCHEMA_OVERHEAD_TOKENS;
 
+// The estimate only has to be conservative. When a model reports materially more prompt
+// tokens than estimated, the reservation was too small, so the controller says so.
+export const ESTIMATE_UNDERSHOOT_WARN_FRACTION = 0.2;
+
+export const estimateUndershot = (estimatedTokens: number, actualTokens: number): boolean =>
+  actualTokens > estimatedTokens * (1 + ESTIMATE_UNDERSHOOT_WARN_FRACTION);
+
 export interface FitInput {
   pricing: ModelPricing | null;
   inputTokens: number;

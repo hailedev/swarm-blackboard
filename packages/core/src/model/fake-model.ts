@@ -14,7 +14,8 @@ export interface FakeUsage {
 }
 
 export type FakeResponse =
-  { object: unknown; usage?: FakeUsage; latencyMs?: number } | { error: ModelError };
+  | { object: unknown; usage?: FakeUsage; latencyMs?: number; warnings?: readonly string[] }
+  | { error: ModelError };
 
 // Either a fixed list consumed in call order, or a function of the request.
 export type FakeScript =
@@ -103,6 +104,7 @@ export const createFakeModel = (options: FakeModelOptions): FakeModel => {
         usage,
         latencyMs: response.latencyMs ?? 0,
         modelId: id,
+        warnings: response.warnings ?? [],
       }),
     );
   };

@@ -37,6 +37,7 @@ describe('createFakeModel', () => {
           object: { answer: 'b', confidence: 0.9 },
           usage: { inputTokens: 7, outputTokens: 3, costUsd: 0.01 },
           latencyMs: 42,
+          warnings: ['topK unsupported'],
         },
       ],
     });
@@ -53,10 +54,12 @@ describe('createFakeModel', () => {
       costUsd: 0,
     });
     expect(first.ok && first.value.modelId).toBe('scripted');
+    expect(first.ok && first.value.warnings).toEqual([]);
     expect(second.ok && second.value.object.confidence).toBe(0.9);
     expect(second.ok && second.value.usage.inputTokens).toBe(7);
     expect(second.ok && second.value.usage.costUsd).toBe(0.01);
     expect(second.ok && second.value.latencyMs).toBe(42);
+    expect(second.ok && second.value.warnings).toEqual(['topK unsupported']);
     expect(model.calls.map((c) => [c.index, c.request.prompt, c.outcome])).toEqual([
       [0, 'one', 'ok'],
       [1, 'two', 'ok'],

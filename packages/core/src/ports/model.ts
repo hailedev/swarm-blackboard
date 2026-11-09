@@ -26,6 +26,8 @@ export interface ModelResponse<T> {
   usage: Usage;
   latencyMs: number;
   modelId: string;
+  /** Provider warnings, e.g. a setting the model does not support. Empty when none. */
+  warnings: readonly string[];
 }
 
 // Every failure the provider layer can report, classified so the controller never has
