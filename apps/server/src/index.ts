@@ -1,10 +1,15 @@
 // The API server: `pnpm dev`. One process owns the database, the run loops and the
 // event stream (docs/PLAN.md §6, Phase 3). Configuration comes from .env.
+//
+// `--fake` (`pnpm dev:fake`, the Playwright smoke) swaps in the scripted swarm and an
+// in-memory database: no model is called, nothing is billed, and data/team.db is never
+// opened (ADR-0011). FAKE_DELAY_MS sets how long each scripted call takes.
 import { serve } from '@hono/node-server';
 import { PRICE_TABLE_STALE_AFTER_DAYS, priceTableAgeDays } from '@team/core';
 import {
   createConsoleLogger,
   createUuidV7Generator,
+  IN_MEMORY,
   loadPromptFiles,
   loadRosterFile,
   monthlyBudgetFromEnv,
@@ -14,7 +19,7 @@ import {
 import { PRICE_TABLE } from '@team/providers';
 
 import { createApp } from './api/app';
-import { realModels } from './models';
+import { DEFAULT_FAKE_DELAY_MS, realModels, scriptedModels } from './models';
 import { RunManager } from './run-manager';
 
 try {
@@ -41,8 +46,21 @@ if (prompts === undefined || !prompts.ok)
 const monthlyBudget = monthlyBudgetFromEnv(process.env);
 if (!monthlyBudget.ok) fail(monthlyBudget.error);
 
+const fake = process.argv.includes('--fake');
+const fakeDelayMs = Number(process.env['FAKE_DELAY_MS'] ?? String(DEFAULT_FAKE_DELAY_MS));
+if (fake && !(Number.isFinite(fakeDelayMs) && fakeDelayMs >= 0)) {
+  fail(`FAKE_DELAY_MS must be a non-negative number of milliseconds`);
+}
+
 if (roster.ok && prompts?.ok === true && monthlyBudget.ok) {
-  const opened = openDatabase(process.env['DATABASE_URL'] ?? 'file:./data/team.db');
+  const opened = openDatabase(
+    fake ? IN_MEMORY : (process.env['DATABASE_URL'] ?? 'file:./data/team.db'),
+  );
+  if (fake) {
+    logger.warn('fake mode: scripted models, in-memory database; nothing is billed or kept', {
+      delayMs: fakeDelayMs,
+    });
+  }
   const manager = new RunManager({
     db: opened.db,
     roster: roster.value,
@@ -51,7 +69,7 @@ if (roster.ok && prompts?.ok === true && monthlyBudget.ok) {
     ids: createUuidV7Generator(systemClock),
     logger,
     monthlyBudget: monthlyBudget.value,
-    models: realModels(process.env, logger),
+    models: fake ? scriptedModels({ delayMs: fakeDelayMs }) : realModels(process.env, logger),
   });
   const interrupted = await manager.recover();
   if (interrupted > 0) {
