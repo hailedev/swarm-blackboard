@@ -8,18 +8,25 @@ export const SynthesizerOutputSchema = z.object({
   contributions: z.array(SynthesisContributionSchema).min(1).max(1),
 });
 
-// Contributes the draft answer. Eligible when a hypothesis has no blocking critique,
-// or from `synthesisFromRound` onwards; gated while a decision is required.
+// Contributes the draft answer. Eligible when a hypothesis has no blocking critique, or
+// from `synthesisFromRound` onwards regardless of board state (docs/PLAN.md §2.2). The
+// decision gate (contested hypotheses need a `decision` first) applies only before that
+// round: until Phase 5 nothing posts decisions, and the first real run showed the gate
+// otherwise starving the run of any answer until the round cap.
 export const synthesizer: RoleDefinition = {
   role: 'synthesizer',
   outputSchema: SynthesizerOutputSchema,
   trigger(view, ctx) {
-    if (ctx.flags.decisionRequired) {
-      return notEligible('contested hypotheses need a decision before synthesis');
-    }
     const candidates = synthesisCandidates(view).map((h) => h.id);
     if (ctx.round >= ctx.config.synthesisFromRound) {
-      return eligible(95, candidates, `round ${String(ctx.round)} ≥ synthesisFromRound`);
+      return eligible(
+        95,
+        candidates,
+        `round ${String(ctx.round)} ≥ synthesisFromRound${ctx.flags.decisionRequired ? ' (decision still pending)' : ''}`,
+      );
+    }
+    if (ctx.flags.decisionRequired) {
+      return notEligible('contested hypotheses need a decision before synthesis');
     }
     if (candidates.length > 0)
       return eligible(50, candidates, 'hypotheses without blocking critique');

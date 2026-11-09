@@ -99,7 +99,7 @@ describe('role triggers', () => {
     expect(critic.trigger(fx.view(), forced).priority).toBe(100);
   });
 
-  it('synthesizer is gated by decisionRequired and forced from synthesisFromRound', () => {
+  it('synthesizer is gated by decisionRequired until synthesisFromRound, which overrides it', () => {
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
@@ -110,10 +110,22 @@ describe('role triggers', () => {
     expect(forced.eligible).toBe(true);
     expect(forced.priority).toBe(95);
     expect(forced.targetIds).toEqual([]);
-    expect(
-      synthesizer.trigger(fx.view(), agentContext({ round: 8, flags: { decisionRequired: true } }))
-        .eligible,
-    ).toBe(false);
+
+    const gated = fx.entry('hypothesis', hypothesisPayload);
+    const early = synthesizer.trigger(
+      fx.view(),
+      agentContext({ round: 3, flags: { decisionRequired: true } }),
+    );
+    expect(early.eligible).toBe(false);
+    expect(early.reason).toContain('decision');
+    // Until Phase 5 nothing posts decisions, so the round rule must still produce an answer.
+    const late = synthesizer.trigger(
+      fx.view(),
+      agentContext({ round: 8, flags: { decisionRequired: true } }),
+    );
+    expect(late.eligible).toBe(true);
+    expect(late.targetIds).toEqual([gated.id]);
+    expect(late.reason).toContain('decision still pending');
   });
 });
 
