@@ -13,10 +13,21 @@ import { streamSSE } from 'hono/streaming';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import type { RunManager, RunManagerError } from '../run-manager';
-import { InjectNoteRequestSchema, StartRunRequestSchema } from './schemas';
+import {
+  InjectNoteRequestSchema,
+  StartRunRequestSchema,
+  type BudgetResponse,
+  type ModelCallDetail,
+  type ProfilesResponse,
+  type RunListResponse,
+  type RunRecord,
+  type TraceResponse,
+} from './schemas';
 
 // The Hono API (docs/PLAN.md §6, Phase 3): runs, board, log, trace, budget, and the SSE
-// event stream. Every body is validated with Zod; every error is one JSON envelope.
+// event stream. Every body is validated with Zod; every error is one JSON envelope. What
+// the web app reads is checked against the response schemas here (`satisfies`), so a
+// handler cannot drift from the contract the browser parses.
 
 export interface AppDeps {
   manager: RunManager;
@@ -112,7 +123,10 @@ export const createApp = ({ manager, roster, monthlyBudget, clock }: AppDeps): H
       const resolved = resolveProfile(roster, name);
       return resolved.ok ? [resolved.value] : [];
     });
-    return c.json({ defaultProfile: roster.defaultProfile, profiles });
+    return c.json({
+      defaultProfile: roster.defaultProfile,
+      profiles,
+    } satisfies ProfilesResponse);
   });
 
   app.get('/budget', async (c) => {
@@ -126,36 +140,47 @@ export const createApp = ({ manager, roster, monthlyBudget, clock }: AppDeps): H
       limitUsd: monthlyBudget.limitUsd,
       warnAtFraction: monthlyBudget.warnAtFraction,
       timeZone: monthlyBudget.timeZone,
-    });
+    } satisfies BudgetResponse);
   });
 
-  app.get('/runs', (c) => c.json({ runs: manager.list() }));
+  app.get('/runs', (c) => c.json({ runs: manager.list() } satisfies RunListResponse));
 
   app.post('/runs', async (c) => {
     const body = await parseBody(c, StartRunRequestSchema);
     if (!body.ok) return body.response;
     const started = await manager.start(body.data);
-    return started.ok ? c.json(started.value, 201) : managerFailure(c, started.error);
+    return started.ok
+      ? c.json(started.value satisfies RunRecord, 201)
+      : managerFailure(c, started.error);
   });
 
   app.get('/runs/:id', (c) => {
     const record = manager.get(c.req.param('id'));
-    return record === undefined ? fail(c, 404, 'not_found', 'no such run') : c.json(record);
+    return record === undefined
+      ? fail(c, 404, 'not_found', 'no such run')
+      : c.json(record satisfies RunRecord);
   });
 
   app.post('/runs/:id/pause', async (c) => {
     const result = await manager.pause(c.req.param('id'));
-    return result.ok ? c.json(result.value) : managerFailure(c, result.error);
+    return result.ok ? c.json(result.value satisfies RunRecord) : managerFailure(c, result.error);
   });
 
   app.post('/runs/:id/resume', async (c) => {
     const result = await manager.resume(c.req.param('id'));
-    return result.ok ? c.json(result.value) : managerFailure(c, result.error);
+    return result.ok ? c.json(result.value satisfies RunRecord) : managerFailure(c, result.error);
   });
 
   app.post('/runs/:id/stop', async (c) => {
     const result = await manager.stop(c.req.param('id'));
-    return result.ok ? c.json(result.value) : managerFailure(c, result.error);
+    return result.ok ? c.json(result.value satisfies RunRecord) : managerFailure(c, result.error);
+  });
+
+  // Force synthesis (docs/PLAN.md §2.3): recorded now, served by the first round that
+  // starts from here on. The record comes back unchanged; the request is on the stream.
+  app.post('/runs/:id/synthesize', async (c) => {
+    const result = await manager.forceSynthesis(c.req.param('id'));
+    return result.ok ? c.json(result.value satisfies RunRecord) : managerFailure(c, result.error);
   });
 
   app.post('/runs/:id/notes', async (c) => {
@@ -192,7 +217,7 @@ export const createApp = ({ manager, roster, monthlyBudget, clock }: AppDeps): H
   app.get('/runs/:id/trace', (c) => {
     const runId = c.req.param('id');
     if (manager.get(runId) === undefined) return fail(c, 404, 'not_found', 'no such run');
-    return c.json({ runId, calls: manager.calls.forRun(runId) });
+    return c.json({ runId, calls: manager.calls.forRun(runId) } satisfies TraceResponse);
   });
 
   app.get('/runs/:id/trace/:callId', (c) => {
@@ -200,7 +225,7 @@ export const createApp = ({ manager, roster, monthlyBudget, clock }: AppDeps): H
     if (call === undefined || call.runId !== c.req.param('id')) {
       return fail(c, 404, 'not_found', 'no such model call');
     }
-    return c.json(call);
+    return c.json(call satisfies ModelCallDetail);
   });
 
   // The event stream: everything after `from` (or Last-Event-ID) from the log, then live

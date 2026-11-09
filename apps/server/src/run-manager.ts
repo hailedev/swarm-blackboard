@@ -187,6 +187,15 @@ export class RunManager {
     return injected.ok ? injected : err({ kind: 'controller', error: injected.error });
   }
 
+  /** Ask for a synthesis in the next round to start; a paused run takes it up on resume. */
+  async forceSynthesis(runId: string): Promise<Result<RunRecord, RunManagerError>> {
+    const handle = await this.#attach(runId);
+    if (!handle.ok) return handle;
+    const requested = await handle.value.controller.forceSynthesis();
+    if (!requested.ok) return err({ kind: 'controller', error: requested.error });
+    return this.#record(runId);
+  }
+
   /**
    * At start-up: a run the database still shows as running belonged to a process that
    * died. Pause it as `interrupted` so it can be resumed from its log. Returns how many.

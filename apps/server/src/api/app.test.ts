@@ -34,6 +34,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { RunManager, type RunModelsSource } from '../run-manager';
 import { createApp } from './app';
+import {
+  ApiErrorSchema,
+  BudgetResponseSchema,
+  ModelCallDetailSchema,
+  ProfilesResponseSchema,
+  RunListResponseSchema,
+  RunRecordSchema,
+  TraceResponseSchema,
+} from './schemas';
 
 const ROSTER = fileURLToPath(new URL('../../../../agents.yaml', import.meta.url));
 const monthlyBudget = { ...DEFAULT_MONTHLY_BUDGET, timeZone: 'UTC' };
@@ -388,6 +397,100 @@ describe('runs', () => {
     );
     // The free profile is never refused.
     expect((await post(app, '/runs', { problem: { content: 'P' } })).status).toBe(201);
+  });
+});
+
+describe('the contract the web app parses', () => {
+  it('every response the UI reads satisfies its schema, with no field the schema does not name', async () => {
+    const { app, manager } = await setup();
+    const started = await startRun(app);
+    // A running record has no reason; every other status carries one.
+    expect(RunRecordSchema.strict().parse(started)).toMatchObject({
+      status: 'running',
+      reason: null,
+    });
+    await manager.settled(started.id);
+
+    const json = async (path: string): Promise<unknown> => (await app.request(path)).json();
+    const record = RunRecordSchema.strict().parse(await json(`/runs/${started.id}`));
+    expect([record.status, record.reason]).toEqual(['completed', 'completed']);
+    expect(RunListResponseSchema.strict().parse(await json('/runs')).runs).toEqual([record]);
+    expect(ProfilesResponseSchema.strict().parse(await json('/profiles')).defaultProfile).toBe(
+      'dev',
+    );
+    expect(BudgetResponseSchema.strict().parse(await json('/budget')).limitUsd).toBe(5);
+
+    const trace = TraceResponseSchema.strict().parse(await json(`/runs/${started.id}/trace`));
+    expect(trace.calls.length).toBe(7);
+    const first = trace.calls[0];
+    if (first === undefined) throw new Error('no calls');
+    const detail = ModelCallDetailSchema.strict().parse(
+      await json(`/runs/${started.id}/trace/${first.id}`),
+    );
+    expect(detail).toMatchObject({ ...first, system: expect.any(String) as unknown });
+
+    expect(ApiErrorSchema.parse(await json('/runs/nope')).error.code).toBe('not_found');
+  });
+});
+
+describe('POST /runs/:id/synthesize', () => {
+  it('records the request and runs the Synthesizer in the next round to start', async () => {
+    const held = gate();
+    const { app, manager } = await setup(scriptedSource(held.wrap));
+    const started = await startRun(app);
+    // Round 2 is in flight (the Solver's call is held): the request waits for round 3.
+    await held.reached;
+    const asked = await post(app, `/runs/${started.id}/synthesize`);
+    expect(asked.status).toBe(200);
+    expect(RunRecordSchema.parse(await asked.json()).status).toBe('running');
+    held.release();
+    await manager.settled(started.id);
+
+    const log = await body<{ events: BoardEvent[] }>(await app.request(`/runs/${started.id}/log`));
+    const requested = log.events.find((e) => e.type === 'synthesis_requested');
+    expect(requested).toMatchObject({ round: 1 });
+    const selections = log.events.flatMap((e) => (e.type === 'agents_selected' ? [e] : []));
+    expect(selections.map((e) => e.selected)).toEqual([
+      ['planner'],
+      ['solver', 'researcher'],
+      ['synthesizer', 'critic'],
+    ]);
+    expect(selections[2]?.eligible.find((e) => e.agentId === 'synthesizer')?.reason).toBe(
+      'forced by the user',
+    );
+    // The scripted Synthesizer is confident and nothing blocks, so the run ends a round
+    // earlier than it would have: the usual termination rules, not the request, decide.
+    expect(await body<RunRecord>(await app.request(`/runs/${started.id}`))).toMatchObject({
+      status: 'completed',
+      reason: 'completed',
+      totals: { rounds: 3 },
+    });
+    expect(log.events.map((e) => e.seq)).toEqual(log.events.map((_, i) => i));
+
+    const late = await post(app, `/runs/${started.id}/synthesize`);
+    expect(late.status).toBe(409);
+    expect((await post(app, '/runs/nope/synthesize')).status).toBe(404);
+  });
+
+  it('takes a request for a paused run and serves it after the resume', async () => {
+    const held = gate();
+    const { app, manager } = await setup(scriptedSource(held.wrap));
+    const started = await startRun(app);
+    await held.reached;
+    const pausing = post(app, `/runs/${started.id}/pause`);
+    held.release();
+    expect((await body<RunRecord>(await pausing)).status).toBe('paused');
+
+    const asked = await post(app, `/runs/${started.id}/synthesize`);
+    expect(asked.status).toBe(200);
+    expect((await body<RunRecord>(asked)).status).toBe('paused');
+    await post(app, `/runs/${started.id}/resume`);
+    await manager.settled(started.id);
+    const log = await body<{ events: BoardEvent[] }>(await app.request(`/runs/${started.id}/log`));
+    const selections = log.events.flatMap((e) =>
+      e.type === 'agents_selected' ? [e.selected] : [],
+    );
+    expect(selections[2]?.[0]).toBe('synthesizer');
   });
 });
 
