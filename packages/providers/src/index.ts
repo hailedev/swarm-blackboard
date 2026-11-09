@@ -26,7 +26,13 @@ export { classifyProviderError } from './errors';
 export type { FactoryError, ModelFactory, ModelFactoryOptions } from './factory';
 export { composeModel, createModelFactory, describeFactoryError } from './factory';
 export type { OllamaModelOptions } from './ollama';
-export { createOllamaModel, OLLAMA_NUM_CTX, OLLAMA_TIMEOUT_MS, ollamaApiUrl } from './ollama';
+export {
+  createOllamaModel,
+  OLLAMA_NUM_CTX,
+  OLLAMA_THINK_TOKENS,
+  OLLAMA_TIMEOUT_MS,
+  ollamaApiUrl,
+} from './ollama';
 export type {
   Fetch,
   OllamaFormatProbeOptions,
@@ -37,6 +43,7 @@ export type {
 } from './ollama-preflight';
 export {
   describeOllamaPreflightError,
+  FORMAT_PROBE,
   preflightOllama,
   probeOllamaFormat,
 } from './ollama-preflight';

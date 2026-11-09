@@ -93,3 +93,16 @@ describe('classifyProviderError', () => {
     });
   });
 });
+
+describe('classifyProviderError: SDK connection failures', () => {
+  it('treats the SDK message "Cannot connect to API" as a network failure', () => {
+    expect(
+      classifyProviderError({
+        name: 'AI_APICallError',
+        message: 'Cannot connect to API: bad port',
+        isRetryable: true,
+        cause: new Error('bad port'),
+      }),
+    ).toEqual({ kind: 'network', message: 'Cannot connect to API: bad port', attempts: 1 });
+  });
+});

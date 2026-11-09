@@ -118,6 +118,24 @@ export const describeOllamaPreflightError = (error: OllamaPreflightError): strin
   }
 };
 
+// A probe tight enough that an unconstrained model would stray (an enum, a bounded
+// integer, a bounded array) and free of ids, so a hallucinated UUID cannot muddy it.
+// Shared by the contract test and the local-model trial.
+export const FORMAT_PROBE = {
+  schema: z.object({
+    verdict: z.enum(['yes', 'no', 'unclear']),
+    score: z.int().min(1).max(5),
+    reasons: z.array(z.string().min(1)).min(1).max(3),
+  }),
+  system:
+    'Judge the statement. Reply with JSON only: verdict (yes, no or unclear), score (1 to 5) and one to three short reasons.',
+  prompts: [
+    'Statement: a pnpm workspace shares one lockfile across its packages.',
+    'Statement: TypeScript compiles directly to machine code.',
+    'Statement: remote build caching always keeps CI under ten minutes.',
+  ],
+} as const;
+
 export interface OllamaFormatProbeOptions {
   baseUrl: string;
   model: string;

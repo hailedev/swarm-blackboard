@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { createAnthropicModel } from './anthropic';
 import { composeModel, createModelFactory, describeFactoryError } from './factory';
-import { createOllamaModel, OLLAMA_NUM_CTX, ollamaApiUrl } from './ollama';
+import { createOllamaModel, OLLAMA_NUM_CTX, OLLAMA_THINK_TOKENS, ollamaApiUrl } from './ollama';
 import { PRICE_TABLE } from './pricing';
 import type { ModelCallTrace } from './trace';
 
@@ -31,7 +31,7 @@ const request = (overrides: Partial<ModelRequest<unknown>> = {}): ModelRequest<u
 });
 
 describe('createOllamaModel', () => {
-  it('asks for the context window and the output allowance in Ollama terms, with think', async () => {
+  it('asks for the context window and the output allowance in Ollama terms, with room to think', async () => {
     const mock = new MockLanguageModelV4({ doGenerate: ok });
     const model = createOllamaModel({
       modelId: 'qwen-test',
@@ -53,10 +53,28 @@ describe('createOllamaModel', () => {
     });
     const call = mock.doGenerateCalls[0];
     expect(call?.providerOptions).toEqual({
-      ollama: { think: true, options: { num_ctx: OLLAMA_NUM_CTX, num_predict: 512 } },
+      ollama: {
+        think: true,
+        options: { num_ctx: OLLAMA_NUM_CTX, num_predict: 512 + OLLAMA_THINK_TOKENS },
+      },
     });
     expect(call?.responseFormat?.type).toBe('json');
     expect(call?.prompt[0]).toMatchObject({ role: 'system', content: 'sys' });
+  });
+
+  it('gives a thinking model only the room it was told to', async () => {
+    const mock = new MockLanguageModelV4({ doGenerate: ok });
+    const model = createOllamaModel({
+      modelId: 'm',
+      baseUrl: 'http://mini:11434',
+      think: true,
+      thinkTokens: 1_000,
+      languageModel: mock,
+    });
+    await model.generateObject(request());
+    expect(mock.doGenerateCalls[0]?.providerOptions).toEqual({
+      ollama: { think: true, options: { num_ctx: OLLAMA_NUM_CTX, num_predict: 1_512 } },
+    });
   });
 
   it('defaults think off, honours a custom context window and omits num_predict without an allowance', async () => {

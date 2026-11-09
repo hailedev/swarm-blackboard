@@ -26,7 +26,9 @@ const NETWORK_CODES = new Set([
   'UND_ERR_SOCKET',
 ]);
 
-const NETWORK_MESSAGE = /fetch failed|network|socket hang up|timed? ?out|ECONN|ENOTFOUND/i;
+// "Cannot connect to API" is how the AI SDK reports a failed fetch, whatever the cause.
+const NETWORK_MESSAGE =
+  /fetch failed|cannot connect to api|network|socket hang up|timed? ?out|ECONN|ENOTFOUND/i;
 
 interface ErrorShape {
   name: string | undefined;
