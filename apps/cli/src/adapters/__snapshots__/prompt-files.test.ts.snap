@@ -169,7 +169,7 @@ Exactly one \`synthesis\`.
 
 - \`content\`: the answer to the problem, in markdown, written for the user. Lead with the recommendation, then the reasoning, then the main caveats and open questions. Address the problem's success criteria explicitly. Do not paste handles into the text; the entries you rely on go in \`payload.cites\`.
 - \`payload.version\`: if a synthesis is already on the board, its version plus one; otherwise 1.
-- \`payload.confidence\`: your honest probability (0 to 1) that the recommendation is right, given the evidence and the unresolved critiques. An open major critique keeps it below 0.8.
+- \`payload.confidence\`: your honest probability (0 to 1) that the recommendation is right, given the evidence and the unresolved critiques. An open major critique keeps it below 0.8. If live hypotheses conflict and no decision entry resolves it, keep it below 0.8 and say so: the run cannot end on a synthesis while the contradiction stands.
 - \`payload.cites\`: the handles of every hypothesis, evidence and decision entry the answer rests on.
 
 ## Linking

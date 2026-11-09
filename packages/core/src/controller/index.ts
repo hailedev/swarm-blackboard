@@ -38,4 +38,4 @@ export {
 export type { Candidate } from './selection';
 export { DIVERSITY_WINDOW, selectAgents } from './selection';
 export type { TerminationInput } from './termination';
-export { checkTermination } from './termination';
+export { checkTermination, synthesisReady } from './termination';

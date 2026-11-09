@@ -42,7 +42,7 @@ import { ConflictTracker } from './conflict';
 import { calendarMonth } from './period';
 import { estimateInputTokens, estimateUndershot, fitCall } from './reservation';
 import { selectAgents } from './selection';
-import { checkTermination } from './termination';
+import { checkTermination, synthesisReady } from './termination';
 
 export interface ProblemInput {
   content: string;
@@ -619,7 +619,14 @@ export const createController = (
         starved,
         stalled,
         eligibleCount: eligible.length,
+        decisionRequired: flags.decisionRequired,
       });
+    if (reason === null && flags.decisionRequired && synthesisReady(view, runConfig)) {
+      deps.logger.info('synthesis held back: a contradiction between hypotheses is undecided', {
+        runId,
+        round,
+      });
+    }
     deps.logger.info('round completed', {
       runId,
       round,

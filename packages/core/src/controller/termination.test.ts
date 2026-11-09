@@ -2,10 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { RunConfigSchema } from '../schemas/run-config';
 import { BoardFixture } from '../testing/board-fixture';
-import { checkTermination } from './termination';
+import { checkTermination, synthesisReady } from './termination';
 
 const config = RunConfigSchema.parse({});
-const base = { config, budget: null, starved: false, stalled: false, eligibleCount: 3 } as const;
+const base = {
+  config,
+  budget: null,
+  starved: false,
+  stalled: false,
+  eligibleCount: 3,
+  decisionRequired: false,
+} as const;
 
 describe('checkTermination', () => {
   it('continues while nothing holds', () => {
@@ -57,6 +64,25 @@ describe('checkTermination', () => {
     expect(checkTermination({ ...base, view, starved: true, stalled: true })).toBe('budget_cost');
     expect(checkTermination({ ...base, view, stalled: true, eligibleCount: 0 })).toBe('stalled');
     expect(checkTermination({ ...base, view, eligibleCount: 0 })).toBe('no_eligible_agents');
+  });
+
+  it('holds a confident synthesis back while a contradiction is undecided', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const h = fx.entry('hypothesis', { confidence: 0.9, supportedBy: [], contradictedBy: [] });
+    fx.entry('synthesis', { version: 1, confidence: 0.95, cites: [h.id] });
+    const view = fx.view();
+    expect(synthesisReady(view, config)).toBe(true);
+    expect(checkTermination({ ...base, view, decisionRequired: true })).toBeNull();
+    // The run then ends on whatever else holds, never on `completed`.
+    expect(
+      checkTermination({ ...base, view, decisionRequired: true, budget: 'budget_rounds' }),
+    ).toBe('budget_rounds');
+    expect(checkTermination({ ...base, view, decisionRequired: true, stalled: true })).toBe(
+      'stalled',
+    );
+    expect(checkTermination({ ...base, view, decisionRequired: false })).toBe('completed');
   });
 
   it('a confident synthesis wins over an exhausted budget', () => {

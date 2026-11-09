@@ -787,6 +787,92 @@ describe('createController', () => {
     });
   });
 
+  it('holds a confident synthesis back while a contradiction is undecided, then completes on the decision', async () => {
+    const infos: string[] = [];
+    const logger: Logger = {
+      ...nullLogger,
+      info: (message) => {
+        infos.push(message);
+      },
+    };
+    const liveHypotheses = () => controller.currentView().liveOfType('hypothesis');
+    // One agent plays every part, a round at a time: A; B contradicting A; a critique of A
+    // (the conflict is now "critiqued", so a decision is required); a confident synthesis
+    // that must not end the run; the decision that lets it.
+    const { controller } = harness(
+      [
+        stubAgent('all', {
+          priority: 90,
+          act: (ctx) => {
+            const [a, b] = liveHypotheses();
+            switch (ctx.round) {
+              case 1:
+                return [
+                  {
+                    type: 'hypothesis',
+                    content: 'A',
+                    parents: [],
+                    payload: { confidence: 0.5, supportedBy: [], contradictedBy: [] },
+                  },
+                ];
+              case 2:
+                return a === undefined
+                  ? []
+                  : [
+                      {
+                        type: 'hypothesis',
+                        content: 'B',
+                        parents: [],
+                        payload: { confidence: 0.6, supportedBy: [], contradictedBy: [a.id] },
+                      },
+                    ];
+              case 3:
+                return a === undefined
+                  ? []
+                  : [
+                      {
+                        type: 'critique',
+                        content: 'C',
+                        parents: [a.id],
+                        payload: { target: a.id, severity: 'major' },
+                      },
+                    ];
+              case 4:
+                return b === undefined
+                  ? []
+                  : [
+                      {
+                        type: 'synthesis',
+                        content: 'S',
+                        parents: [b.id],
+                        payload: { version: 1, confidence: 0.95, cites: [b.id] },
+                      },
+                    ];
+              case 5:
+                return a === undefined || b === undefined
+                  ? []
+                  : [
+                      {
+                        type: 'decision',
+                        content: 'D',
+                        parents: [a.id, b.id],
+                        payload: { chosen: b.id, rejected: [a.id], rationale: 'r' },
+                      },
+                    ];
+              default:
+                return [];
+            }
+          },
+        }),
+      ],
+      { logger },
+    );
+    await controller.start({ content: 'P' }, { maxRounds: 8 });
+    const result = await controller.run();
+    expect(result.ok && [result.value.reason, result.value.rounds]).toEqual(['completed', 5]);
+    expect(infos.filter((m) => m.startsWith('synthesis held back')).length).toBe(1);
+  });
+
   it('propagates store failures as controller errors', async () => {
     const failing = {
       append: () => Promise.resolve(err({ kind: 'unavailable' as const, message: 'disk full' })),

@@ -84,7 +84,7 @@ One cycle = one round:
 4. **Selection** — top-k by value, k = parallelism (default 2), with a diversity rule: the same agent can't be selected three rounds running unless it is the only eligible one.
 5. **Execution** — run selected agents in parallel. Each returns contributions validated against its schema. Invalid output → one repair attempt → fall back to Claude for that call → otherwise discard and log.
 6. **Commit** — write contributions with provenance; emit events.
-7. **Conflict check** — two live hypotheses contradict → Critic is forced next round; still contested after critique → a `decision` entry is required before synthesis is allowed.
+7. **Conflict check** — two live hypotheses contradict → Critic is forced next round; still contested after critique → a `decision` entry is required before synthesis is allowed. Until Phase 5 adds the decision flow nothing posts decisions, so from `synthesisFromRound` the Synthesizer runs regardless, but an undecided contradiction **caps the synthesis**: however confident, it cannot complete the run while the contradiction stands, and such a run ends on a budget or stall reason instead (enforced in `checkTermination`; hardening pass, 2026-11-09).
 8. **Termination** — stop when any of:
    - `synthesis.confidence ≥ threshold` **and** no open blocking critiques;
    - stall (no new entries for 2 rounds) → one Planner reframe, then stop;
