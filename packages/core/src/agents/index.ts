@@ -4,15 +4,17 @@ export type {
   AgentError,
   AgentOutput,
   AgentResult,
-  AgentRole,
+  CallError,
   ControlFlags,
+  ModelGateway,
   RoleDefinition,
+  RoleModels,
   Trigger,
 } from './agent';
-export { AGENT_ROLES, createRoleAgent, eligible, notEligible } from './agent';
+export { createRoleAgent, eligible, notEligible } from './agent';
 export * from './eligibility';
 export type { RenderedPrompt } from './prompt';
-export { renderAgentPrompt } from './prompt';
+export { renderAgentPrompt, renderRepairPrompt } from './prompt';
 export { CriticOutputSchema, critic } from './roles/critic';
 export { PlannerOutputSchema, planner } from './roles/planner';
 export { ResearcherOutputSchema, researcher } from './roles/researcher';

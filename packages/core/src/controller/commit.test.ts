@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { zeroUsage } from '../schemas/common';
 import type { Contribution } from '../schemas/contribution';
 import { BoardFixture } from '../testing/board-fixture';
 import { SequentialIdGenerator, sequentialId } from '../testing/sequential-id-generator';
@@ -149,7 +150,13 @@ describe('prepareEntries', () => {
     const fx = new BoardFixture();
     const problem = fx.problem();
     const ids = new SequentialIdGenerator();
-    const usage = { inputTokens: 100, outputTokens: 20, costUsd: 0.002 };
+    const usage = {
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      costUsd: 0.002,
+    };
     const batch = prepareEntries({
       contributions: [
         hyp({ parents: [unknown] }),
@@ -176,6 +183,29 @@ describe('prepareEntries', () => {
       status: 'active',
       usage,
     });
-    expect(batch.entries[1]?.usage).toEqual({ inputTokens: 0, outputTokens: 0, costUsd: 0 });
+    expect(batch.entries[1]?.usage).toEqual(zeroUsage());
+  });
+});
+
+describe('prepareEntries: schema failures', () => {
+  it('drops a contribution that passes the link checks but fails the entry schema', () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    const batch = prepareEntries({
+      contributions: [
+        { type: 'subproblem', content: '', parents: [problem.id], payload: { status: 'open' } },
+      ],
+      view: fx.view(),
+      ids: new SequentialIdGenerator(),
+      runId: fx.runId,
+      round: 1,
+      author: 'planner',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      usage: zeroUsage(),
+    });
+    expect(batch.entries).toEqual([]);
+    expect(batch.problems).toEqual([
+      expect.stringContaining('contribution 0 (subproblem): content:') as string,
+    ]);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createFakeModel } from '../model/fake-model';
-import { AGENT_ROLES } from './agent';
+import { AGENT_ROLES } from '../schemas/role';
 import { createDefaultAgents } from './roster';
 
 describe('createDefaultAgents', () => {

@@ -1,11 +1,20 @@
-import type { Agent, AgentContext, AgentError, AgentResult, ControlFlags } from '../agents/agent';
+import type {
+  Agent,
+  AgentContext,
+  AgentError,
+  AgentResult,
+  CallError,
+  ControlFlags,
+  ModelGateway,
+} from '../agents/agent';
 import { buildBoardView, type BoardView } from '../board/board-view';
 import type { BoardStore, StoreError } from '../ports/board-store';
 import { isoFromMs, type Clock } from '../ports/clock';
 import type { IdGenerator } from '../ports/ids';
 import type { Logger } from '../ports/logger';
-import type { ModelError } from '../ports/model';
+import type { Model, ModelError, ModelRequest, ModelResponse } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
+import type { PeriodBudget } from '../ports/spend-ledger';
 import { addUsage, HUMAN_AUTHOR, zeroUsage, type Usage } from '../schemas/common';
 import { ProblemEntrySchema, type Entry, type EntryOf } from '../schemas/entry';
 import type {
@@ -13,12 +22,25 @@ import type {
   BoardEvent,
   EligibilityRecord,
   RunTotals,
-  TerminationReason,
 } from '../schemas/event';
+import type { RunProfile } from '../schemas/roster';
 import { RunConfigSchema, type RunConfig, type RunConfigInput } from '../schemas/run-config';
+import {
+  isPauseReason,
+  terminalStatusFor,
+  type FailureReason,
+  type PauseReason,
+  type RunEnd,
+  type RunEndReason,
+  type RunStatus,
+  type TerminalReason,
+  type TerminalStatus,
+} from '../schemas/run-end';
 import { BudgetTracker } from './budgets';
 import { prepareEntries } from './commit';
 import { ConflictTracker } from './conflict';
+import { calendarMonth } from './period';
+import { estimateInputTokens, fitCall } from './reservation';
 import { selectAgents } from './selection';
 import { checkTermination } from './termination';
 
@@ -34,17 +56,31 @@ export interface ControllerDeps {
   ids: IdGenerator;
   logger: Logger;
   agents: readonly Agent[];
+  /** Month-to-date guard for paid profiles. Omit for the dev profile: it spends nothing. */
+  periodBudget?: PeriodBudget;
+  /** Recorded on run_started so the run stays reproducible after agents.yaml changes. */
+  profile?: RunProfile;
   /** Called synchronously after every event is stored (CLI printing now, SSE later). */
   onEvent?: (event: BoardEvent) => void;
 }
 
 export type ControllerError =
   | { kind: 'store'; error: StoreError }
+  | { kind: 'ledger'; message: string }
   | { kind: 'not_started' }
   | { kind: 'already_started' }
-  | { kind: 'terminated'; reason: TerminationReason }
+  | { kind: 'terminated'; reason: TerminalReason }
+  | { kind: 'paused'; reason: PauseReason }
   | { kind: 'invalid_config'; issues: readonly string[] }
-  | { kind: 'invalid_problem'; issues: readonly string[] };
+  | { kind: 'invalid_problem'; issues: readonly string[] }
+  /** Refused before the first call: the run's cap would overrun the month's limit. */
+  | {
+      kind: 'monthly_budget';
+      spentUsd: number;
+      limitUsd: number;
+      requestedCapUsd: number;
+      fitsCapUsd: number;
+    };
 
 export interface AgentFailure {
   agentId: string;
@@ -59,13 +95,14 @@ export interface RoundReport {
   committed: readonly Entry[];
   failures: readonly AgentFailure[];
   usage: Usage;
-  terminated: TerminationReason | null;
+  ended: RunEnd | null;
 }
 
 export interface RunSummary {
   runId: string;
   rounds: number;
-  reason: TerminationReason;
+  status: RunStatus;
+  reason: RunEndReason;
   totals: RunTotals;
   view: BoardView;
 }
@@ -78,7 +115,7 @@ export interface Controller {
   ): Promise<Result<EntryOf<'problem'>, ControllerError>>;
   /** One controller cycle (docs/PLAN.md §2.3). */
   runRound(): Promise<Result<RoundReport, ControllerError>>;
-  /** Rounds until a termination condition holds. */
+  /** Rounds until the run ends or pauses. */
   run(): Promise<Result<RunSummary, ControllerError>>;
   currentView(): BoardView;
   readonly flags: Readonly<ControlFlags>;
@@ -87,24 +124,56 @@ export interface Controller {
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type EventBody = DistributiveOmit<BoardEvent, 'id' | 'runId' | 'seq' | 'at'>;
 
-const describeModelError = (error: ModelError): string => {
+type AgentException = { kind: 'exception'; message: string };
+type ActOutcome = Result<AgentResult, AgentError | AgentException>;
+
+interface SettledCall {
+  agentId: string;
+  usage: Usage;
+}
+
+const usd = (amount: number): string => `$${amount.toFixed(4)}`;
+
+const describeCallError = (error: CallError): string => {
   switch (error.kind) {
     case 'invalid_output':
       return `invalid output: ${error.issues.join('; ')}`;
-    case 'provider_error':
-      return `provider error: ${error.message}`;
-    case 'timeout':
-      return `timed out after ${String(error.afterMs)} ms`;
+    case 'billing':
+    case 'auth':
+    case 'invalid_request':
+      return `${error.kind}: ${error.message}`;
+    case 'rate_limit':
+    case 'overloaded':
+    case 'network':
+      return `${error.kind} after ${String(error.attempts)} attempt(s): ${error.message}`;
     case 'script_exhausted':
       return `script exhausted after ${String(error.calls)} calls`;
+    case 'budget_exhausted':
+      return `budget exhausted: ${usd(error.remainingUsd)} left, the smallest useful call costs ${usd(error.worstCaseUsd)}`;
   }
 };
 
-const failureReason = (error: AgentError): AgentFailureReason =>
-  error.error.kind === 'invalid_output' ? 'invalid_output' : 'model_error';
+const failureOf = (agentId: string, error: AgentError | AgentException): AgentFailure =>
+  error.kind === 'exception'
+    ? { agentId, reason: 'exception', detail: error.message }
+    : { agentId, reason: error.error.kind, detail: describeCallError(error.error) };
 
 const issuesOf = (error: { issues: { path: PropertyKey[]; message: string }[] }): string[] =>
   error.issues.map((issue) => `${issue.path.map(String).join('.')}: ${issue.message}`);
+
+const sumUsage = (calls: readonly SettledCall[]): Usage =>
+  calls.reduce((total, call) => addUsage(total, call.usage), zeroUsage());
+
+// After a round, the failures decide whether the run can go on (docs/budget-guardrails.md §4).
+const fatalReason = (reasons: ReadonlySet<AgentFailureReason>): FailureReason | null =>
+  reasons.has('billing') ? 'billing' : reasons.has('auth') ? 'auth' : null;
+
+const pauseReason = (reasons: ReadonlySet<AgentFailureReason>): PauseReason | null =>
+  reasons.has('rate_limit') || reasons.has('overloaded')
+    ? 'rate_limit'
+    : reasons.has('network')
+      ? 'provider_unreachable'
+      : null;
 
 export const createController = (
   deps: ControllerDeps,
@@ -125,7 +194,11 @@ export const createController = (
   let completedRounds = 0;
   let consecutiveEmptyRounds = 0;
   let reframeUsed = false;
-  let terminated: TerminationReason | null = null;
+  let monthlyWarningSent = false;
+  // Narrower than RunEnd so a paused run and a finished run stay distinguishable in code.
+  type Ended =
+    { status: 'paused'; reason: PauseReason } | { status: TerminalStatus; reason: TerminalReason };
+  let ended: Ended | null = null;
 
   const emit = async (body: EventBody): Promise<Result<BoardEvent, ControllerError>> => {
     const event: BoardEvent = {
@@ -150,27 +223,136 @@ export const createController = (
     elapsedMs: tracker.elapsedMs(),
   });
 
+  // Month-to-date spend from the host's ledger, or null when no monthly budget applies.
+  const monthToDate = async (): Promise<
+    Result<{ spentUsd: number; budget: PeriodBudget } | null, ControllerError>
+  > => {
+    const budget = deps.periodBudget;
+    if (budget === undefined) return ok(null);
+    const period = calendarMonth(deps.clock.nowMs(), budget.timeZone);
+    if (!period.ok) {
+      return err({ kind: 'invalid_config', issues: [`unknown time zone "${budget.timeZone}"`] });
+    }
+    try {
+      const spentUsd = await budget.ledger.spentUsd(period.value);
+      return ok({ spentUsd, budget });
+    } catch (cause) {
+      // Fail closed: if we cannot see what the month has cost, we do not spend more.
+      const message = cause instanceof Error ? cause.message : 'spend ledger unavailable';
+      return err({ kind: 'ledger', message });
+    }
+  };
+
   const terminate = async (
     tracker: BudgetTracker,
     round: number,
-    reason: TerminationReason,
+    reason: TerminalReason,
   ): Promise<Result<void, ControllerError>> => {
-    terminated = reason;
-    deps.logger.info('run terminated', { runId, round, reason });
-    const result = await emit({ type: 'run_terminated', round, reason, totals: totals(tracker) });
+    const status = terminalStatusFor(reason);
+    ended = { status, reason };
+    deps.logger.info('run terminated', { runId, round, status, reason });
+    const result = await emit({
+      type: 'run_terminated',
+      round,
+      status,
+      reason,
+      totals: totals(tracker),
+    });
     return result.ok ? ok(undefined) : result;
   };
+
+  const pause = async (
+    tracker: BudgetTracker,
+    round: number,
+    reason: PauseReason,
+  ): Promise<Result<void, ControllerError>> => {
+    ended = { status: 'paused', reason };
+    deps.logger.info('run paused', { runId, round, reason });
+    const result = await emit({ type: 'run_paused', round, reason, totals: totals(tracker) });
+    return result.ok ? ok(undefined) : result;
+  };
+
+  const finish = (tracker: BudgetTracker, round: number, reason: RunEndReason) =>
+    isPauseReason(reason) ? pause(tracker, round, reason) : terminate(tracker, round, reason);
+
+  // The gateway every agent's model calls go through (docs/budget-guardrails.md §2).
+  // Reservation happens synchronously before the first await, so parallel agents
+  // cannot both claim the last cents.
+  const gatewayFor = (
+    tracker: BudgetTracker,
+    runConfig: RunConfig,
+    agentId: string,
+    round: number,
+    settled: SettledCall[],
+  ): ModelGateway => ({
+    async call<T>(
+      model: Model,
+      request: ModelRequest<T>,
+    ): Promise<Result<ModelResponse<T>, CallError>> {
+      const inputTokens = estimateInputTokens(request);
+      const requested = request.maxOutputTokens ?? runConfig.maxOutputTokens;
+      const fit = fitCall({
+        pricing: model.pricing,
+        inputTokens,
+        maxOutputTokens: requested,
+        remainingUsd: tracker.remainingUsd(),
+      });
+      if (!fit.fits) {
+        deps.logger.warn('model call skipped: it cannot fit the cost cap', {
+          runId,
+          round,
+          agentId,
+          modelId: model.id,
+          remainingUsd: fit.remainingUsd,
+          worstCaseUsd: fit.worstCaseUsd,
+        });
+        return err({
+          kind: 'budget_exhausted',
+          remainingUsd: fit.remainingUsd,
+          worstCaseUsd: fit.worstCaseUsd,
+        });
+      }
+      if (fit.shrunk) {
+        deps.logger.info('output allowance shrunk to fit the cost cap', {
+          runId,
+          round,
+          agentId,
+          modelId: model.id,
+          requested,
+          granted: fit.maxOutputTokens,
+        });
+      }
+      const reservation = tracker.reserve(fit.worstCaseUsd);
+      let outcome: Result<ModelResponse<T>, ModelError> | undefined;
+      try {
+        outcome = await model.generateObject({ ...request, maxOutputTokens: fit.maxOutputTokens });
+      } finally {
+        if (outcome === undefined) tracker.release(reservation);
+      }
+      if (outcome.ok) {
+        tracker.settle(reservation, outcome.value.usage);
+        settled.push({ agentId, usage: outcome.value.usage });
+      } else if (outcome.error.kind === 'invalid_output') {
+        // The model answered, so the tokens were billed even though the answer is unusable.
+        tracker.settle(reservation, outcome.error.usage);
+        settled.push({ agentId, usage: outcome.error.usage });
+      } else {
+        tracker.release(reservation);
+      }
+      return outcome;
+    },
+  });
 
   const runAgent = async (
     agent: Agent,
     roundView: BoardView,
     ctx: AgentContext,
-  ): Promise<Result<AgentResult, AgentError>> => {
+  ): Promise<ActOutcome> => {
     try {
       return await agent.act(roundView, ctx);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'agent threw a non-Error value';
-      return err({ kind: 'model', error: { kind: 'provider_error', message } });
+      return err({ kind: 'exception', message });
     }
   };
 
@@ -199,37 +381,89 @@ export const createController = (
     if (!parsedProblem.success) {
       return err({ kind: 'invalid_problem', issues: issuesOf(parsedProblem.error) });
     }
+
+    // Before the first call: would this run's cap overrun the month (docs/budget-guardrails.md §3)?
+    const month = await monthToDate();
+    if (!month.ok) return month;
+    if (month.value !== null) {
+      const { spentUsd, budget } = month.value;
+      if (spentUsd + parsedConfig.data.maxCostUsd > budget.limitUsd) {
+        return err({
+          kind: 'monthly_budget',
+          spentUsd,
+          limitUsd: budget.limitUsd,
+          requestedCapUsd: parsedConfig.data.maxCostUsd,
+          fitsCapUsd: Math.max(0, budget.limitUsd - spentUsd),
+        });
+      }
+    }
+
     config = parsedConfig.data;
     budgets = new BudgetTracker(config, deps.clock);
-    const started = await emit({ type: 'run_started', problemEntry: parsedProblem.data, config });
+    const started = await emit({
+      type: 'run_started',
+      problemEntry: parsedProblem.data,
+      config,
+      profile: deps.profile ?? null,
+    });
     if (!started.ok) return started;
     const committed = await emit({ type: 'entry_committed', round: 0, entry: parsedProblem.data });
     if (!committed.ok) return committed;
-    deps.logger.info('run started', { runId, maxRounds: config.maxRounds });
+    deps.logger.info('run started', {
+      runId,
+      maxRounds: config.maxRounds,
+      maxCostUsd: config.maxCostUsd,
+      profile: deps.profile?.name ?? null,
+    });
     return ok(parsedProblem.data);
   };
 
   const runRound: Controller['runRound'] = async () => {
     if (config === undefined || budgets === undefined) return err({ kind: 'not_started' });
-    if (terminated !== null) return err({ kind: 'terminated', reason: terminated });
+    if (ended !== null) {
+      return ended.status === 'paused'
+        ? err({ kind: 'paused', reason: ended.reason })
+        : err({ kind: 'terminated', reason: ended.reason });
+    }
+    const runConfig = config;
     const tracker = budgets;
     const round = completedRounds + 1;
-    const emptyReport = (terminatedBy: TerminationReason | null): RoundReport => ({
+    const emptyReport = (end: RunEnd | null): RoundReport => ({
       round: completedRounds,
       eligible: [],
       selected: [],
       committed: [],
       failures: [],
       usage: zeroUsage(),
-      terminated: terminatedBy,
+      ended: end,
     });
 
-    // Budgets are checked before any model call is made.
+    // Budgets are checked before any model call is made: the run's own caps first…
     const preBudget = tracker.exceeded();
     if (preBudget !== null) {
-      const reason: TerminationReason = `budget:${preBudget}`;
-      const ended = await terminate(tracker, completedRounds, reason);
-      return ended.ok ? ok(emptyReport(reason)) : ended;
+      const stopped = await terminate(tracker, completedRounds, preBudget);
+      return stopped.ok ? ok(emptyReport(ended)) : stopped;
+    }
+    // …then the month, re-read from the ledger every round.
+    const month = await monthToDate();
+    if (!month.ok) return month;
+    if (month.value !== null) {
+      const { spentUsd, budget } = month.value;
+      if (spentUsd >= budget.limitUsd) {
+        const paused = await pause(tracker, completedRounds, 'monthly_budget');
+        return paused.ok ? ok(emptyReport(ended)) : paused;
+      }
+      if (!monthlyWarningSent && spentUsd >= budget.limitUsd * budget.warnAtFraction) {
+        monthlyWarningSent = true;
+        deps.logger.warn('monthly budget warning', { runId, spentUsd, limitUsd: budget.limitUsd });
+        const warned = await emit({
+          type: 'budget_warning',
+          round: completedRounds,
+          spentUsd,
+          limitUsd: budget.limitUsd,
+        });
+        if (!warned.ok) return warned;
+      }
     }
 
     const startedRound = await emit({ type: 'round_started', round });
@@ -237,10 +471,10 @@ export const createController = (
 
     // 1–2. Snapshot and eligibility.
     const roundView = view;
-    const ctx: AgentContext = { runId, round, config, flags: { ...flags } };
+    const shared = { runId, round, config: runConfig, flags: { ...flags } };
     const evaluations = deps.agents.map((agent) => ({
       agent,
-      trigger: agent.trigger(roundView, ctx),
+      trigger: agent.trigger(roundView, { ...shared, models: unusedGateway }),
     }));
     const eligible: EligibilityRecord[] = evaluations
       .filter((e) => e.trigger.eligible)
@@ -253,7 +487,7 @@ export const createController = (
     // 4. Selection (rule-based priority; bidding is Phase 5).
     const selectedIds = selectAgents(
       evaluations.map((e) => ({ agentId: e.agent.id, trigger: e.trigger })),
-      config.parallelism,
+      runConfig.parallelism,
       history,
     );
     history.push(selectedIds);
@@ -269,33 +503,33 @@ export const createController = (
     });
     if (!selectedEvent.ok) return selectedEvent;
 
-    // 5. Execution, in parallel, each agent seeing the same snapshot.
+    // 5. Execution, in parallel, each agent seeing the same snapshot and reserving
+    //    budget through its own gateway before its first call is dispatched.
+    const settled: SettledCall[] = [];
     const results = await Promise.all(
-      selectedAgents.map((agent) => runAgent(agent, roundView, ctx)),
+      selectedAgents.map((agent) =>
+        runAgent(agent, roundView, {
+          ...shared,
+          models: gatewayFor(tracker, runConfig, agent.id, round, settled),
+        }),
+      ),
     );
 
     // 6. Commit, in selection order.
     const committed: Entry[] = [];
     const failures: AgentFailure[] = [];
     const critiqueTargets = new Set<string>();
-    let roundUsage = zeroUsage();
     for (const [index, agent] of selectedAgents.entries()) {
       const result = results[index];
       if (result === undefined) continue;
       if (!result.ok) {
-        const failure: AgentFailure = {
-          agentId: agent.id,
-          reason: failureReason(result.error),
-          detail: describeModelError(result.error.error),
-        };
+        const failure = failureOf(agent.id, result.error);
         failures.push(failure);
         deps.logger.warn('agent failed', { runId, round, ...failure });
         const failed = await emit({ type: 'agent_failed', round, ...failure });
         if (!failed.ok) return failed;
         continue;
       }
-      roundUsage = addUsage(roundUsage, result.value.usage);
-      tracker.recordUsage(result.value.usage);
       const batch = prepareEntries({
         contributions: result.value.contributions,
         view,
@@ -304,7 +538,7 @@ export const createController = (
         round,
         author: agent.id,
         createdAt: isoFromMs(deps.clock.nowMs()),
-        usage: result.value.usage,
+        usage: sumUsage(settled.filter((call) => call.agentId === agent.id)),
       });
       for (const entry of batch.entries) {
         const stored = await emit({ type: 'entry_committed', round, entry });
@@ -327,6 +561,7 @@ export const createController = (
 
     completedRounds = round;
     tracker.recordRound();
+    const roundUsage = sumUsage(settled);
     const roundDone = await emit({
       type: 'round_completed',
       round,
@@ -340,11 +575,11 @@ export const createController = (
     flags.criticForced = assessment.criticForced;
     flags.decisionRequired = assessment.decisionRequired;
 
-    // 8. Termination: stall detection, then the ordered checks.
+    // 8. Termination: provider failures first, then stall detection and the ordered checks.
     flags.stallDetected = false;
     consecutiveEmptyRounds = committed.length === 0 ? consecutiveEmptyRounds + 1 : 0;
     let stalled = false;
-    if (consecutiveEmptyRounds >= config.stallRounds) {
+    if (consecutiveEmptyRounds >= runConfig.stallRounds) {
       if (reframeUsed) {
         stalled = true;
       } else {
@@ -354,23 +589,32 @@ export const createController = (
         deps.logger.info('stall detected, allowing one reframe', { runId, round });
       }
     }
-    const reason = checkTermination({
-      view,
-      config,
-      budget: tracker.exceeded(),
-      stalled,
-      eligibleCount: eligible.length,
-    });
+    const failureKinds = new Set(failures.map((f) => f.reason));
+    const starved =
+      selectedAgents.length > 0 &&
+      failures.filter((f) => f.reason === 'budget_exhausted').length >= selectedAgents.length;
+    const reason: RunEndReason | null =
+      fatalReason(failureKinds) ??
+      pauseReason(failureKinds) ??
+      checkTermination({
+        view,
+        config: runConfig,
+        budget: tracker.exceeded(),
+        starved,
+        stalled,
+        eligibleCount: eligible.length,
+      });
     deps.logger.info('round completed', {
       runId,
       round,
       selected: selectedIds,
       newEntries: committed.length,
       failures: failures.length,
+      costUsd: tracker.usage.costUsd,
     });
     if (reason !== null) {
-      const ended = await terminate(tracker, round, reason);
-      if (!ended.ok) return ended;
+      const finished = await finish(tracker, round, reason);
+      if (!finished.ok) return finished;
     }
     return ok({
       round,
@@ -379,7 +623,7 @@ export const createController = (
       committed,
       failures,
       usage: roundUsage,
-      terminated: reason,
+      ended,
     });
   };
 
@@ -387,13 +631,14 @@ export const createController = (
     for (;;) {
       const report = await runRound();
       if (!report.ok) return report;
-      if (report.value.terminated !== null) break;
+      if (report.value.ended !== null) break;
     }
-    if (budgets === undefined || terminated === null) return err({ kind: 'not_started' });
+    if (budgets === undefined || ended === null) return err({ kind: 'not_started' });
     return ok({
       runId,
       rounds: completedRounds,
-      reason: terminated,
+      status: ended.status,
+      reason: ended.reason,
       totals: totals(budgets),
       view,
     });
@@ -409,4 +654,11 @@ export const createController = (
       return { ...flags };
     },
   };
+};
+
+// Triggers are pure functions over the board and never call a model; this gateway
+// exists only so the context handed to them is complete.
+const unusedGateway: ModelGateway = {
+  call: () =>
+    Promise.resolve(err({ kind: 'invalid_request', message: 'triggers must not call models' })),
 };

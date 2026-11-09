@@ -1,5 +1,6 @@
 import type { Model } from '../ports/model';
-import { createRoleAgent, type Agent, type AgentRole } from './agent';
+import type { AgentRole } from '../schemas/role';
+import { createRoleAgent, type Agent } from './agent';
 import { critic } from './roles/critic';
 import { planner } from './roles/planner';
 import { researcher } from './roles/researcher';
@@ -8,9 +9,12 @@ import { synthesizer } from './roles/synthesizer';
 
 export const roleDefinitions = { planner, researcher, solver, critic, synthesizer } as const;
 
-// Which model backs which role is configuration (agents.yaml, Phase 2); the roster
-// only binds the models it is handed.
-export const createDefaultAgents = (models: Readonly<Record<AgentRole, Model>>): Agent[] =>
+// Which model backs which role is configuration (agents.yaml, ADR-0009); the roster
+// only binds the models it is handed. The fallback is one model for the whole profile.
+export const createDefaultAgents = (
+  models: Readonly<Record<AgentRole, Model>>,
+  fallback?: Model,
+): Agent[] =>
   (Object.keys(roleDefinitions) as AgentRole[]).map((role) =>
-    createRoleAgent(roleDefinitions[role], models[role]),
+    createRoleAgent(roleDefinitions[role], { model: models[role], fallback }),
   );

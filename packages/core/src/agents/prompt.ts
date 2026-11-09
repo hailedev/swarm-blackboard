@@ -1,6 +1,7 @@
 import type { BoardView } from '../board/board-view';
 import type { Entry } from '../schemas/entry';
-import type { AgentContext, AgentRole } from './agent';
+import type { AgentRole } from '../schemas/role';
+import type { AgentContext } from './agent';
 
 // Phase 1 placeholder renderer: a role line plus a compact dump of the live board.
 // Phase 2 replaces it with prompts/<role>.md and the size-bounded board-view builder.
@@ -64,4 +65,28 @@ export const renderAgentPrompt = (
     system: `You are the ${role} agent in a blackboard swarm. Read the board and return contributions as JSON matching the schema. Reference other entries by their ids.`,
     prompt: lines.join('\n'),
   };
+};
+
+const MAX_RAW_CHARS = 4_000;
+
+// Second attempt after a schema failure: the same board, plus what was wrong with the
+// previous answer. Placeholder wording until prompts/ lands with the role prompts.
+export const renderRepairPrompt = (
+  prompt: string,
+  failure: { issues: readonly string[]; raw: string },
+): string => {
+  const raw =
+    failure.raw.length <= MAX_RAW_CHARS ? failure.raw : `${failure.raw.slice(0, MAX_RAW_CHARS)}…`;
+  return [
+    prompt,
+    '',
+    '# Your previous answer was rejected',
+    'It did not match the required schema:',
+    ...failure.issues.map((issue) => `- ${issue}`),
+    '',
+    'Previous answer:',
+    raw,
+    '',
+    'Return a corrected answer that satisfies the schema. Keep every id you reference exactly as it appears on the board.',
+  ].join('\n');
 };

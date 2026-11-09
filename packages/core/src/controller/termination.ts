@@ -1,13 +1,14 @@
 import { latestSynthesis } from '../agents/eligibility';
 import type { BoardView } from '../board/board-view';
-import type { TerminationReason } from '../schemas/event';
 import type { RunConfig } from '../schemas/run-config';
-import type { BudgetLimit } from './budgets';
+import type { RunBudgetReason, RunEndReason } from '../schemas/run-end';
 
 export interface TerminationInput {
   view: BoardView;
   config: RunConfig;
-  budget: BudgetLimit | null;
+  budget: RunBudgetReason | null;
+  /** Every selected agent was refused a model call because no call fits the cost cap. */
+  starved: boolean;
   stalled: boolean;
   eligibleCount: number;
 }
@@ -17,18 +18,20 @@ export const checkTermination = ({
   view,
   config,
   budget,
+  starved,
   stalled,
   eligibleCount,
-}: TerminationInput): TerminationReason | null => {
+}: TerminationInput): RunEndReason | null => {
   const synthesis = latestSynthesis(view);
   if (
     synthesis !== undefined &&
     synthesis.payload.confidence >= config.synthesisThreshold &&
     view.openBlockingCritiques().length === 0
   ) {
-    return 'synthesis_confident';
+    return 'completed';
   }
-  if (budget !== null) return `budget:${budget}`;
+  if (budget !== null) return budget;
+  if (starved) return 'budget_cost';
   if (stalled) return 'stalled';
   if (eligibleCount === 0) return 'no_eligible_agents';
   return null;

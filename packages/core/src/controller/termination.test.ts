@@ -5,7 +5,7 @@ import { BoardFixture } from '../testing/board-fixture';
 import { checkTermination } from './termination';
 
 const config = RunConfigSchema.parse({});
-const base = { config, budget: null, stalled: false, eligibleCount: 3 } as const;
+const base = { config, budget: null, starved: false, stalled: false, eligibleCount: 3 } as const;
 
 describe('checkTermination', () => {
   it('continues while nothing holds', () => {
@@ -14,13 +14,13 @@ describe('checkTermination', () => {
     expect(checkTermination({ ...base, view: fx.view() })).toBeNull();
   });
 
-  it('stops on a confident synthesis with no open blocking critique', () => {
+  it('completes on a confident synthesis with no open blocking critique', () => {
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
     const h = fx.entry('hypothesis', { confidence: 0.9, supportedBy: [], contradictedBy: [] });
     fx.entry('synthesis', { version: 1, confidence: 0.8, cites: [h.id] });
-    expect(checkTermination({ ...base, view: fx.view() })).toBe('synthesis_confident');
+    expect(checkTermination({ ...base, view: fx.view() })).toBe('completed');
   });
 
   it('does not stop on a synthesis below the threshold or while a blocking critique is open', () => {
@@ -33,18 +33,28 @@ describe('checkTermination', () => {
     fx.entry('synthesis', { version: 2, confidence: 0.95, cites: [h.id] });
     fx.entry('critique', { target: h.id, severity: 'blocking' });
     expect(checkTermination({ ...base, view: fx.view() })).toBeNull();
-    expect(checkTermination({ ...base, view: fx.view(), budget: 'cost' })).toBe('budget:cost');
+    expect(checkTermination({ ...base, view: fx.view(), budget: 'budget_cost' })).toBe(
+      'budget_cost',
+    );
   });
 
-  it('reports budgets, stalls and empty eligibility in order', () => {
+  it('reports budgets, starvation, stalls and empty eligibility in order', () => {
     const fx = new BoardFixture();
     fx.problem();
     const view = fx.view();
     expect(
-      checkTermination({ ...base, view, budget: 'rounds', stalled: true, eligibleCount: 0 }),
-    ).toBe('budget:rounds');
-    expect(checkTermination({ ...base, view, budget: 'tokens' })).toBe('budget:tokens');
-    expect(checkTermination({ ...base, view, budget: 'wall_clock' })).toBe('budget:wall_clock');
+      checkTermination({
+        ...base,
+        view,
+        budget: 'budget_rounds',
+        starved: true,
+        stalled: true,
+        eligibleCount: 0,
+      }),
+    ).toBe('budget_rounds');
+    expect(checkTermination({ ...base, view, budget: 'budget_tokens' })).toBe('budget_tokens');
+    expect(checkTermination({ ...base, view, budget: 'budget_time' })).toBe('budget_time');
+    expect(checkTermination({ ...base, view, starved: true, stalled: true })).toBe('budget_cost');
     expect(checkTermination({ ...base, view, stalled: true, eligibleCount: 0 })).toBe('stalled');
     expect(checkTermination({ ...base, view, eligibleCount: 0 })).toBe('no_eligible_agents');
   });
@@ -54,8 +64,8 @@ describe('checkTermination', () => {
     fx.problem();
     fx.startRound(1);
     fx.entry('synthesis', { version: 1, confidence: 0.99, cites: [] });
-    expect(checkTermination({ ...base, view: fx.view(), budget: 'rounds' })).toBe(
-      'synthesis_confident',
+    expect(checkTermination({ ...base, view: fx.view(), budget: 'budget_rounds' })).toBe(
+      'completed',
     );
   });
 });

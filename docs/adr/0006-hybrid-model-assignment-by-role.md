@@ -1,6 +1,6 @@
 # ADR-0006: Assign models to roles, hybrid Claude + local Ollama
 
-- **Status:** accepted
+- **Status:** superseded by ADR-0009 (fallback moved from role to profile; per-role model assignment stands)
 - **Date:** 2026-11-07
 
 ## Context

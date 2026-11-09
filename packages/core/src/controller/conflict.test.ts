@@ -83,3 +83,17 @@ describe('ConflictTracker', () => {
     expect(conflict !== undefined && isDecided(fx.view(), conflict)).toBe(false);
   });
 });
+
+describe('isDecided, either way round', () => {
+  it('accepts a decision that chooses the later hypothesis and rejects the earlier one', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const h1 = fx.entry('hypothesis', hyp());
+    const h2 = fx.entry('hypothesis', hyp([h1.id]));
+    fx.entry('decision', { chosen: h2.id, rejected: [h1.id], rationale: 'r' });
+    const [conflict] = detectConflicts(fx.view());
+    expect(conflict).toEqual({ a: h1.id, b: h2.id, via: 'contradictedBy' });
+    expect(conflict !== undefined && isDecided(fx.view(), conflict)).toBe(true);
+  });
+});

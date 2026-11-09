@@ -15,7 +15,13 @@ const base = {
   parents: [id(2)],
   status: 'active',
   content: 'Some markdown',
-  usage: { inputTokens: 10, outputTokens: 5, costUsd: 0.001 },
+  usage: {
+    inputTokens: 10,
+    outputTokens: 5,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    costUsd: 0.001,
+  },
 };
 
 const payloads: Record<EntryType, unknown> = {

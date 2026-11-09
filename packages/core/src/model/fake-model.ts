@@ -1,9 +1,20 @@
-import type { Model, ModelError, ModelRequest, ModelResponse } from '../ports/model';
+import type { Model, ModelBilling, ModelError, ModelRequest, ModelResponse } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
-import { zeroUsage, type Usage } from '../schemas/common';
+import type { Usage } from '../schemas/common';
+import { withCost, type ModelPricing } from '../schemas/pricing';
+
+// Token counts a script reports. Cache counts default to zero; cost defaults to the
+// price table (a fake can be priced like a real model) or zero when unpriced.
+export interface FakeUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  costUsd?: number;
+}
 
 export type FakeResponse =
-  { object: unknown; usage?: Usage; latencyMs?: number } | { error: ModelError };
+  { object: unknown; usage?: FakeUsage; latencyMs?: number } | { error: ModelError };
 
 // Either a fixed list consumed in call order, or a function of the request.
 export type FakeScript =
@@ -13,7 +24,9 @@ export type FakeScript =
 export interface FakeModelOptions {
   id?: string;
   script: FakeScript;
-  defaultUsage?: Usage;
+  defaultUsage?: FakeUsage;
+  pricing?: ModelPricing | null;
+  billing?: ModelBilling;
 }
 
 export interface RecordedCall {
@@ -26,14 +39,30 @@ export interface FakeModel extends Model {
   readonly calls: readonly RecordedCall[];
 }
 
+const ZERO_FAKE_USAGE: FakeUsage = { inputTokens: 0, outputTokens: 0 };
+
 const pick = (script: FakeScript, request: ModelRequest<unknown>, index: number) =>
   typeof script === 'function' ? script(request, index) : script[index];
 
+const toUsage = (fake: FakeUsage, pricing: ModelPricing | null): Usage => {
+  const tokens = {
+    inputTokens: fake.inputTokens,
+    outputTokens: fake.outputTokens,
+    cacheReadTokens: fake.cacheReadTokens ?? 0,
+    cacheWriteTokens: fake.cacheWriteTokens ?? 0,
+  };
+  return fake.costUsd === undefined
+    ? withCost(tokens, pricing)
+    : { ...tokens, costUsd: fake.costUsd };
+};
+
 // A scripted Model. Scripted objects are validated against the request schema,
-// so a bad script fails exactly the way a misbehaving real model would.
+// so a bad script fails exactly the way a misbehaving real model would, and the
+// tokens it burned are still reported.
 export const createFakeModel = (options: FakeModelOptions): FakeModel => {
   const id = options.id ?? 'fake';
-  const defaultUsage = options.defaultUsage ?? zeroUsage();
+  const pricing = options.pricing ?? null;
+  const defaultUsage = options.defaultUsage ?? ZERO_FAKE_USAGE;
   const calls: RecordedCall[] = [];
 
   const record = (request: ModelRequest<unknown>, outcome: RecordedCall['outcome']): void => {
@@ -54,6 +83,7 @@ export const createFakeModel = (options: FakeModelOptions): FakeModel => {
       record(erased, response.error.kind);
       return Promise.resolve(err(response.error));
     }
+    const usage = toUsage(response.usage ?? defaultUsage, pricing);
     const parsed = request.schema.safeParse(response.object);
     if (!parsed.success) {
       record(erased, 'invalid_output');
@@ -62,6 +92,7 @@ export const createFakeModel = (options: FakeModelOptions): FakeModel => {
           kind: 'invalid_output',
           issues: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
           raw: JSON.stringify(response.object),
+          usage,
         }),
       );
     }
@@ -69,12 +100,12 @@ export const createFakeModel = (options: FakeModelOptions): FakeModel => {
     return Promise.resolve(
       ok({
         object: parsed.data,
-        usage: response.usage ?? defaultUsage,
+        usage,
         latencyMs: response.latencyMs ?? 0,
         modelId: id,
       }),
     );
   };
 
-  return { id, calls, generateObject };
+  return { id, billing: options.billing ?? 'fake', pricing, calls, generateObject };
 };
