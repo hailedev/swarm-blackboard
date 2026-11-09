@@ -6,12 +6,17 @@ import {
   type Provider,
   type ResolvedModel,
   type Result,
+  type TraceSink,
 } from '@team/core';
 
-import { createAnthropicModel, type AnthropicStructuredOutputMode } from './anthropic';
-import { createOllamaModel } from './ollama';
+import {
+  ANTHROPIC_CHARS_PER_TOKEN,
+  createAnthropicModel,
+  type AnthropicStructuredOutputMode,
+} from './anthropic';
+import { createOllamaModel, OLLAMA_CHARS_PER_TOKEN } from './ollama';
 import { withRetry, type RetryPolicy } from './retry';
-import { traceModel, type TraceSink } from './trace';
+import { traceModel } from './trace';
 
 // Turns the roster's resolved aliases into Models (ADR-0009). One instance per alias, so
 // two roles on the same alias share a model; each is traced per attempt and retried on
@@ -21,6 +26,16 @@ import { traceModel, type TraceSink } from './trace';
 export type FactoryError =
   | { kind: 'missing_api_key'; provider: Provider; alias: string }
   | { kind: 'no_price'; alias: string; modelId: string };
+
+/**
+ * The host's calibrated chars-per-token figure for a model, or undefined to keep the
+ * provider default (docs/budget-guardrails.md §2). An explicit `charsPerToken` on the
+ * alias in agents.yaml wins over both.
+ */
+export type CharsPerTokenLookup = (
+  resolved: ResolvedModel,
+  providerDefault: number,
+) => number | undefined;
 
 export interface ModelFactoryOptions {
   anthropicApiKey?: string;
@@ -33,6 +48,7 @@ export interface ModelFactoryOptions {
   /** Default context window for local models; an alias's `numCtx` overrides it. */
   ollamaNumCtx?: number;
   timeouts?: { anthropicMs?: number; ollamaMs?: number };
+  charsPerToken?: CharsPerTokenLookup;
 }
 
 export interface ModelFactory {
@@ -51,6 +67,9 @@ export const describeFactoryError = (error: FactoryError): string => {
 export const createModelFactory = (options: ModelFactoryOptions): ModelFactory => {
   const cache = new Map<string, Model>();
 
+  const charsPerToken = (resolved: ResolvedModel, providerDefault: number): number =>
+    resolved.charsPerToken ?? options.charsPerToken?.(resolved, providerDefault) ?? providerDefault;
+
   const build = (resolved: ResolvedModel): Result<Model, FactoryError> => {
     switch (resolved.provider) {
       case 'anthropic': {
@@ -67,6 +86,7 @@ export const createModelFactory = (options: ModelFactoryOptions): ModelFactory =
             apiKey: options.anthropicApiKey,
             pricing,
             structuredOutputMode: options.anthropicStructuredOutputMode,
+            charsPerToken: charsPerToken(resolved, ANTHROPIC_CHARS_PER_TOKEN),
             timeoutMs: options.timeouts?.anthropicMs,
             now: options.now,
           }),
@@ -79,6 +99,7 @@ export const createModelFactory = (options: ModelFactoryOptions): ModelFactory =
             baseUrl: options.ollamaBaseUrl,
             think: resolved.think,
             numCtx: resolved.numCtx ?? options.ollamaNumCtx,
+            charsPerToken: charsPerToken(resolved, OLLAMA_CHARS_PER_TOKEN),
             timeoutMs: options.timeouts?.ollamaMs,
             now: options.now,
           }),

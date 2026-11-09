@@ -16,14 +16,23 @@ export type {
 export { createController } from './controller';
 export type { PeriodError } from './period';
 export { calendarMonth } from './period';
-export type { Fit, FitInput } from './reservation';
+export type { CalibrationSample } from './calibration';
 export {
-  ESTIMATE_CHARS_PER_TOKEN,
+  CALIBRATION_MIN_SAMPLES,
+  CALIBRATION_SAFETY_FACTOR,
+  CALIBRATION_WINDOW,
+  CHARS_PER_TOKEN_BOUNDS,
+  calibrateCharsPerToken,
+} from './calibration';
+export type { EstimateInput, Fit, FitInput, InputEstimate } from './reservation';
+export {
   ESTIMATE_UNDERSHOOT_WARN_FRACTION,
   MIN_OUTPUT_TOKENS,
-  SCHEMA_OVERHEAD_TOKENS,
+  SCHEMA_FALLBACK_CHARS,
+  estimateInput,
   estimateInputTokens,
   estimateUndershot,
+  schemaChars,
   fitCall,
 } from './reservation';
 export type { Candidate } from './selection';

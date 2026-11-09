@@ -150,3 +150,10 @@ describe('createFakeModel', () => {
     expect(!again.ok && again.error).toEqual({ kind: 'script_exhausted', calls: 1 });
   });
 });
+
+describe('createFakeModel: chars per token', () => {
+  it('assumes the default unless told otherwise', () => {
+    expect(createFakeModel({ script: [] }).charsPerToken).toBe(3);
+    expect(createFakeModel({ script: [], charsPerToken: 2 }).charsPerToken).toBe(2);
+  });
+});

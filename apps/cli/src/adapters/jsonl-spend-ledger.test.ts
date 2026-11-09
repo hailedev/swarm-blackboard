@@ -80,7 +80,7 @@ describe('spendRecordFromTrace', () => {
     request: { system: 's', prompt: 'p', maxOutputTokens: 512 },
     outcome: 'ok',
     usage: usageOrNull,
-    estimatedInputTokens: 1001,
+    estimate: { chars: 3003, charsPerToken: 3, tokens: 1001 },
     actualInputTokens: usageOrNull === null ? null : usageOrNull.inputTokens,
     warnings: [],
     latencyMs: 10,

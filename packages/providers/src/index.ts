@@ -21,13 +21,19 @@ export { createFakeModel } from '@team/core';
 export type { AiSdkModelOptions } from './ai-sdk-model';
 export { createAiSdkModel, describeWarning, usageFromSdk } from './ai-sdk-model';
 export type { AnthropicModelOptions, AnthropicStructuredOutputMode } from './anthropic';
-export { ANTHROPIC_TIMEOUT_MS, createAnthropicModel } from './anthropic';
+export { ANTHROPIC_CHARS_PER_TOKEN, ANTHROPIC_TIMEOUT_MS, createAnthropicModel } from './anthropic';
 export { classifyProviderError } from './errors';
-export type { FactoryError, ModelFactory, ModelFactoryOptions } from './factory';
+export type {
+  CharsPerTokenLookup,
+  FactoryError,
+  ModelFactory,
+  ModelFactoryOptions,
+} from './factory';
 export { composeModel, createModelFactory, describeFactoryError } from './factory';
 export type { OllamaModelOptions } from './ollama';
 export {
   createOllamaModel,
+  OLLAMA_CHARS_PER_TOKEN,
   OLLAMA_NUM_CTX,
   OLLAMA_THINK_TOKENS,
   OLLAMA_TIMEOUT_MS,

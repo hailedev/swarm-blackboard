@@ -1,4 +1,11 @@
-import type { Model, ModelBilling, ModelError, ModelRequest, ModelResponse } from '../ports/model';
+import {
+  DEFAULT_CHARS_PER_TOKEN,
+  type Model,
+  type ModelBilling,
+  type ModelError,
+  type ModelRequest,
+  type ModelResponse,
+} from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
 import type { Usage } from '../schemas/common';
 import { withCost, type ModelPricing } from '../schemas/pricing';
@@ -28,6 +35,8 @@ export interface FakeModelOptions {
   defaultUsage?: FakeUsage;
   pricing?: ModelPricing | null;
   billing?: ModelBilling;
+  /** For the reservation estimate; fakes default to DEFAULT_CHARS_PER_TOKEN. */
+  charsPerToken?: number;
 }
 
 export interface RecordedCall {
@@ -109,5 +118,12 @@ export const createFakeModel = (options: FakeModelOptions): FakeModel => {
     );
   };
 
-  return { id, billing: options.billing ?? 'fake', pricing, calls, generateObject };
+  return {
+    id,
+    billing: options.billing ?? 'fake',
+    pricing,
+    charsPerToken: options.charsPerToken ?? DEFAULT_CHARS_PER_TOKEN,
+    calls,
+    generateObject,
+  };
 };

@@ -33,6 +33,7 @@ export const withRetry = (model: Model, policy: Partial<RetryPolicy> = {}): Mode
     id: model.id,
     billing: model.billing,
     pricing: model.pricing,
+    charsPerToken: model.charsPerToken,
     async generateObject(request) {
       for (let attempt = 1; ; attempt += 1) {
         const result = await model.generateObject(request);

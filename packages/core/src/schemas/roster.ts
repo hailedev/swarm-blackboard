@@ -17,6 +17,8 @@ export const ModelAliasSchema = z.object({
   think: z.boolean().optional(),
   /** Context window to request from a local model; the provider layer has a default. */
   numCtx: z.int().min(1024).optional(),
+  /** Chars per token for the reservation estimate; overrides the provider default and calibration. */
+  charsPerToken: z.number().positive().optional(),
 });
 export type ModelAlias = z.infer<typeof ModelAliasSchema>;
 

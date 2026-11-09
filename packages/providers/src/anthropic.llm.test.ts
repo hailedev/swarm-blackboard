@@ -85,7 +85,7 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
     expect(linkIssues(result.value.object.contributions, view)).toEqual([]);
     expect(traces[0]).toMatchObject({ outcome: 'ok', billing: 'api', modelId: MODEL_ID });
     expect(traces[0]?.actualInputTokens).toBeGreaterThan(0);
-    expect(traces[0]?.estimatedInputTokens).toBeGreaterThan(0);
+    expect(traces[0]?.estimate.tokens).toBeGreaterThan(0);
   }, 60_000);
 
   it('synthesises a late board with the synthesizer schema (exactly one entry, version 2)', async () => {

@@ -1,18 +1,48 @@
+import { z, type ZodType } from 'zod';
+
 import { outputTokenCostUsd, worstCaseCostUsd, type ModelPricing } from '../schemas/pricing';
 
 /** Below this a structured contribution cannot be valid, so the call is skipped instead. */
 export const MIN_OUTPUT_TOKENS = 256;
 
-// Conservative input estimate (docs/budget-guardrails.md §2). Board views are dense with
-// ids, which tokenise badly, so assume three characters per token rather than the usual
-// four, and add a flat allowance for the JSON schema the provider sends as a tool
-// definition. The actual usage replaces this estimate once the call returns.
-export const ESTIMATE_CHARS_PER_TOKEN = 3;
-export const SCHEMA_OVERHEAD_TOKENS = 1_000;
+// Input estimate (docs/budget-guardrails.md §2): the characters a call sends — system
+// prompt, user prompt and the JSON schema the provider receives — divided by the model's
+// chars-per-token figure. The figure is a provider default until the host has calibrated it
+// from the model's own traces. The actual usage replaces the estimate once the call returns.
 
-export const estimateInputTokens = (request: { system: string; prompt: string }): number =>
-  Math.ceil((request.system.length + request.prompt.length) / ESTIMATE_CHARS_PER_TOKEN) +
-  SCHEMA_OVERHEAD_TOKENS;
+/** Stands in for the schema's size when it cannot be rendered as JSON Schema. */
+export const SCHEMA_FALLBACK_CHARS = 3_000;
+
+export interface EstimateInput {
+  system: string;
+  prompt: string;
+  schema?: ZodType;
+}
+
+export interface InputEstimate {
+  /** Characters counted: system + prompt + serialised schema. */
+  chars: number;
+  charsPerToken: number;
+  tokens: number;
+}
+
+/** Length of the schema as the provider will see it, or the fallback when it has no JSON form. */
+export const schemaChars = (schema: ZodType | undefined): number => {
+  if (schema === undefined) return SCHEMA_FALLBACK_CHARS;
+  try {
+    return JSON.stringify(z.toJSONSchema(schema)).length;
+  } catch {
+    return SCHEMA_FALLBACK_CHARS;
+  }
+};
+
+export const estimateInput = (request: EstimateInput, charsPerToken: number): InputEstimate => {
+  const chars = request.system.length + request.prompt.length + schemaChars(request.schema);
+  return { chars, charsPerToken, tokens: Math.ceil(chars / charsPerToken) };
+};
+
+export const estimateInputTokens = (request: EstimateInput, charsPerToken: number): number =>
+  estimateInput(request, charsPerToken).tokens;
 
 // The estimate only has to be conservative. When a model reports materially more prompt
 // tokens than estimated, the reservation was too small, so the controller says so.

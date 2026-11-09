@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import type { ModelPricing } from '../schemas/pricing';
 import {
-  ESTIMATE_CHARS_PER_TOKEN,
+  estimateInput,
   estimateInputTokens,
   fitCall,
   MIN_OUTPUT_TOKENS,
-  SCHEMA_OVERHEAD_TOKENS,
+  SCHEMA_FALLBACK_CHARS,
+  schemaChars,
   estimateUndershot,
 } from './reservation';
 
@@ -23,12 +25,36 @@ const pricing: ModelPricing = {
   ],
 };
 
-describe('estimateInputTokens', () => {
-  it('is deliberately generous: three characters per token plus a schema allowance', () => {
-    expect(estimateInputTokens({ system: '', prompt: '' })).toBe(SCHEMA_OVERHEAD_TOKENS);
-    expect(estimateInputTokens({ system: 'abc', prompt: 'defg' })).toBe(
-      Math.ceil(7 / ESTIMATE_CHARS_PER_TOKEN) + SCHEMA_OVERHEAD_TOKENS,
+describe('estimateInput', () => {
+  const Schema = z.object({ answer: z.enum(['yes', 'no']) });
+  const json = JSON.stringify(z.toJSONSchema(Schema));
+
+  it('counts the system prompt, the prompt and the serialised schema at the model’s rate', () => {
+    const estimate = estimateInput({ system: 'abc', prompt: 'defg', schema: Schema }, 2);
+    expect(estimate).toEqual({
+      chars: 7 + json.length,
+      charsPerToken: 2,
+      tokens: Math.ceil((7 + json.length) / 2),
+    });
+    expect(estimateInputTokens({ system: 'abc', prompt: 'defg', schema: Schema }, 3)).toBe(
+      Math.ceil((7 + json.length) / 3),
     );
+  });
+
+  it('charges a flat allowance for a schema it cannot render, or none at all', () => {
+    expect(schemaChars(Schema)).toBe(json.length);
+    expect(schemaChars(undefined)).toBe(SCHEMA_FALLBACK_CHARS);
+    const opaque = z.custom<string>((v) => typeof v === 'string');
+    expect(schemaChars(opaque)).toBe(SCHEMA_FALLBACK_CHARS);
+    expect(estimateInputTokens({ system: '', prompt: '' }, 3)).toBe(SCHEMA_FALLBACK_CHARS / 3);
+  });
+
+  it('grows the estimate as the handle enum grows', () => {
+    const small = z.object({ parents: z.array(z.enum(['P1'])) });
+    const large = z.object({
+      parents: z.array(z.enum(Array.from({ length: 120 }, (_, i) => `H${String(i + 1)}`))),
+    });
+    expect(schemaChars(large)).toBeGreaterThan(schemaChars(small) + 500);
   });
 });
 

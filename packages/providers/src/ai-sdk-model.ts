@@ -49,6 +49,8 @@ export interface AiSdkModelOptions {
   ) => ProviderOptions;
   /** Refuse a request before it is sent, e.g. one that cannot fit the context window. */
   refuse?: (request: ModelRequest<unknown>) => ModelError | undefined;
+  /** Chars per token for the reservation estimate (docs/budget-guardrails.md §2). */
+  charsPerToken: number;
   /** Whole-call timeout, including the provider's own retries (none: maxRetries is 0). */
   timeoutMs: number;
   now?: () => number;
@@ -121,6 +123,7 @@ export const createAiSdkModel = (options: AiSdkModelOptions): Model => {
     id: options.id,
     billing: options.billing,
     pricing: options.pricing,
+    charsPerToken: options.charsPerToken,
     async generateObject<T>(
       request: ModelRequest<T>,
     ): Promise<Result<ModelResponse<T>, ModelError>> {

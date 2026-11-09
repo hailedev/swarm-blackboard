@@ -1,11 +1,17 @@
-import { createFakeModel, type ModelRequest } from '@team/core';
+import { createFakeModel, estimateInputTokens, type ModelRequest } from '@team/core';
 import { MockLanguageModelV4 } from 'ai/test';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { createAnthropicModel } from './anthropic';
+import { ANTHROPIC_CHARS_PER_TOKEN, createAnthropicModel } from './anthropic';
 import { composeModel, createModelFactory, describeFactoryError } from './factory';
-import { createOllamaModel, OLLAMA_NUM_CTX, OLLAMA_THINK_TOKENS, ollamaApiUrl } from './ollama';
+import {
+  createOllamaModel,
+  OLLAMA_CHARS_PER_TOKEN,
+  OLLAMA_NUM_CTX,
+  OLLAMA_THINK_TOKENS,
+  ollamaApiUrl,
+} from './ollama';
 import { PRICE_TABLE } from './pricing';
 import type { ModelCallTrace } from './trace';
 
@@ -99,14 +105,27 @@ describe('createOllamaModel', () => {
       numCtx: 4096,
       languageModel: mock,
     });
-    // ~3334 + 1000 estimated tokens plus a 512 allowance is over 4096.
-    const result = await model.generateObject(request({ prompt: 'x'.repeat(10_000) }));
+    // 12 000 prompt characters at three per token plus a 512 allowance is over 4096.
+    const long = request({ prompt: 'x'.repeat(12_000) });
+    const estimated = estimateInputTokens(long, OLLAMA_CHARS_PER_TOKEN);
+    expect(estimated).toBeGreaterThan(4_000);
+    const result = await model.generateObject(long);
     expect(!result.ok && result.error).toEqual({
       kind: 'invalid_request',
-      message:
-        'prompt (~4335 tokens) plus output allowance (512) exceeds the 4096-token context of m',
+      message: `prompt (~${String(estimated)} tokens) plus output allowance (512) exceeds the 4096-token context of m`,
     });
     expect(mock.doGenerateCalls.length).toBe(0);
+    // A model told its tokenizer is denser estimates more and refuses sooner.
+    const dense = createOllamaModel({
+      modelId: 'm',
+      baseUrl: 'http://mini:11434',
+      numCtx: 8192,
+      charsPerToken: 1.5,
+      languageModel: mock,
+    });
+    expect(dense.charsPerToken).toBe(1.5);
+    expect((await dense.generateObject(long)).ok).toBe(false);
+    expect(model.charsPerToken).toBe(OLLAMA_CHARS_PER_TOKEN);
   });
 
   it('builds the API URL from the server root', () => {
@@ -132,6 +151,7 @@ describe('createAnthropicModel', () => {
     expect(model.billing).toBe('api');
     expect(model.pricing).toBe(haiku);
     expect(result.ok && result.value.usage.costUsd).toBeCloseTo((50 * 0.1 + 5 * 0.5) / 1e6, 12);
+    expect(model.charsPerToken).toBe(ANTHROPIC_CHARS_PER_TOKEN);
     const call = mock.doGenerateCalls[0];
     expect(call?.prompt[0]).toMatchObject({
       role: 'system',
@@ -204,6 +224,30 @@ describe('createModelFactory', () => {
     expect(local.ok && local.value.id).toBe('qwen3.6:35b-mlx');
     const again = factory.modelFor(haikuAlias);
     expect(again.ok && haiku.ok && again.value === haiku.value).toBe(true);
+    expect(haiku.ok && haiku.value.charsPerToken).toBe(ANTHROPIC_CHARS_PER_TOKEN);
+    expect(local.ok && local.value.charsPerToken).toBe(OLLAMA_CHARS_PER_TOKEN);
+  });
+
+  it('takes chars per token from the alias, else the host’s calibration, else the provider default', () => {
+    const asked: [string, number][] = [];
+    const factory = createModelFactory({
+      ...base,
+      anthropicApiKey: 'sk-test',
+      charsPerToken: (resolved, providerDefault) => {
+        asked.push([resolved.model, providerDefault]);
+        return resolved.provider === 'anthropic' ? 1.7 : undefined;
+      },
+    });
+    const haiku = factory.modelFor(haikuAlias);
+    const local = factory.modelFor(localAlias);
+    const pinned = factory.modelFor({ ...localAlias, alias: 'local-pinned', charsPerToken: 2.5 });
+    expect(haiku.ok && haiku.value.charsPerToken).toBe(1.7);
+    expect(local.ok && local.value.charsPerToken).toBe(OLLAMA_CHARS_PER_TOKEN);
+    expect(pinned.ok && pinned.value.charsPerToken).toBe(2.5);
+    expect(asked).toEqual([
+      ['claude-haiku-5-5', ANTHROPIC_CHARS_PER_TOKEN],
+      ['qwen3.6:35b-mlx', OLLAMA_CHARS_PER_TOKEN],
+    ]);
   });
 
   it('traces every attempt and retries transient failures around the trace', async () => {

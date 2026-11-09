@@ -1,39 +1,18 @@
 import {
-  estimateInputTokens,
+  estimateInput,
   isoFromMs,
   promptTokens,
   type Model,
-  type ModelBilling,
-  type ModelCallTags,
-  type ModelErrorKind,
+  type TraceSink,
   type Usage,
 } from '@team/core';
 
-// Every model call is traced: prompt, response, tokens, cost, latency (CLAUDE.md
-// architecture rule 6). The sink decides where it goes: the CLI's spend ledger now,
-// the model_calls table in Phase 3. Trace contents never reach the info log.
-export interface ModelCallTrace {
-  at: string;
-  modelId: string;
-  billing: ModelBilling;
-  tags: ModelCallTags;
-  request: { system: string; prompt: string; maxOutputTokens: number | null };
-  outcome: 'ok' | ModelErrorKind;
-  /** Null when the call failed before the model produced anything billable. */
-  usage: Usage | null;
-  /** The controller's reservation estimate for the prompt (docs/budget-guardrails.md §2). */
-  estimatedInputTokens: number;
-  /** Prompt tokens the provider reported (input + cache reads + writes); null when it reported none. */
-  actualInputTokens: number | null;
-  /** Provider warnings, e.g. a setting the model does not support. */
-  warnings: readonly string[];
-  latencyMs: number;
-  /** The validated object, the raw text of a rejected answer, or null. */
-  response: unknown;
-  error: string | null;
-}
+export type { ModelCallTrace, TraceSink } from '@team/core';
 
-export type TraceSink = (trace: ModelCallTrace) => void;
+// Every model call is traced: prompt, response, tokens, cost, latency (CLAUDE.md
+// architecture rule 6). The sink decides where it goes: the model_calls table, a JSONL
+// file, a test array. Trace contents never reach the info log. The trace shape itself is
+// core's `ModelCallTraceSchema`, so hosts can validate what they store and read back.
 
 // A real prompt is never zero tokens, so zero means the provider reported no count
 // (Ollama omits prompt_eval_count on a KV-cache hit).
@@ -46,6 +25,7 @@ export const traceModel = (model: Model, sink: TraceSink, now: () => number = Da
   id: model.id,
   billing: model.billing,
   pricing: model.pricing,
+  charsPerToken: model.charsPerToken,
   async generateObject(request) {
     const startedMs = now();
     const result = await model.generateObject(request);
@@ -59,7 +39,8 @@ export const traceModel = (model: Model, sink: TraceSink, now: () => number = Da
         prompt: request.prompt,
         maxOutputTokens: request.maxOutputTokens ?? null,
       },
-      estimatedInputTokens: estimateInputTokens(request),
+      // The same estimate the controller reserved against, recomputed from the same inputs.
+      estimate: estimateInput(request, model.charsPerToken),
       latencyMs: Math.max(0, now() - startedMs),
     };
     if (result.ok) {

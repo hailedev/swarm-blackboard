@@ -1,8 +1,11 @@
 import type { ZodType } from 'zod';
 
 import type { Usage } from '../schemas/common';
+import type { ModelBilling } from '../schemas/model-call';
 import type { ModelPricing } from '../schemas/pricing';
 import type { Result } from './result';
+
+export type { ModelBilling } from '../schemas/model-call';
 
 // The only way core talks to a language model (ADR-0003). packages/providers
 // implements this with the AI SDK; FakeModel implements it with a script.
@@ -51,14 +54,19 @@ export const RETRYABLE_MODEL_ERRORS: readonly ModelErrorKind[] = [
   'network',
 ];
 
-// Who gets the bill for a call. `api` calls land in the spend ledger; the others only
-// record tokens.
-export type ModelBilling = 'api' | 'local' | 'fake';
+/** Chars per token assumed for a model nobody has characterised, e.g. a fake. */
+export const DEFAULT_CHARS_PER_TOKEN = 3;
 
 export interface Model {
   readonly id: string;
   readonly billing: ModelBilling;
   /** Null for local and fake models: they are free, but their tokens are still recorded. */
   readonly pricing: ModelPricing | null;
+  /**
+   * How many prompt characters this model's tokenizer turns into one token, for the
+   * reservation estimate (docs/budget-guardrails.md §2): a provider default, an
+   * agents.yaml override, or the host's calibration from the model's own traces.
+   */
+  readonly charsPerToken: number;
   generateObject<T>(request: ModelRequest<T>): Promise<Result<ModelResponse<T>, ModelError>>;
 }

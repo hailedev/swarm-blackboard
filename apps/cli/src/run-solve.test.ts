@@ -237,7 +237,7 @@ describe('pnpm solve', () => {
     expect(traces.length).toBe(7);
     for (const trace of traces) {
       expect(trace).toMatchObject({ outcome: 'ok', billing: 'fake' });
-      expect(typeof trace['estimatedInputTokens']).toBe('number');
+      expect(trace['estimate']).toMatchObject({ charsPerToken: 3 });
       expect(trace['actualInputTokens']).toBe(1200);
     }
     expect(lines.at(-1)).toBe(`Wrote 7 model-call traces to ${file}`);

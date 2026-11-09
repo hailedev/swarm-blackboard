@@ -289,7 +289,7 @@ export const createController = (
       model: Model,
       request: ModelRequest<T>,
     ): Promise<Result<ModelResponse<T>, CallError>> {
-      const inputTokens = estimateInputTokens(request);
+      const inputTokens = estimateInputTokens(request, model.charsPerToken);
       const requested = request.maxOutputTokens ?? runConfig.maxOutputTokens;
       const fit = fitCall({
         pricing: model.pricing,

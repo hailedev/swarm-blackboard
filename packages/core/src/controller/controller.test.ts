@@ -14,7 +14,7 @@ import { planner } from '../agents/roles/planner';
 import { createDefaultAgents } from '../agents/roster';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
 import { createFakeModel, type FakeResponse } from '../model/fake-model';
-import type { Model, ModelError } from '../ports/model';
+import { DEFAULT_CHARS_PER_TOKEN, type Model, type ModelError } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
 import { nullLogger, type Logger } from '../ports/logger';
 import type { PeriodBudget } from '../ports/spend-ledger';
@@ -309,14 +309,21 @@ describe('createController', () => {
           warned.push({ message, fields });
         },
       };
-      // The gateway agent's prompt estimates to 1002 tokens: 1200 is within 20 %, while
-      // 1000 uncached plus 1000 cache-read tokens is a 2000-token prompt and is not.
+      // Against the gateway agent's estimate, 1.2× is within 20 %, while an uncached
+      // prompt plus as many cache-read tokens again (2×) is not.
+      const estimated = estimateInputTokens(
+        { system: 'sys', prompt: 'ask', schema: EmptyOutputSchema },
+        DEFAULT_CHARS_PER_TOKEN,
+      );
       const model = createFakeModel({
         script: [
-          { object: { contributions: [] }, usage: { inputTokens: 1200, outputTokens: 1 } },
           {
             object: { contributions: [] },
-            usage: { inputTokens: 1000, outputTokens: 1, cacheReadTokens: 1000 },
+            usage: { inputTokens: Math.floor(estimated * 1.2), outputTokens: 1 },
+          },
+          {
+            object: { contributions: [] },
+            usage: { inputTokens: estimated, outputTokens: 1, cacheReadTokens: estimated },
           },
         ],
       });
@@ -333,15 +340,15 @@ describe('createController', () => {
           round: 2,
           agentId: 'a',
           modelId: 'fake',
-          estimated: 1002,
-          actual: 2000,
+          estimated,
+          actual: estimated * 2,
         },
       ]);
     });
 
     it('shrinks the output allowance to fit, then skips calls below the floor and stops', async () => {
       const { controller, models, events } = scripted();
-      await controller.start({ content: 'P' }, { maxCostUsd: 0.005 });
+      await controller.start({ content: 'P' }, { maxCostUsd: 0.004 });
 
       const first = await controller.runRound();
       expect(first.ok && first.value.failures).toEqual([]);
@@ -350,15 +357,15 @@ describe('createController', () => {
       if (plannerCall === undefined) return;
       const expected = fitCall({
         pricing: SCENARIO_PRICING,
-        inputTokens: estimateInputTokens(plannerCall.request),
+        inputTokens: estimateInputTokens(plannerCall.request, models.planner.charsPerToken),
         maxOutputTokens: 4096,
-        remainingUsd: 0.005,
+        remainingUsd: 0.004,
       });
       expect(expected).toMatchObject({ fits: true, shrunk: true });
       expect(plannerCall.request.maxOutputTokens).toBe(expected.fits && expected.maxOutputTokens);
       expect(plannerCall.request.maxOutputTokens).toBeLessThan(4096);
 
-      // $0.0023 is left: not even a 256-token answer fits, so nobody runs and the run ends.
+      // $0.0013 is left: not even a 256-token answer fits, so nobody runs and the run ends.
       const second = await controller.runRound();
       expect(second.ok && second.value.failures.map((f) => [f.agentId, f.reason])).toEqual([
         ['solver', 'budget_exhausted'],
@@ -386,14 +393,26 @@ describe('createController', () => {
         }),
       });
       const { controller } = harness([gatewayAgent('a', model, 90), gatewayAgent('b', model, 80)]);
-      // Prompt estimate is 1002 tokens → $0.0012525 worst case before output. With $0.004 the
-      // first agent gets 549 output tokens and leaves nothing useful for the second.
+      // The first agent's call is shrunk to what $0.004 can pay for after its prompt, and
+      // that reservation leaves nothing useful for the second.
+      const expected = fitCall({
+        pricing: SCENARIO_PRICING,
+        inputTokens: estimateInputTokens(
+          { system: 'sys', prompt: 'ask', schema: EmptyOutputSchema },
+          model.charsPerToken,
+        ),
+        maxOutputTokens: 4096,
+        remainingUsd: 0.004,
+      });
+      expect(expected).toMatchObject({ fits: true, shrunk: true });
       await controller.start({ content: 'P' }, { maxCostUsd: 0.004, parallelism: 2 });
       const report = await controller.runRound();
       expect(report.ok).toBe(true);
       if (!report.ok) return;
       expect(model.calls.length).toBe(1);
-      expect(model.calls[0]?.request.maxOutputTokens).toBe(549);
+      expect(model.calls[0]?.request.maxOutputTokens).toBe(
+        expected.fits && expected.maxOutputTokens,
+      );
       expect(report.value.failures).toEqual([
         {
           agentId: 'b',

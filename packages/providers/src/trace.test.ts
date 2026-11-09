@@ -1,4 +1,10 @@
-import { createFakeModel, type ModelRequest } from '@team/core';
+import {
+  createFakeModel,
+  DEFAULT_CHARS_PER_TOKEN,
+  estimateInput,
+  ModelCallTraceSchema,
+  type ModelRequest,
+} from '@team/core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -63,8 +69,8 @@ describe('traceModel', () => {
           cacheWriteTokens: 0,
           costUsd: expect.closeTo(0.0001 + 0.00005, 12) as number,
         },
-        // 'be brief' + 'what?' is 13 characters: ⌈13 / 3⌉ + 1000.
-        estimatedInputTokens: 1005,
+        // The controller's estimate for the same request at the model's chars per token.
+        estimate: estimateInput(request, DEFAULT_CHARS_PER_TOKEN),
         actualInputTokens: 100,
         warnings: ['unsupported setting: topK'],
         latencyMs: 25,
@@ -72,6 +78,16 @@ describe('traceModel', () => {
         error: null,
       },
     ]);
+    expect(traces[0]?.estimate.chars).toBe(13 + JSON.stringify(z.toJSONSchema(Schema)).length);
+    expect(ModelCallTraceSchema.safeParse(traces[0]).success).toBe(true);
+  });
+
+  it('estimates with the wrapped model’s own chars-per-token figure', async () => {
+    const traces: ModelCallTrace[] = [];
+    const inner = createFakeModel({ charsPerToken: 2, script: [{ object: { answer: 'a' } }] });
+    await traceModel(inner, (trace) => traces.push(trace)).generateObject(request);
+    expect(traces[0]?.estimate).toEqual(estimateInput(request, 2));
+    expect(traces[0]?.estimate.charsPerToken).toBe(2);
   });
 
   it('records the raw text and billed tokens of a rejected answer', async () => {
@@ -82,7 +98,7 @@ describe('traceModel', () => {
     expect(traces[0]).toMatchObject({
       outcome: 'invalid_output',
       usage: { inputTokens: 50, outputTokens: 5 },
-      estimatedInputTokens: 1005,
+      estimate: estimateInput(request, DEFAULT_CHARS_PER_TOKEN),
       actualInputTokens: 50,
       warnings: [],
       response: '{"answer":7}',
@@ -120,6 +136,11 @@ describe('traceModel', () => {
 
   it('keeps the wrapped model identity', () => {
     const { traced } = harness([]);
-    expect([traced.id, traced.billing, traced.pricing]).toEqual(['haiku', 'api', pricing]);
+    expect([traced.id, traced.billing, traced.pricing, traced.charsPerToken]).toEqual([
+      'haiku',
+      'api',
+      pricing,
+      DEFAULT_CHARS_PER_TOKEN,
+    ]);
   });
 });

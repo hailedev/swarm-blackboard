@@ -3,6 +3,7 @@ export * from './contribution';
 export * from './entry';
 export * from './event';
 export * from './handle';
+export * from './model-call';
 export * from './payloads';
 export * from './pricing';
 export * from './role';

@@ -58,6 +58,7 @@ const harness = (doGenerate: ConstructorParameters<typeof MockLanguageModelV4>[0
     }),
     providerOptions: (_req, maxOutputTokens) => ({ test: { limit: maxOutputTokens ?? -1 } }),
     timeoutMs: 1_234,
+    charsPerToken: 3,
     now: () => {
       t += 25;
       return t;
@@ -267,6 +268,7 @@ describe('createAiSdkModel', () => {
       refuse: (req) =>
         req.prompt.length > 5 ? { kind: 'invalid_request', message: 'too long' } : undefined,
       timeoutMs: 10,
+      charsPerToken: 3,
     });
     const refused = await model.generateObject(request({ prompt: 'far too long' }));
     expect(!refused.ok && refused.error).toEqual({ kind: 'invalid_request', message: 'too long' });
