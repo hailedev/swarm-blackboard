@@ -198,7 +198,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 - [x] Budget guardrails, CLI (§5, §8): `--profile`, `--yes`, `--max-cost`; confirmation banner; JSONL spend ledger in `data/spend.jsonl`; stale-price-table warning; `.env` loading.
 - [x] Trial 2–3 local models; record results in an ADR (ADR-0008; `pnpm trial:local`).
 - [x] Tests: provider contract tests (skipped without keys / Ollama); prompt snapshot tests; repair and fallback paths with `FakeModel`.
-- **DoD:** the CLI solves a real problem end-to-end with the hybrid roster; full trace saved to JSON.
+- **DoD:** the CLI solves a real problem end-to-end with the hybrid roster; full trace saved to JSON. ✔ 2026-11-09: `fixtures/runs/2026-11-09-cheap-release-process/` (`cheap` profile, 12 rounds, 23 calls all valid first time, $0.024, four synthesis versions).
 
 ### Phase 3 — Persistence + server (~1–2 days)
 
