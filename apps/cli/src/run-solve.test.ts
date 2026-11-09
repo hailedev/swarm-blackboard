@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,24 @@ const tempDir = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), 'swarm-solve-'));
   tempDirs.push(dir);
   return dir;
+};
+
+// A port nothing listens on, so a "real" run's Ollama pre-flight is refused at once
+// without touching the network beyond the loopback interface.
+const closedOllamaUrl = async (): Promise<string> => {
+  const server = createServer();
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      resolve();
+    });
+  });
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => {
+    server.close(() => {
+      resolve();
+    });
+  });
+  return `http://127.0.0.1:${String(port)}`;
 };
 
 // Every test points at the repository roster and an empty ledger in a temp dir, so the
@@ -205,10 +224,60 @@ describe('pnpm solve', () => {
     );
   });
 
-  it('refuses to run without --fake until the adapters land', async () => {
+  it('appends every model call to the trace file as JSON lines', async () => {
+    const file = join(await tempDir(), 'nested', 'trace.jsonl');
     const { lines, io } = capture();
-    expect(await main(['P', '--roster', ROSTER], io)).toBe(2);
-    expect(lines[0]).toContain('Real model adapters arrive later in Phase 2');
+    const code = await main(['P', ...(await base('--trace', file))], io);
+    expect(code).toBe(0);
+    const traces = (await readFile(file, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(traces.length).toBe(7);
+    for (const trace of traces) {
+      expect(trace).toMatchObject({ outcome: 'ok', billing: 'fake' });
+      expect(typeof trace['estimatedInputTokens']).toBe('number');
+      expect(trace['actualInputTokens']).toBe(1200);
+    }
+    expect(lines.at(-1)).toBe(`Wrote 7 model-call traces to ${file}`);
+  });
+
+  describe('real models', () => {
+    it('refuses a paid profile without an API key before showing the banner', async () => {
+      const { lines, io } = capture();
+      const code = await main(
+        [
+          'P',
+          '--roster',
+          ROSTER,
+          '--ledger',
+          join(await tempDir(), 'spend.jsonl'),
+          '--profile',
+          'cheap',
+        ],
+        io,
+        { OLLAMA_BASE_URL: await closedOllamaUrl() },
+      );
+      expect(code).toBe(2);
+      expect(lines).toEqual([
+        'alias "haiku" uses anthropic, but no API key is set; put ANTHROPIC_API_KEY in .env or choose a local profile',
+      ]);
+    });
+
+    it('refuses a local profile when Ollama is unreachable, before spending anything', async () => {
+      const url = await closedOllamaUrl();
+      const { lines, io } = capture();
+      const code = await main(
+        ['P', '--roster', ROSTER, '--ledger', join(await tempDir(), 'spend.jsonl')],
+        io,
+        { OLLAMA_BASE_URL: url },
+      );
+      expect(code).toBe(2);
+      expect(lines[0]).toBe(`Checking Ollama at ${url} and warming qwen3.6:35b-mlx…`);
+      expect(lines[1]).toContain(`Ollama is unreachable at ${url} (`);
+      expect(lines[1]).toContain('is the server awake and OLLAMA_BASE_URL right?');
+      expect(lines.length).toBe(2);
+    });
   });
 
   it('prints usage for a missing problem or bad arguments', async () => {

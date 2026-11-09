@@ -70,7 +70,7 @@ Each agent is defined by: a role prompt, a model (per-role config), a **trigger*
 
 Model assignment is configuration, not code — any role can be flipped to any provider. Start hybrid; if a local worker is measurably dragging quality down, flip it and re-measure.
 
-**Agent board view.** An agent never sees the raw board. It sees a role-specific, size-bounded view: the problem, the entries its trigger matched, their linked neighbours, and a rolling summary of everything else. This is the primary defence against context bloat.
+**Agent board view.** An agent never sees the raw board. It sees a role-specific, size-bounded view: the problem, the entries its trigger matched, their linked neighbours, and a rolling summary of everything else. This is the primary defence against context bloat. (Phase 2 builds the view per round as a pure function of the board, with bounds in `RunConfig.view`; the incremental summary cache of §2.3 step 1 is deferred until a run shows it matters.)
 
 ### 2.3 The controller
 
@@ -189,8 +189,8 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 ### Phase 2 — Real models, hybrid roster (~1–2 days)
 
-- [ ] `packages/providers`: Anthropic + Ollama via AI SDK; structured output; retries and timeouts; token and cost accounting; `FakeModel` is re-exported here (defined in `packages/core/src/model/`, Phase 1, so core can test itself without a workspace cycle).
-- [ ] Role prompts for all five agents; agent board-view builder with size bounds and rolling summary.
+- [x] `packages/providers`: Anthropic + Ollama via AI SDK; structured output; retries and timeouts; token and cost accounting; `FakeModel` is re-exported here (defined in `packages/core/src/model/`, Phase 1, so core can test itself without a workspace cycle).
+- [x] Role prompts for all five agents; agent board-view builder with size bounds and rolling summary.
 - [x] `agents.yaml` roster loader with profiles; one fallback per profile; load-time validation (ADR-0009).
 - [x] Malformed-output path: repair → profile fallback → discard and log.
 - [x] Budget guardrails, core (`docs/budget-guardrails.md` §2, §3, §5): per-call reservation that shrinks `maxOutputTokens` to the 256-token floor or skips the call; price table schema and pure cost functions; usage with cache tokens; shared run-end reason enum with paused/failed states; `SpendLedger`/`PeriodBudget` with monthly refusal, pause and one `budget_warning`.
