@@ -30,7 +30,7 @@ TypeScript strict, Node 22 LTS, pnpm workspaces. Zod at every boundary; schemas 
 
 ```
 pnpm install
-pnpm dev                         # server + web with hot reload
+pnpm dev                         # API server with reload on PORT (3001); the web app joins in Phase 4
 pnpm test                        # unit + integration — never touches the network
 pnpm test:llm                    # opt-in tests against real models (needs keys / Ollama)
 pnpm lint

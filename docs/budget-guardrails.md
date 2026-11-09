@@ -192,7 +192,7 @@ The provider layer maps every failure to a typed `ProviderError`:
 
 - **Phase 2 (done 2026-11-09):** profiles and loader validation; `RunBudget` with reservation; price table; usage capture incl. cache tokens; `ProviderError` classification; `SpendLedger` interface in core with the JSONL implementation; CLI banner and `--profile` / `--yes`.
 - **Phase 2 hardening (2026-11-09):** per-model `charsPerToken` with the schema counted; calibration arithmetic in core; agents link by handle so prompts carry no UUIDs.
-- **Phase 3:** `SpendLedger` backed by `model_calls` in the shared database, which the CLI and the contract tests write too (ADR-0010); calibration samples read from `model_calls`; `profile` on `POST /runs`; `monthly_budget` pause/resume through the API.
+- **Phase 3 (done 2026-11-09):** `SpendLedger` backed by `model_calls` in the shared database, which the CLI and the contract tests write too (ADR-0010); calibration samples read from `model_calls`; `profile` on `POST /runs`, refused with the fits-cap figure when the month cannot absorb the run; `monthly_budget` and the other pauses resumed through `POST /runs/:id/resume`, from the event log if the process that paused the run is gone.
 - **Phase 4:** cost meter with both gauges; start-run dialog.
 
 Suggested line for the Phase 2 kick-off prompt:
