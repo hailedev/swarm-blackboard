@@ -44,13 +44,16 @@ import {
   type ModelCallTrace,
 } from '@team/providers';
 
-import { createCliLogger } from './adapters/console-logger';
+import {
+  createCliLogger,
+  createUuidV7Generator,
+  loadPromptFiles,
+  loadRosterFile,
+  monthlyBudgetFromEnv,
+  systemClock,
+  type Env,
+} from '@team/host';
 import { JsonlSpendLedger, spendRecordFromTrace } from './adapters/jsonl-spend-ledger';
-import { loadPromptFiles } from './adapters/prompt-files';
-import { loadRosterFile } from './adapters/roster-file';
-import { systemClock } from './adapters/system-clock';
-import { createUuidV7Generator } from './adapters/uuid-v7';
-import { monthlyBudgetFromEnv, type Env } from './budget-env';
 import {
   renderBoard,
   renderBudgetBanner,

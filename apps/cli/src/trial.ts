@@ -4,8 +4,7 @@ import { parseArgs } from 'node:util';
 
 import { AGENT_ROLES, type AgentRole } from '@team/core';
 
-import { loadPromptFiles } from './adapters/prompt-files';
-import { loadRosterFile } from './adapters/roster-file';
+import { loadPromptFiles, loadRosterFile } from '@team/host';
 import { renderRankingTable, renderSummaryTable, runTrial } from './trial/local-model-trial';
 import { DEFAULT_OLLAMA_BASE_URL } from './run-solve';
 

@@ -199,12 +199,12 @@ importers:
       '@team/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@team/host':
+        specifier: workspace:*
+        version: link:../../packages/host
       '@team/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      yaml:
-        specifier: 2.9.1
-        version: 2.9.1
     devDependencies:
       '@types/node':
         specifier: 22.20.5

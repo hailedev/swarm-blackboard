@@ -18,9 +18,7 @@ import {
   type OllamaPreflightError,
 } from '@team/providers';
 
-import type { RolePrompts } from '../adapters/prompt-files';
-import { createUuidV7Generator } from '../adapters/uuid-v7';
-import { systemClock } from '../adapters/system-clock';
+import { createUuidV7Generator, systemClock, type RolePrompts } from '@team/host';
 
 // The Phase 2 local-model trial (docs/PLAN.md §4 notes, ADR-0008): which local model
 // backs the worker roles. Ranked on structured-output reliability first, link validity
