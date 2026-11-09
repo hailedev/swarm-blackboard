@@ -1,4 +1,4 @@
-export type { ReservationId } from './budgets';
+export type { BudgetSnapshot, ReservationId } from './budgets';
 export { BudgetTracker } from './budgets';
 export type { PrepareInput, PreparedBatch } from './commit';
 export { linkProblems, prepareEntries } from './commit';
@@ -6,6 +6,8 @@ export type { Conflict, ConflictAssessment } from './conflict';
 export { ConflictTracker, conflictKey, detectConflicts, isDecided } from './conflict';
 export type {
   AgentFailure,
+  ControllerOptions,
+  HumanNoteInput,
   Controller,
   ControllerDeps,
   ControllerError,
@@ -15,6 +17,8 @@ export type {
 } from './controller';
 export { createController } from './controller';
 export type { PeriodError } from './period';
+export type { RehydratedState, RehydrateError, RunEndState } from './rehydrate';
+export { rehydrate } from './rehydrate';
 export { calendarMonth } from './period';
 export type { CalibrationSample } from './calibration';
 export {

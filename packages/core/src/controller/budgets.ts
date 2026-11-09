@@ -5,23 +5,38 @@ import type { RunBudgetReason } from '../schemas/run-end';
 
 export type ReservationId = number;
 
+/** What a tracker picks up from a run's log when a paused run is rehydrated. */
+export interface BudgetSnapshot {
+  usage: Usage;
+  rounds: number;
+  /** Wall-clock already consumed while the run was active. */
+  elapsedMs: number;
+  /** Whether the run is active (the clock runs) or paused (it does not). */
+  running: boolean;
+}
+
 // Hard limits, enforced in code (CLAUDE.md architecture rule 4). The controller asks
 // `exceeded()` before every round and after each round's model calls, and reserves the
 // worst-case cost of every call before dispatching it (docs/budget-guardrails.md §2) so
-// that parallel calls cannot jointly overshoot the cap.
+// that parallel calls cannot jointly overshoot the cap. Wall-clock only counts while the
+// run is active: a run paused for the month must not time out on resume.
 export class BudgetTracker {
-  #usage: Usage = zeroUsage();
-  #rounds = 0;
+  #usage: Usage;
+  #rounds: number;
   readonly #reservations = new Map<ReservationId, number>();
   #nextReservation: ReservationId = 1;
-  readonly #startMs: number;
+  #accumulatedMs: number;
+  #activeSinceMs: number | null;
   readonly #config: RunConfig;
   readonly #clock: Clock;
 
-  constructor(config: RunConfig, clock: Clock) {
+  constructor(config: RunConfig, clock: Clock, snapshot?: BudgetSnapshot) {
     this.#config = config;
     this.#clock = clock;
-    this.#startMs = clock.nowMs();
+    this.#usage = snapshot?.usage ?? zeroUsage();
+    this.#rounds = snapshot?.rounds ?? 0;
+    this.#accumulatedMs = snapshot?.elapsedMs ?? 0;
+    this.#activeSinceMs = (snapshot?.running ?? true) ? clock.nowMs() : null;
   }
 
   recordRound(): void {
@@ -51,6 +66,18 @@ export class BudgetTracker {
     this.#reservations.delete(id);
   }
 
+  /** Stop the wall clock while the run is paused. */
+  pause(): void {
+    if (this.#activeSinceMs === null) return;
+    this.#accumulatedMs += Math.max(0, this.#clock.nowMs() - this.#activeSinceMs);
+    this.#activeSinceMs = null;
+  }
+
+  /** Start the wall clock again. */
+  resume(): void {
+    if (this.#activeSinceMs === null) this.#activeSinceMs = this.#clock.nowMs();
+  }
+
   get rounds(): number {
     return this.#rounds;
   }
@@ -71,7 +98,9 @@ export class BudgetTracker {
   }
 
   elapsedMs(): number {
-    return Math.max(0, this.#clock.nowMs() - this.#startMs);
+    const active =
+      this.#activeSinceMs === null ? 0 : Math.max(0, this.#clock.nowMs() - this.#activeSinceMs);
+    return this.#accumulatedMs + active;
   }
 
   /** The first exhausted limit, in a fixed order, or null while all budgets have room. */

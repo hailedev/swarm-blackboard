@@ -108,3 +108,42 @@ describe('BudgetTracker', () => {
     });
   });
 });
+
+describe('BudgetTracker: pause, resume and snapshots', () => {
+  it('stops the wall clock while paused and starts it again on resume', () => {
+    const clock = new ManualClock();
+    const tracker = new BudgetTracker(config({ maxWallClockMs: 1_000 }), clock);
+    clock.advance(400);
+    expect(tracker.elapsedMs()).toBe(400);
+    tracker.pause();
+    tracker.pause();
+    clock.advance(10_000);
+    expect(tracker.elapsedMs()).toBe(400);
+    expect(tracker.exceeded()).toBeNull();
+    tracker.resume();
+    tracker.resume();
+    clock.advance(600);
+    expect(tracker.elapsedMs()).toBe(1_000);
+    expect(tracker.exceeded()).toBe('budget_time');
+  });
+
+  it('starts from a snapshot, with the clock stopped or running as the run was', () => {
+    const clock = new ManualClock();
+    const snapshot = {
+      usage: usage({ costUsd: 0.1, inputTokens: 5, outputTokens: 2 }),
+      rounds: 3,
+      elapsedMs: 2_000,
+    };
+    const paused = new BudgetTracker(config(), clock, { ...snapshot, running: false });
+    const running = new BudgetTracker(config(), clock, { ...snapshot, running: true });
+    clock.advance(500);
+    expect(paused.elapsedMs()).toBe(2_000);
+    expect(running.elapsedMs()).toBe(2_500);
+    expect(paused.rounds).toBe(3);
+    expect(paused.usage).toEqual(snapshot.usage);
+    expect(paused.remainingUsd()).toBeCloseTo(0.15, 10);
+    paused.resume();
+    clock.advance(100);
+    expect(paused.elapsedMs()).toBe(2_100);
+  });
+});

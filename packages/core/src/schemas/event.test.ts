@@ -61,6 +61,8 @@ describe('BoardEventSchema', () => {
     ['budget_warning', { round: 2, spentUsd: 4.1, limitUsd: 5 }],
     ['run_paused', { round: 2, reason: 'monthly_budget', totals }],
     ['run_paused', { round: 2, reason: 'rate_limit', totals }],
+    ['run_paused', { round: 2, reason: 'interrupted', totals }],
+    ['run_resumed', { round: 2, from: 'user_paused' }],
     ['run_terminated', { round: 5, status: 'completed', reason: 'completed', totals }],
     ['run_terminated', { round: 5, status: 'completed', reason: 'budget_cost', totals }],
     ['run_terminated', { round: 1, status: 'failed', reason: 'billing', totals }],

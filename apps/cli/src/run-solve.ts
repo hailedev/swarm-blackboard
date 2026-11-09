@@ -121,12 +121,14 @@ const describeError = (error: ControllerError): string => {
     case 'invalid_config':
       return `invalid config: ${error.issues.join('; ')}`;
     case 'invalid_problem':
+    case 'invalid_note':
       return `invalid problem: ${error.issues.join('; ')}`;
     case 'store':
       return `store error: ${error.error.kind}`;
     case 'ledger':
       return `spend ledger: ${error.message}`;
     case 'not_started':
+    case 'not_paused':
     case 'already_started':
       return error.kind.replace('_', ' ');
     case 'terminated':

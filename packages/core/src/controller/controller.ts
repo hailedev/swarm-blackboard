@@ -16,13 +16,19 @@ import type { Model, ModelError, ModelRequest, ModelResponse } from '../ports/mo
 import { err, ok, type Result } from '../ports/result';
 import type { PeriodBudget } from '../ports/spend-ledger';
 import { addUsage, HUMAN_AUTHOR, promptTokens, zeroUsage, type Usage } from '../schemas/common';
-import { ProblemEntrySchema, type Entry, type EntryOf } from '../schemas/entry';
+import {
+  HumanNoteEntrySchema,
+  ProblemEntrySchema,
+  type Entry,
+  type EntryOf,
+} from '../schemas/entry';
 import type {
   AgentFailureReason,
   BoardEvent,
   EligibilityRecord,
   RunTotals,
 } from '../schemas/event';
+import type { HumanNotePriority } from '../schemas/payloads';
 import type { RunProfile } from '../schemas/roster';
 import { RunConfigSchema, type RunConfig, type RunConfigInput } from '../schemas/run-config';
 import {
@@ -34,12 +40,12 @@ import {
   type RunEndReason,
   type RunStatus,
   type TerminalReason,
-  type TerminalStatus,
 } from '../schemas/run-end';
 import { BudgetTracker } from './budgets';
 import { prepareEntries } from './commit';
 import { ConflictTracker } from './conflict';
 import { calendarMonth } from './period';
+import type { RehydratedState, RunEndState } from './rehydrate';
 import { estimateInputTokens, estimateUndershot, fitCall } from './reservation';
 import { selectAgents } from './selection';
 import { checkTermination, synthesisReady } from './termination';
@@ -48,6 +54,11 @@ export interface ProblemInput {
   content: string;
   constraints?: readonly string[];
   successCriteria?: readonly string[];
+}
+
+export interface HumanNoteInput {
+  content: string;
+  priority: HumanNotePriority;
 }
 
 export interface ControllerDeps {
@@ -64,15 +75,23 @@ export interface ControllerDeps {
   onEvent?: (event: BoardEvent) => void;
 }
 
+export interface ControllerOptions {
+  runId?: string;
+  /** Pick a paused run up from its own log (controller/rehydrate.ts) instead of starting fresh. */
+  resume?: RehydratedState;
+}
+
 export type ControllerError =
   | { kind: 'store'; error: StoreError }
   | { kind: 'ledger'; message: string }
   | { kind: 'not_started' }
   | { kind: 'already_started' }
+  | { kind: 'not_paused' }
   | { kind: 'terminated'; reason: TerminalReason }
   | { kind: 'paused'; reason: PauseReason }
   | { kind: 'invalid_config'; issues: readonly string[] }
   | { kind: 'invalid_problem'; issues: readonly string[] }
+  | { kind: 'invalid_note'; issues: readonly string[] }
   /** Refused before the first call: the run's cap would overrun the month's limit. */
   | {
       kind: 'monthly_budget';
@@ -117,8 +136,19 @@ export interface Controller {
   runRound(): Promise<Result<RoundReport, ControllerError>>;
   /** Rounds until the run ends or pauses. */
   run(): Promise<Result<RunSummary, ControllerError>>;
+  /** Pause after the round in flight, if any, has committed what it produced. */
+  requestPause(): void;
+  /** End the run as `user_stopped` after the round in flight, if any. */
+  requestStop(): void;
+  /** Pick a paused run up again; `run()` or `runRound()` then continues it. */
+  resume(): Promise<Result<void, ControllerError>>;
+  /** Commit a human note now; the next round sees it (docs/PLAN.md §2.3, human-in-the-loop). */
+  injectNote(note: HumanNoteInput): Promise<Result<EntryOf<'human_note'>, ControllerError>>;
   currentView(): BoardView;
   readonly flags: Readonly<ControlFlags>;
+  /** How the run has stopped, or null while it is live. */
+  readonly ended: RunEnd | null;
+  readonly completedRounds: number;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -177,43 +207,64 @@ const pauseReason = (reasons: ReadonlySet<AgentFailureReason>): PauseReason | nu
 
 export const createController = (
   deps: ControllerDeps,
-  options: { runId?: string } = {},
+  options: ControllerOptions = {},
 ): Controller => {
-  const runId = options.runId ?? deps.ids.next();
-  const events: BoardEvent[] = [];
-  const history: string[][] = [];
-  const flags: ControlFlags = {
-    stallDetected: false,
-    criticForced: false,
-    decisionRequired: false,
-  };
-  const conflicts = new ConflictTracker();
-  let view = buildBoardView(runId, []);
-  let config: RunConfig | undefined;
-  let budgets: BudgetTracker | undefined;
-  let completedRounds = 0;
-  let consecutiveEmptyRounds = 0;
-  let reframeUsed = false;
-  let monthlyWarningSent = false;
-  // Narrower than RunEnd so a paused run and a finished run stay distinguishable in code.
-  type Ended =
-    { status: 'paused'; reason: PauseReason } | { status: TerminalStatus; reason: TerminalReason };
-  let ended: Ended | null = null;
+  const resumed = options.resume;
+  const runId = resumed?.runId ?? options.runId ?? deps.ids.next();
+  const events: BoardEvent[] = resumed === undefined ? [] : [...resumed.events];
+  const history: string[][] = resumed === undefined ? [] : resumed.history.map((h) => [...h]);
+  const flags: ControlFlags =
+    resumed === undefined
+      ? { stallDetected: false, criticForced: false, decisionRequired: false }
+      : { ...resumed.flags };
+  const conflicts = resumed?.conflicts ?? new ConflictTracker();
+  let view = buildBoardView(runId, events);
+  let config: RunConfig | undefined = resumed?.config;
+  let budgets: BudgetTracker | undefined =
+    resumed === undefined
+      ? undefined
+      : new BudgetTracker(resumed.config, deps.clock, {
+          usage: resumed.usage,
+          rounds: resumed.completedRounds,
+          elapsedMs: resumed.elapsedMs,
+          running: resumed.ended === null,
+        });
+  let completedRounds = resumed?.completedRounds ?? 0;
+  let consecutiveEmptyRounds = resumed?.consecutiveEmptyRounds ?? 0;
+  let reframeUsed = resumed?.reframeUsed ?? false;
+  let monthlyWarningSent = resumed?.monthlyWarningSent ?? false;
+  let ended: RunEndState | null = resumed?.ended ?? null;
+  let pauseRequested = false;
+  // Read through functions: TypeScript would otherwise narrow these to `false` for the rest
+  // of a round, while a callback may well set them while the round is in flight.
+  const requested = { pause: (): boolean => pauseRequested, stop: (): boolean => stopRequested };
+  let stopRequested = false;
+  const profileName = deps.profile?.name ?? resumed?.profile?.name ?? null;
 
-  const emit = async (body: EventBody): Promise<Result<BoardEvent, ControllerError>> => {
-    const event: BoardEvent = {
-      id: deps.ids.next(),
-      runId,
-      seq: events.length,
-      at: isoFromMs(deps.clock.nowMs()),
-      ...body,
-    };
-    const stored = await deps.store.append(event);
-    if (!stored.ok) return err({ kind: 'store', error: stored.error });
-    events.push(event);
-    view = buildBoardView(runId, events);
-    deps.onEvent?.(event);
-    return ok(event);
+  // Events are appended one at a time, in order, whoever asks: a note injected while a
+  // round is in flight queues behind the round's own events instead of colliding on seq.
+  let chain: Promise<unknown> = Promise.resolve();
+  const emit = (body: EventBody): Promise<Result<BoardEvent, ControllerError>> => {
+    const task = chain.then(async (): Promise<Result<BoardEvent, ControllerError>> => {
+      const event: BoardEvent = {
+        id: deps.ids.next(),
+        runId,
+        seq: events.length,
+        at: isoFromMs(deps.clock.nowMs()),
+        ...body,
+      };
+      const stored = await deps.store.append(event);
+      if (!stored.ok) return err({ kind: 'store', error: stored.error });
+      events.push(event);
+      view = buildBoardView(runId, events);
+      deps.onEvent?.(event);
+      return ok(event);
+    });
+    chain = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    return task;
   };
 
   const totals = (tracker: BudgetTracker): RunTotals => ({
@@ -250,6 +301,7 @@ export const createController = (
   ): Promise<Result<void, ControllerError>> => {
     const status = terminalStatusFor(reason);
     ended = { status, reason };
+    tracker.pause();
     deps.logger.info('run terminated', { runId, round, status, reason });
     const result = await emit({
       type: 'run_terminated',
@@ -267,6 +319,8 @@ export const createController = (
     reason: PauseReason,
   ): Promise<Result<void, ControllerError>> => {
     ended = { status: 'paused', reason };
+    pauseRequested = false;
+    tracker.pause();
     deps.logger.info('run paused', { runId, round, reason });
     const result = await emit({ type: 'run_paused', round, reason, totals: totals(tracker) });
     return result.ok ? ok(undefined) : result;
@@ -427,7 +481,7 @@ export const createController = (
       runId,
       maxRounds: config.maxRounds,
       maxCostUsd: config.maxCostUsd,
-      profile: deps.profile?.name ?? null,
+      profile: profileName,
     });
     return ok(parsedProblem.data);
   };
@@ -451,6 +505,16 @@ export const createController = (
       usage: zeroUsage(),
       ended: end,
     });
+
+    // The user's wishes come first: a stop or pause asked for between rounds happens now.
+    if (requested.stop()) {
+      const stopped = await terminate(tracker, completedRounds, 'user_stopped');
+      return stopped.ok ? ok(emptyReport(ended)) : stopped;
+    }
+    if (requested.pause()) {
+      const paused = await pause(tracker, completedRounds, 'user_paused');
+      return paused.ok ? ok(emptyReport(ended)) : paused;
+    }
 
     // Budgets are checked before any model call is made: the run's own caps first…
     const preBudget = tracker.exceeded();
@@ -591,7 +655,8 @@ export const createController = (
     flags.criticForced = assessment.criticForced;
     flags.decisionRequired = assessment.decisionRequired;
 
-    // 8. Termination: provider failures first, then stall detection and the ordered checks.
+    // 8. Termination: provider failures first, then the user's requests, then stall
+    //    detection and the ordered checks.
     flags.stallDetected = false;
     consecutiveEmptyRounds = committed.length === 0 ? consecutiveEmptyRounds + 1 : 0;
     let stalled = false;
@@ -611,7 +676,9 @@ export const createController = (
       failures.filter((f) => f.reason === 'budget_exhausted').length >= selectedAgents.length;
     const reason: RunEndReason | null =
       fatalReason(failureKinds) ??
+      (requested.stop() ? 'user_stopped' : null) ??
       pauseReason(failureKinds) ??
+      (requested.pause() ? 'user_paused' : null) ??
       checkTermination({
         view,
         config: runConfig,
@@ -667,14 +734,75 @@ export const createController = (
     });
   };
 
+  const resume: Controller['resume'] = async () => {
+    if (config === undefined || budgets === undefined) return err({ kind: 'not_started' });
+    if (ended === null || ended.status !== 'paused') return err({ kind: 'not_paused' });
+    const from = ended.reason;
+    const resumedEvent = await emit({ type: 'run_resumed', round: completedRounds, from });
+    if (!resumedEvent.ok) return err(resumedEvent.error);
+    ended = null;
+    pauseRequested = false;
+    budgets.resume();
+    deps.logger.info('run resumed', { runId, round: completedRounds, from });
+    return ok(undefined);
+  };
+
+  const injectNote: Controller['injectNote'] = async (note) => {
+    if (config === undefined) return err({ kind: 'not_started' });
+    if (ended !== null && ended.status !== 'paused') {
+      return err({ kind: 'terminated', reason: ended.reason });
+    }
+    const problem = view.problem();
+    const parsed = HumanNoteEntrySchema.safeParse({
+      id: deps.ids.next(),
+      runId,
+      type: 'human_note',
+      round: completedRounds,
+      author: HUMAN_AUTHOR,
+      createdAt: isoFromMs(deps.clock.nowMs()),
+      parents: problem === undefined ? [] : [problem.id],
+      status: 'active',
+      content: note.content,
+      payload: { priority: note.priority },
+      usage: zeroUsage(),
+    });
+    if (!parsed.success) return err({ kind: 'invalid_note', issues: issuesOf(parsed.error) });
+    const stored = await emit({
+      type: 'entry_committed',
+      round: completedRounds,
+      entry: parsed.data,
+    });
+    if (!stored.ok) return err(stored.error);
+    deps.logger.info('human note injected', {
+      runId,
+      round: completedRounds,
+      entryId: parsed.data.id,
+    });
+    return ok(parsed.data);
+  };
+
   return {
     runId,
     start,
     runRound,
     run,
+    requestPause: () => {
+      pauseRequested = true;
+    },
+    requestStop: () => {
+      stopRequested = true;
+    },
+    resume,
+    injectNote,
     currentView: () => view,
     get flags(): Readonly<ControlFlags> {
       return { ...flags };
+    },
+    get ended(): RunEnd | null {
+      return ended;
+    },
+    get completedRounds(): number {
+      return completedRounds;
     },
   };
 };

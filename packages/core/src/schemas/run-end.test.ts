@@ -24,6 +24,8 @@ describe('run end reasons', () => {
       monthly_budget: 'paused',
       rate_limit: 'paused',
       provider_unreachable: 'paused',
+      user_paused: 'paused',
+      interrupted: 'paused',
       billing: 'failed',
       auth: 'failed',
       user_stopped: 'stopped',

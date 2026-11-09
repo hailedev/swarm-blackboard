@@ -89,12 +89,18 @@ export const BudgetWarningEventSchema = EventBaseSchema.extend({
   spentUsd: z.number().nonnegative(),
   limitUsd: z.number().nonnegative(),
 });
-// A graceful, resumable stop. Resume arrives with the API in Phase 3.
+// A graceful, resumable stop.
 export const RunPausedEventSchema = EventBaseSchema.extend({
   type: z.literal('run_paused'),
   round: RoundSchema,
   reason: PauseReasonSchema,
   totals: RunTotalsSchema,
+});
+// The run picks up again after a pause; `from` is the reason it had paused for.
+export const RunResumedEventSchema = EventBaseSchema.extend({
+  type: z.literal('run_resumed'),
+  round: RoundSchema,
+  from: PauseReasonSchema,
 });
 export const RunTerminatedEventSchema = EventBaseSchema.extend({
   type: z.literal('run_terminated'),
@@ -113,6 +119,7 @@ export const BoardEventSchema = z.discriminatedUnion('type', [
   RoundCompletedEventSchema,
   BudgetWarningEventSchema,
   RunPausedEventSchema,
+  RunResumedEventSchema,
   RunTerminatedEventSchema,
 ]);
 

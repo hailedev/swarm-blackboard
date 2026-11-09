@@ -7,7 +7,12 @@ const PREFIX = '00000000-0000-7000-8000-';
 export const sequentialId = (n: number): string => `${PREFIX}${n.toString(16).padStart(12, '0')}`;
 
 export class SequentialIdGenerator implements IdGenerator {
-  #counter = 0;
+  #counter: number;
+
+  /** `start` lets a second generator continue after ids another one already issued. */
+  constructor(start = 0) {
+    this.#counter = start;
+  }
 
   next(): string {
     this.#counter += 1;

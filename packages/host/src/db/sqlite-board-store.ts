@@ -178,6 +178,12 @@ export class SqliteBoardStore implements BoardStore {
           .where(eq(runs.id, event.runId))
           .run();
         break;
+      case 'run_resumed':
+        tx.update(runs)
+          .set({ status: 'running', reason: null })
+          .where(eq(runs.id, event.runId))
+          .run();
+        break;
       case 'run_paused':
         tx.update(runs)
           .set({ status: 'paused', reason: event.reason, ...totalsUpdate(event.totals) })

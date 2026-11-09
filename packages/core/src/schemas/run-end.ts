@@ -16,16 +16,21 @@ export const RunEndReasonSchema = z.enum([
   'auth',
   'rate_limit',
   'provider_unreachable',
+  'user_paused',
+  'interrupted',
   'user_stopped',
 ]);
 export type RunEndReason = z.infer<typeof RunEndReasonSchema>;
 
 // Reasons that pause a run rather than end it: the run can resume when the month rolls
-// over, the limit is raised, or the provider comes back.
+// over, the limit is raised, the provider comes back, the user says so, or the host that
+// was running it comes back after dying mid-run (`interrupted`).
 export const PauseReasonSchema = RunEndReasonSchema.extract([
   'monthly_budget',
   'rate_limit',
   'provider_unreachable',
+  'user_paused',
+  'interrupted',
 ]);
 export type PauseReason = z.infer<typeof PauseReasonSchema>;
 

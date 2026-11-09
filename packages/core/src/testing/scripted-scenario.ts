@@ -128,7 +128,7 @@ export const createScriptedModels = (
     solver: createFakeModel({
       id: 'fake-solver',
       pricing: priced('solver'),
-      script: (_request, index) => {
+      script: () => {
         const view = getView();
         const open = openSubproblems(view);
         const evidence = handlesOf(view, view.liveOfType('evidence'));
@@ -146,7 +146,7 @@ export const createScriptedModels = (
                   payload: { status: 'done' },
                 },
               ];
-        if (index === 0 || current === undefined) {
+        if (current === undefined) {
           return respond([
             {
               type: 'hypothesis',
@@ -174,12 +174,14 @@ export const createScriptedModels = (
     critic: createFakeModel({
       id: 'fake-critic',
       pricing: priced('critic'),
-      script: (_request, index) => {
+      script: () => {
         const view = getView();
         const target = view.liveOfType('hypothesis')[0];
         if (target === undefined) return respond([]);
         const [handle] = handlesOf(view, [target]);
-        if (index === 0) {
+        // Scripts read the board, never their own call count, so a run picked up by a fresh
+        // process (controller/rehydrate.ts) continues exactly as an uninterrupted one would.
+        if (view.liveOfType('critique').length === 0) {
           return respond([
             {
               type: 'critique',
