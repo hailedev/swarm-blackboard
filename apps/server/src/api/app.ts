@@ -233,6 +233,7 @@ export const createApp = ({ manager, roster, monthlyBudget, clock }: AppDeps): H
   // run_terminated. A paused run keeps its stream open.
   app.get('/runs/:id/events', (c) => {
     const runId = c.req.param('id');
+    if (manager.get(runId) === undefined) return fail(c, 404, 'not_found', 'no such run');
     const fromParam = c.req.query('from') ?? c.req.header('Last-Event-ID');
     const from = fromParam === undefined ? -1 : Number(fromParam);
     if (!Number.isInteger(from) || from < -1) {

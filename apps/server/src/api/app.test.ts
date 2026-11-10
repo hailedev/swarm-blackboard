@@ -522,6 +522,14 @@ describe('GET /runs/:id/events', () => {
     expect((await app.request(`/runs/${started.id}/events?from=x`)).status).toBe(400);
   });
 
+  it('answers 404 for an unknown run instead of opening an empty stream', async () => {
+    const { app } = await setup();
+    const res = await app.request('/runs/nope/events');
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(ApiErrorSchema.parse(await res.json()).error.code).toBe('not_found');
+  });
+
   it('delivers live events as the run goes on, without gaps or repeats', async () => {
     const held = gate();
     const { app } = await setup(scriptedSource(held.wrap));
