@@ -6,6 +6,7 @@ import {
   baselineCacheKey,
   baselinePrompt,
   hitAllowance,
+  salvageParagraphs,
   BaselineRecordSchema,
   describeBaselineError,
   generateBaseline,
@@ -134,9 +135,9 @@ describe('sizeBaseline and generateBaseline', () => {
 
 describe('word budget and truncation', () => {
   it('derives a round word count from the allowance, never below the floor', () => {
-    expect(wordBudgetFor(4_096)).toBe(2_600);
-    expect(wordBudgetFor(1_700)).toBe(1_050);
-    expect(wordBudgetFor(MIN_OUTPUT_TOKENS)).toBe(150);
+    expect(wordBudgetFor(4_096)).toBe(2_050);
+    expect(wordBudgetFor(1_700)).toBe(850);
+    expect(wordBudgetFor(MIN_OUTPUT_TOKENS)).toBe(100);
     expect(wordBudgetFor(10)).toBe(100);
     expect(wordBudgetFor(1_000) % 50).toBe(0);
   });
@@ -187,7 +188,7 @@ describe('word budget and truncation', () => {
     );
     expect(!result.ok && result.error.kind).toBe('truncated');
     expect(!result.ok && describeBaselineError(result.error)).toBe(
-      'truncated: the answer used its whole allowance of 512 output tokens and its JSON never closed',
+      'truncated: the answer used its whole allowance of 512 output tokens and not one paragraph was finished',
     );
     expect(
       !result.ok && result.error.kind === 'truncated' && result.error.usage.usage.costUsd,
@@ -197,5 +198,50 @@ describe('word budget and truncation', () => {
   it('leaves the cache key alone when only the word budget changes', () => {
     expect(baselineCacheKey(problem, 'm1')).toBe(baselineCacheKey(problem, 'm1'));
     expect(baselinePrompt(problem, 300)).not.toBe(baselinePrompt(problem, 900));
+  });
+});
+
+describe('salvageParagraphs', () => {
+  it('keeps every finished paragraph of an answer whose JSON never closed', () => {
+    const raw =
+      '{"paragraphs": ["First, with a \\"quoted\\" word.", "Second paragraph.", "Third that never en';
+    expect(salvageParagraphs(raw)).toEqual(['First, with a "quoted" word.', 'Second paragraph.']);
+    expect(salvageParagraphs('{"paragraphs": ["Only one unfinished')).toEqual([]);
+    expect(salvageParagraphs('{"answer": "wrong shape"}')).toEqual([]);
+    expect(salvageParagraphs('')).toEqual([]);
+  });
+
+  it('turns a truncated answer with finished paragraphs into a flagged record the pass can judge', async () => {
+    const model = createFakeModel({
+      id: 'fake-baseline',
+      pricing: null,
+      script: () => ({
+        error: {
+          kind: 'invalid_output',
+          issues: ['unexpected end of JSON input'],
+          raw: '{"paragraphs": ["A finished paragraph.", "And another one.", "Then the allowance ran ou',
+          usage: {
+            inputTokens: 400,
+            outputTokens: 512,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            costUsd: 0.004,
+          },
+        },
+      }),
+    });
+    const result = await generateBaseline(
+      { model, problem, capUsd: 1, maxOutputTokens: 512 },
+      tags,
+      0,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({
+      truncated: true,
+      answer: 'A finished paragraph.\n\nAnd another one.',
+      maxOutputTokens: 512,
+    });
+    expect(result.value.usage.costUsd).toBe(0.004);
   });
 });

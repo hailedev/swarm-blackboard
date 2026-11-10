@@ -52,10 +52,13 @@ export const BaselineAnswerSchema = z.object({ paragraphs: z.array(z.string().mi
 
 export const PARAGRAPH_SEPARATOR = '\n\n';
 
-// Words the output allowance buys: about three quarters of a word per token in English
-// prose, less headroom for the JSON around the paragraphs and for the tokenizer varying,
-// rounded down to a round number. Never below a floor a useful answer needs.
-export const WORDS_PER_TOKEN = 0.75;
+// Words the output allowance buys, deliberately conservative: English prose runs about
+// three quarters of a word per token, but a model told it has N words tends to write more,
+// and markdown and JSON escapes cost tokens too. The first paid pilot
+// (evals/results/2026-11-10-pilot-attempt-1) set 0.75 and lost all three Sonnet baselines
+// to the allowance; at 0.6 a 40 % overshoot still fits. Then headroom for the JSON around
+// the paragraphs, rounded down to a round number, never below a floor a useful answer needs.
+export const WORDS_PER_TOKEN = 0.6;
 export const JSON_HEADROOM = 0.85;
 export const WORD_BUDGET_STEP = 50;
 export const MIN_WORD_BUDGET = 100;
@@ -155,6 +158,28 @@ export const sizeBaseline = (request: BaselineRequest): SizedBaseline => {
 export const hitAllowance = (outputTokens: number, maxOutputTokens: number): boolean =>
   outputTokens >= maxOutputTokens - 1;
 
+/**
+ * The complete paragraphs of an answer whose JSON never closed: every finished string
+ * element after `"paragraphs"`, unescaped. The unfinished last element has no closing
+ * quote and is left out. Empty when nothing finished.
+ */
+export const salvageParagraphs = (raw: string): string[] => {
+  const start = raw.indexOf('"paragraphs"');
+  if (start === -1) return [];
+  const body = raw.slice(raw.indexOf('[', start) + 1);
+  const paragraphs: string[] = [];
+  for (const match of body.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+    try {
+      const text: unknown = JSON.parse(match[0]);
+      if (typeof text === 'string' && text.length > 0) paragraphs.push(text);
+    } catch {
+      // an escape sequence the grammar never finished: stop at the last good paragraph
+      break;
+    }
+  }
+  return paragraphs;
+};
+
 export type BaselineError =
   | { kind: 'does_not_fit'; fit: Extract<Fit, { fits: false }> }
   /** The answer ran into its allowance and never closed its JSON. */
@@ -167,38 +192,55 @@ export const generateBaseline = async (
   nowMs: number,
 ): Promise<Result<BaselineRecord, BaselineError>> => {
   const sized = sizeBaseline(request);
-  if (!sized.fit.fits) return err({ kind: 'does_not_fit', fit: sized.fit });
+  const fit = sized.fit;
+  if (!fit.fits) return err({ kind: 'does_not_fit', fit });
   const response = await request.model.generateObject({
     schema: BaselineAnswerSchema,
     system: BASELINE_SYSTEM,
     prompt: sized.prompt,
-    maxOutputTokens: sized.fit.maxOutputTokens,
+    maxOutputTokens: fit.maxOutputTokens,
     tags,
+  });
+  const record = (
+    paragraphs: readonly string[],
+    usage: BaselineRecord['usage'],
+    latencyMs: number,
+    truncated: boolean,
+  ): BaselineRecord => ({
+    key: baselineCacheKey(request.problem, request.model.id),
+    problemId: request.problem.id,
+    modelId: request.model.id,
+    capUsd: request.capUsd,
+    maxOutputTokens: fit.maxOutputTokens,
+    wordBudget: sized.wordBudget,
+    truncated,
+    answer: paragraphs.join(PARAGRAPH_SEPARATOR),
+    usage,
+    latencyMs,
+    at: isoFromMs(nowMs),
+    passId: tags.runId,
   });
   if (!response.ok) {
     const error = response.error;
     if (
       error.kind === 'invalid_output' &&
-      hitAllowance(error.usage.outputTokens, sized.fit.maxOutputTokens)
+      hitAllowance(error.usage.outputTokens, fit.maxOutputTokens)
     ) {
-      return err({ kind: 'truncated', maxOutputTokens: sized.fit.maxOutputTokens, usage: error });
+      // Cut off before the JSON closed: judge what finished, flagged, rather than nothing.
+      const salvaged = salvageParagraphs(error.raw);
+      if (salvaged.length > 0) return ok(record(salvaged, error.usage, 0, true));
+      return err({ kind: 'truncated', maxOutputTokens: fit.maxOutputTokens, usage: error });
     }
     return err(error);
   }
-  return ok({
-    key: baselineCacheKey(request.problem, request.model.id),
-    problemId: request.problem.id,
-    modelId: request.model.id,
-    capUsd: request.capUsd,
-    maxOutputTokens: sized.fit.maxOutputTokens,
-    wordBudget: sized.wordBudget,
-    truncated: hitAllowance(response.value.usage.outputTokens, sized.fit.maxOutputTokens),
-    answer: response.value.object.paragraphs.join(PARAGRAPH_SEPARATOR),
-    usage: response.value.usage,
-    latencyMs: response.value.latencyMs,
-    at: isoFromMs(nowMs),
-    passId: tags.runId,
-  });
+  return ok(
+    record(
+      response.value.object.paragraphs,
+      response.value.usage,
+      response.value.latencyMs,
+      hitAllowance(response.value.usage.outputTokens, fit.maxOutputTokens),
+    ),
+  );
 };
 
 export const describeBaselineError = (error: BaselineError): string => {
@@ -206,7 +248,7 @@ export const describeBaselineError = (error: BaselineError): string => {
     case 'does_not_fit':
       return `the cap of $${error.fit.remainingUsd.toFixed(4)} does not cover the smallest useful call ($${error.fit.worstCaseUsd.toFixed(4)})`;
     case 'truncated':
-      return `truncated: the answer used its whole allowance of ${String(error.maxOutputTokens)} output tokens and its JSON never closed`;
+      return `truncated: the answer used its whole allowance of ${String(error.maxOutputTokens)} output tokens and not one paragraph was finished`;
     case 'invalid_output':
       return `the model's answer failed the schema: ${error.issues.join('; ')}`;
     case 'script_exhausted':

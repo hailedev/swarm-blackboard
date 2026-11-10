@@ -403,7 +403,7 @@ describe('what the judge sees', () => {
       baselineModelId: 'fake-baseline',
       judgeModelId: 'fake-judge',
     });
-    expect(report).toContain('2048/2048 (1300 words) **truncated**');
+    expect(report).toContain('2048/2048 (1000 words) **truncated**');
     expect(report).toContain('baseline truncated at its allowance');
     expect(report).toContain('1 baseline answer used the whole output allowance (one)');
   });
