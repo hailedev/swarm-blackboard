@@ -58,16 +58,16 @@
         "think": false
       }
     },
-    "commit": "d3841b3",
+    "commit": "953659b",
     "baselineModelId": "qwen3.6:35b-mlx",
     "judgeModelId": "qwen3.6:35b-mlx"
   },
   "pass": {
-    "passId": "01a1c3d5-4ef5-77b0-a9c3-ae6835c7efd3",
-    "startedAt": "2026-11-10T05:01:38.933Z",
-    "endedAt": "2026-11-10T05:12:31.762Z",
+    "passId": "01a1c3e0-93e5-788f-8f83-d9c109a3f12e",
+    "startedAt": "2026-11-10T05:13:57.477Z",
+    "endedAt": "2026-11-10T05:27:09.939Z",
     "options": {
-      "passId": "01a1c3d5-4ef5-77b0-a9c3-ae6835c7efd3",
+      "passId": "01a1c3e0-93e5-788f-8f83-d9c109a3f12e",
       "capUsd": 1,
       "runCapUsd": 0.08,
       "judgeOrders": 2,
@@ -138,43 +138,43 @@
           "statement": "A six-person team builds a consumer mobile app for iOS and Android. Each release must pass app-store review, which takes one to three days and occasionally rejects the build for reasons unrelated to the change. Today the team ships \"when things are ready\", roughly every three to five weeks, and about one release in four is followed by a hotfix that takes two days to reach users because of the review queue. The founders want releases to feel routine rather than stressful, and they want users to stop seeing bugs that a staged rollout would have caught.\n\nDesign the team's release process: how often it releases and why, how a hotfix reaches users faster or is needed less often, when a change goes behind a feature flag, and how the team will know in three months whether the new process works."
         },
         "swarm": {
-          "runId": "01a1c3d5-4ef6-7bc9-b88d-d13aa32b45a8",
-          "answer": "The team should adopt a **Bi-Weekly Release Cadence** to replace the unpredictable 'when ready' schedule. This rhythm balances feature accumulation with the reality of the 1–3 day App Store review window, ensuring that development does not stall while waiting for approval (H5, E28, E21). By shipping every two weeks, the team avoids the large, risky diffs that characterize monthly releases and reduces the pressure on the six-person engineering staff to perform 'heroic' efforts during each release cycle.\n\nTo make hotfixes rarer and faster, the team must implement a **Pre-Release Validation** workflow rather than relying on post-release fixes. Since every release—including hotfixes—must pass App Store review (E26), we cannot bypass the queue for public users. Instead, we decouple validation from public availability by using iOS TestFlight and Google Play Internal Testing tracks to validate builds before they are submitted for production (H10, H16). This reduces the risk of hotfixes being needed in the first place by catching critical bugs during the internal review phase, which is often faster than the public queue (E27, E19). If a hotfix is still required, it follows the same rigorous internal validation path to ensure stability before re-entering the 1–3 day public review bottleneck.\n\nFor high-risk changes, the team should enforce a **Feature Flag Policy** where any code touching UI, network, or state management is shipped behind a disabled flag (H14). This leverages the existing peer-review process as a QA gate, preventing risky untested code from reaching end-users even if it slips through internal testing. This approach minimizes the maintenance overhead of complex flagging while providing a kill-switch for unexpected bugs, directly addressing the constraint of having no dedicated QA team (E29).\n\nTo determine if this process works in three months, track two key metrics: **Hotfix Frequency** (target <5% of releases) and **Review Turnaround Time** (target <24 hours for internal validation). A drop in hotfixes indicates that the pre-release validation is catching bugs early. A stable turnaround time indicates that the workflow has become routine rather than stressful. Additionally, monitor the **Review Rejection Rate**; a reduction here signals that the internal testing gates are effectively preventing metadata and compliance issues from reaching public view (E30).\n\nAlthough critiques noted that TestFlight does not bypass iOS App Store review for public availability (C17), the strategy relies on using internal tracks to *validate* rather than *deploy*. Since the bi-weekly cadence provides a buffer against rejection (H5) and the feature flag policy provides a safety net (H14), this process remains sustainable even if hotfix reviews take 1–3 days, provided the validation phase is rigorous. The primary success factor is reducing the *need* for hotfixes through early detection, rather than accelerating the public distribution channel.",
-          "confidence": 0.75,
+          "runId": "01a1c3e0-93e6-7c0e-b97b-10f06e92f102",
+          "answer": "For a six-person team with no dedicated QA seeking to replace unpredictable 'heroics' with routine, we recommend a **Bi-weekly Release Cadence** anchored by the App Store review window. Instead of waiting for features to accumulate over 3-5 weeks, submit builds 48 hours before the intended release date (S8). This leverages the mandatory one-to-three-day review period as a built-in integration buffer, ensuring that rejections are handled internally within the two-week cycle rather than blocking users (H9, H19).\n\nHotfixs will be made rarer and faster through **Feature Flag Governance** combined with Staged Rollouts. All code affecting user-facing UI or core logic must ship behind a Remote Config toggle (e.g., Firebase) defaulting to 'off' or 0% exposure (H7, H14). If a bug is detected, the 'hotfix' becomes an instant server-side disablement of the flag, bypassing the two-day App Store review queue entirely (H10, E24). For new builds, use App Store Connect's Staged Rollout (5% -> 25% -> 100%) to automatically halt distribution upon high crash rates, providing a safety net that reduces reliance on manual monitoring (H6, E21).\n\nTo succeed without dedicated QA, the team must adopt **Automated Alerting via CI/CD**. Since no human is available to monitor 3 AM alerts (C18), the process relies on Firebase Crashlytics and Apple's automated halt notifications to trigger immediate flag disables. The 'Staged Rollout' acts as the primary gatekeeper for stability, while flags provide the kill switch, ensuring that even if monitoring gaps exist, user impact is contained instantly (H2, H10).\n\nWe will measure success in three months using two specific metrics: **Release Cleanliness** (>90% of releases without a post-release hotfix) and **Review Efficiency** (>85% first-pass approval rate). A high cleanliness rate confirms the pre-submission buffer and flagging rules are working, while a high first-pass rate validates the bi-weekly scheduling as routine rather than stressful (H15, H11).\n\nThe process is supported by strong evidence regarding platform capabilities: iOS Staged Rollouts auto-halt on crashes (E21), Firebase updates client-side flags instantly (E24), and Google Play Internal Testing allows near-instant distribution for Android verification (E20). While the bi-weekly cadence must reserve buffer days for potential rejections (H19), the shift from 3-5 week chaos to a predictable 14-day rhythm with instant kill-switches significantly reduces stress and user-visible bug exposure.",
+          "confidence": 0.78,
           "rounds": 12,
           "status": "completed",
           "reason": "budget_rounds",
-          "entries": 87,
+          "entries": 91,
           "usage": {
-            "inputTokens": 77702,
-            "outputTokens": 16030,
+            "inputTokens": 73986,
+            "outputTokens": 16158,
             "cacheReadTokens": 0,
             "cacheWriteTokens": 0,
             "costUsd": 0
           },
           "costUsd": 0,
-          "elapsedMs": 285792
+          "elapsedMs": 284859
         },
         "swarmError": null,
         "baseline": {
-          "key": "f687c43b1720ee696e75dec6287692e82a6de05e1c62cf593fb2b72d4a178416",
+          "key": "74979cb95f5b5be2b4a470a333ebeeccca23f2c7217ef1a769f80a9c0360baf3",
           "problemId": "mobile-release-cadence",
           "modelId": "qwen3.6:35b-mlx",
           "capUsd": 0,
           "maxOutputTokens": 4096,
           "wordBudget": 2600,
           "truncated": false,
-          "answer": "Recommendation: The team should adopt a continuous delivery model with a two-week release cadence for full releases, supported by a feature-flag gating mechanism where all non-trivial changes ship immediately behind flags. This approach fundamentally shifts the team from 'shipping when ready' to 'shipping daily,' thereby decoupling code integration from user visibility. By flagging most features and bugs, the team can deploy to production environments instantly for internal validation without triggering app store reviews for every iteration. The actual App Store release becomes a scheduled event every two weeks, where only tested, un-flagged code is submitted. This reduces stress by normalizing deployment and mitigates hotfix risks by ensuring that 90% of changes are invisible to users until they are deemed safe.\n\nThe primary reason for adopting a two-week cadence is to balance stability with momentum while respecting the App Store review bottleneck. A weekly cadence may be too aggressive given the one-to-three-day review window and the risk of rejection, which could cause deployment collisions if multiple branches are in flight. However, waiting three to five weeks creates a 'batching' effect where too many changes accumulate, increasing the probability of integration conflicts and making regression testing exponentially harder. Two weeks is a standard agile sprint length that allows for sufficient development time while keeping the feedback loop short enough to catch major issues before they reach users. This cadence ensures that if a release fails, the next one is only two weeks away, preventing long periods of stagnation or buggy exposure.",
+          "answer": "The team must shift from an irregular, stress-inducing release cadence to a predictable, high-frequency rhythm of weekly releases, delivered every Thursday. This change is not merely cosmetic; it is a structural necessity to break the cycle of anxiety and delayed feedback that currently plagues the six-person engineering unit. Shipping once or twice a month forces engineers to accumulate a large, complex batch of changes over several weeks, which inherently increases the surface area for regression bugs and makes the pre-release review period exponentially more stressful. By compressing the release window to one week, the team ensures that each release contains a manageable, small-batch set of changes. This aligns with DevOps best practices where smaller batches are easier to test, debug, and revert if necessary. The reasoning for choosing a weekly cadence over even faster (e.g., daily) releases is grounded in the reality of the App Store review process. Since every release requires one to three days of external review time, attempting to ship daily would mean constantly fighting through the review queue, creating a logistical bottleneck where builds sit in limbo rather than progressing work. A weekly schedule allows the team to prepare the build early in the week, submit it on Wednesday or Thursday morning, and have it approved by the weekend or early the next week. This creates a 'ready' state for the app that is stable and pre-reviewed, effectively decoupling the coding completion from the distribution friction. For a team of six engineers without dedicated QA, predictability is the primary source of productivity; knowing exactly when the next release event occurs allows for better planning, fewer context switches, and a reduction in the 'heroic' effort required to meet arbitrary deadlines.\n\nTo address the painful reality that hotfixes take two days to reach users due to the review queue, the team must implement a dual-track distribution strategy that separates production releases from emergency fixes. Currently, a bad release hurts for at least two days because the team is forced to wait in the same App Store review queue that caused the delay in the first place. The solution is to leverage Apple’s TestFlight and Google Play Internal Testing tracks for hotfixes, which bypass the standard public review queue entirely. When a critical bug is identified in production, the team will not submit a new release for public App Store review. Instead, they will create a binary build and distribute it exclusively to internal testers via TestFlight or Internal Testing. While this restricts the reach to a small group of beta testers initially, it dramatically reduces the time to 'fix availability' from two days to nearly zero, provided the hotfix is verified quickly. However, relying solely on TestFlight is not a complete solution because it does not fix the bug for the general user base. Therefore, the process must include an automated or semi-automated pre-release validation step. Before any change, including hotfixes, goes to App Store review, it must pass through a 'staged rollout' mechanism using the App Store’s native phased release feature. This means that for standard weekly releases, 10% of users receive the update first. If crash metrics spike or user reports increase in this small segment, the rollout is paused automatically or manually halted. This prevents widespread damage and reduces the need for hotfixes by catching bugs early. For actual emergencies where TestFlight is used, the process must be streamlined: a 'hotfix pipeline' that skips non-essential QA steps like full regression suites but retains core smoke tests, allowing the binary to be generated and uploaded to TestFlight within hours. The key insight here is that hotfixes are rarer not because bugs disappear, but because the feedback loop from the 10% staged rollout catches them before they become 'production bugs' requiring emergency intervention. Thus, the primary benefit of the new process is making hotfixes rarer through staged rollouts, while the secondary benefit is making them faster via TestFlight for critical failures.\n\nThe criteria for using feature flags must be strict and clear to prevent flag sprawl and maintain code health in a team without dedicated QA. The rule is simple: any change that affects user-facing logic, introduces new dependencies, or modifies existing business rules must ship behind a feature flag unless it is a trivial UI tweak, copy change, or dependency update that has been tested in the previous release cycle. Specifically, if a change involves adding a new screen, altering an API endpoint’s response, or changing the calculation of a metric, it requires a feature flag with a default value of 'off.' This allows the team to deploy the code to all users via the weekly release while keeping the functionality invisible until confidence is established through the staged rollout. If a change is purely cosmetic (e.g., button color) or fixes a known bug without new logic, it ships enabled by default. This distinction is critical because it allows the team to decouple deployment from activation. In a six-person team with one de-facto release manager, context switching is the enemy. Feature flags allow engineers to merge code into the main branch at any time during the week without fearing immediate exposure of unfinished work. They provide a safety valve for experimental features or high-risk changes. The 'why' behind this rule is risk mitigation: without a QA team, manual verification of every edge case is impossible. Feature flags shift the burden of verification to automated monitoring and staged rollouts. If a flag-gated change causes issues, it can be toggled off instantly in the cloud (if using remote config) or by disabling the feature via the app store phased rollout settings, rather than requiring a code redeployment. This rule ensures that 'ready' does not mean 'released to everyone,' but rather 'coded and tested enough to be deployed safely.' For hotfixes, the rule is inverted: critical bug fixes should be enabled immediately upon release because the goal is remediation, not experimentation. However, these hotfixes must still go through the 10% staged rollout first if possible, or a rapid internal TestFlight verification if the outage is severe, to ensure the fix itself doesn’t introduce new crashes.\n\nThe team will know whether this new process works in three months by measuring four specific metrics that directly correlate with the founders' goals of reduced stress and fewer visible bugs. First, measure the 'Release Cadence Consistency' by tracking the variance in time between releases over 12 weeks. The goal is to achieve a standard deviation close to zero, meaning releases happen every single week on Thursday, regardless of content. If the team misses deadlines or extends cycles beyond 10 days, the process has failed. Second, measure 'Hotfix Frequency' by counting the number of emergency deployments per month. The target is a reduction of at least 50% compared to the previous quarterly average. Since the new process aims to catch bugs via staged rollouts, we expect fewer critical failures that require immediate attention. If hotfixes remain frequent, the staged rollout mechanism is not catching issues, or the code quality is too low for even small batches to be safe. Third, measure 'Mean Time to Recovery (MTTR) for Critical Bugs' by tracking the time from bug identification to fix availability in production. With the new TestFlight and phased rollout strategy, this time should drop from 48 hours to under 12 hours for critical issues, or ideally zero if the phased rollout prevents the leak entirely. Fourth, measure 'App Store Rejection Rate.' The current process suffers from rejections unrelated to changes; by standardizing builds and improving code hygiene through smaller batches, we expect this rate to drop. If rejections persist, it indicates a process issue in build quality rather than content. These metrics are measurable, objective, and directly tied to the success criteria. They do not rely on subjective feelings of stress, although stress reduction is an expected byproduct of predictable cadence and fewer emergencies. The 'in three months' timeframe allows for one quarter of data, providing enough samples to identify trends despite occasional outliers.\n\nThe specific mechanics of the weekly release cycle must be defined to ensure the team can sustain it without heroics. The cycle begins on Monday with a code freeze for the previous week’s release, except for critical hotfixes that are managed via the separate emergency pipeline. Tuesday is dedicated to QA smoke testing and preparing the build for App Store submission. Wednesday morning is the submission deadline for both the main weekly release (to TestFlight/App Store Review) and any pending hotfixes. The 1-3 day review window occurs on Thursday and Friday. By Saturday, the team expects the approval to come through. If approved by Sunday night, the phased rollout activates Monday morning. If rejected, the team has 48 hours (Monday-Tuesday) to address the issue and resubmit, but this is rare if build quality is high. This schedule leverages the weekend as a buffer for review delays, ensuring that 'release day' effectively becomes Monday when users start seeing updates. For engineers, this means no coding on Thursday or Friday for the main release; these days are reserved for bug fixes and next-week prep. This rigid structure prevents scope creep and ensures that 'ready' is a state achieved through planning, not last-minute scrambling. The de-facto release manager’s role shifts from 'firefighter' to 'orchestrator,' focusing on ensuring the submission pipeline is smooth and monitoring the staged rollout metrics. This specialization reduces cognitive load for developers, who can focus on coding during Mon-Wed without fear of breaking the release train. The key to sustainability is discipline: if a feature is not ready by Tuesday, it must be flagged or dropped, not forced into the weekly release. This enforceable rule protects the cadence.\n\nAddressing the constraint of 'no dedicated QA' requires redefining what testing means in this context. Without a QA team, the burden of quality shifts to developers and automated systems. The team must invest heavily in unit tests and integration tests that run on every pull request. Since the codebase is a consumer mobile app, these tests must be fast (<5 minutes) to provide immediate feedback. Additionally, the team must leverage App Store Connect’s built-in crash reporting and beta testing user reports as their primary QA signal. When a staged rollout goes live, developers monitor real-time crash rates and user feedback from the TestFlight group. If crash rates spike by more than 1% relative to baseline, the release is automatically paused (via the App Store console). This automated or semi-automated gating replaces the need for manual regression testing on every build. It allows the team to move fast while maintaining safety nets. The 'rule' for feature flags complements this: since manual QA is absent, any change that could break core functionality is hidden behind a flag until the staged rollout provides confidence. This means that 'testing' becomes an observational activity during the phased rollout rather than a pre-release gate. Developers write tests to ensure local correctness; observers monitor the staged rollout to ensure production stability. This division of labor is efficient for a six-person team and avoids the bottleneck of manual QA sign-offs, which would slow down the weekly cadence.\n\nThe hotfix path requires a specific technical implementation to achieve speed. When a critical bug is found, the lead engineer creates a 'hotfix branch' from main. This branch contains only the fix, with minimal or no new dependencies. The build is generated and uploaded to TestFlight immediately. Simultaneously, a public release is scheduled for the following week’s cadence. The TestFlight release serves two purposes: it validates the fix with a small internal group (the 'safety net') and allows for immediate distribution to critical users if necessary via TestFlight links. However, the true speed gain comes from bypassing the App Store review queue entirely for the initial validation. If the hotfix is accepted by TestFlight users, it is merged into main and included in the next weekly release for public rollout. If it fails in TestFlight, the team reverts immediately without affecting production. This 'fail fast' approach ensures that bad code does not reach the general public. The two-day delay today is due to waiting for review; this process eliminates that wait for validation. The trade-off is that TestFlight users are a small sample size, so false positives or negatives in bug detection are possible. To mitigate this, the team should encourage beta testers to report issues proactively and monitor crash logs closely. The hotfix path is distinct from the weekly path: weekly releases are comprehensive, tested builds; hotfixes are surgical, validated fixes. This distinction prevents the 'stressed' feeling of rushing full releases and allows for calm, targeted emergency responses.\n\nTo ensure the team can keep this cadence without heroics, the definition of 'ready' must be narrowed. A change is only 'ready' when it has passed local tests, peer-reviewed code, and basic smoke tests in the staging environment. If a feature is not complete by Tuesday, it is not included in the weekly release. It sits in the next week’s backlog. This 'all-or-nothing' approach for each weekly cycle prevents partial features from leaking into production via flags that are never turned on or hotfixes that are never tested. The reasoning for this strictness is that partial releases create technical debt and confusion, leading to the very bugs the team wants to avoid. For a six-person team, context switching between half-finished features is expensive. By forcing completion within the week, the team ensures that each release is a coherent, stable unit of value. This reduces the cognitive load on developers and reviewers, making the process feel routine rather than stressful. The 'routine' feeling comes from predictability: every Thursday is release day. Every Friday is reflection and planning. There are no surprises if the discipline is maintained. This structure also helps with the 'review rejection' issue. By submitting early and allowing time for re-submission in case of unexpected rejections, the team avoids last-minute panic. If a build is rejected on Wednesday, there is still Thursday to fix and resubmit before the weekend buffer expires.\n\nThe success of the process will also be measured by developer sentiment and velocity. While hard metrics are primary, soft metrics like 'stress level' should be tracked through regular retrospectives. The founders want releases to feel routine; this can be measured by asking the team if they felt rushed before each release over the three-month period. If the answer is consistently 'no,' and the cadence is maintained, the process is working. Additionally, track the 'lead time for changes,' which is the time from code commit to production deployment. This should stabilize around 7-10 days (one week for development/coding, two days for review). If lead times fluctuate wildly, the process is not routine. The 'stress' reduction should correlate with a decrease in overtime and weekend work. A successful process means developers can go home on Wednesday evening knowing their release is submitted and in review. This psychological safety is a key indicator of success, alongside the hard metrics of fewer hotfixes and faster recovery times.\n\nTo address the 'occasionally rejects the build for reasons unrelated to the change,' the team must implement a rigorous pre-submission checklist. Since they cannot add a platform team, they must automate this checklist in their CI/CD pipeline. The pipeline should check for: 1) API compatibility (no breaking changes to existing endpoints), 2) Deprecation warnings (using removed APIs), and 3) Build configuration (correct provisioning profiles, entitlements). Automated checks reduce the risk of administrative rejections. Additionally, maintain a 'known issues' document shared with Apple/Google support if necessary, but focus on preventing issues through automation. If a build is rejected, the team should have a pre-written response template and a rapid-response engineer assigned to fix it within 24 hours. This reduces the impact of rejections on the cadence.\n\nThe staged rollout logic must be explicitly defined for feature flags. When a flagged feature is enabled via the release, monitor crash rates and error logs for 24 hours. If stable, increase rollout to 50%, then 100% over the next week. If unstable, pause at the current percentage and investigate. This gradual exposure prevents widespread outages. For hotfixes, staged rollout is optional but recommended if time permits; otherwise, TestFlight validation is mandatory. The key is that 'staged' means 'measured,' not just 'slow.'\n\nIn three months, look for a trend line: release cadence stable at 1/week, hotfixes down by 50%, MTTR under 12 hours, and rejections low. If these hold, the process works. The team should also track user complaints about bugs; if they decrease, the staged rollout is effective. This holistic view ensures that both engineering efficiency and user satisfaction improve simultaneously.\n\nFinally, the de-facto release manager must be supported by reducing their administrative burden. Automate build generation, test runs, and store submission. Use tools like Fastlane for iOS/Android automation. This frees the manager to focus on coordination and monitoring rather than manual tasks. Automation is the enabler of high-frequency releases in a small team.\n\nThe constraint of 'no new hires' means efficiency gains must come from process and tooling, not people. Focus on removing friction: streamline PR reviews, automate testing, standardize release steps. This creates a sustainable pace that prevents burnout. The goal is a 'ticking clock' rhythm, not a 'fire drill' rhythm.\n\nBy integrating these elements—weekly cadence, staged rollouts, feature flags, and automated QA—the team transforms from a reactive, stress-filled unit into a proactive, reliable engineering org. The three-month review will validate this transformation through data and sentiment, ensuring alignment with founder goals.",
           "usage": {
-            "inputTokens": 506,
-            "outputTokens": 318,
+            "inputTokens": 536,
+            "outputTokens": 3672,
             "cacheReadTokens": 0,
             "cacheWriteTokens": 0,
             "costUsd": 0
           },
-          "latencyMs": 5168,
-          "at": "2026-11-10T05:06:24.730Z",
-          "passId": "eval:01a1c3d5-4ef5-77b0-a9c3-ae6835c7efd3"
+          "latencyMs": 53940,
+          "at": "2026-11-10T05:18:42.341Z",
+          "passId": "eval:01a1c3e0-93e5-788f-8f83-d9c109a3f12e"
         },
         "baselineCached": false,
         "baselineSkipped": null,
@@ -187,57 +187,57 @@
             "swarm": {
               "cadence": {
                 "score": 3,
-                "reason": "It proposes a bi-weekly cadence and justifies it against the review window and team size, explicitly stating the trade-off of avoiding large risky diffs."
+                "reason": "Proposes a bi-weekly cadence explicitly justified by using the review window as a buffer to handle rejections within the cycle, addressing both time and team predictability."
               },
               "hotfix": {
                 "score": 3,
-                "reason": "It provides a concrete mechanism (pre-release validation via TestFlight/Internal Tracks) that makes hotfixes rarer by catching bugs early, and acknowledges the limits regarding speed vs. internal validation."
+                "reason": "Provides a mechanism (remote config kill switch) that makes hotfixes faster (instant server-side disable) and rarer (prevents deployment of buggy features via flags), with clear limits noted."
               },
               "flags": {
                 "score": 2,
-                "reason": "It states a rule with examples (UI, network, state management) but lacks a clear discipline for retiring flags once they are no longer needed."
+                "reason": "States a rule for flags (user-facing logic/UI) but lacks examples of what is *not* flagged or how to retire them, though it implies governance through the 'off' default."
               },
               "constraints": {
                 "score": 3,
-                "reason": "It fully respects the constraints of six engineers, no QA, and store review times by leveraging existing peer-review processes and internal testing tracks."
+                "reason": "Respects constraints by leveraging existing tools (Firebase Crashlytics, Staged Rollout) and automation, effectively turning the lack of QA into a design choice focused on monitoring."
               },
               "measurement": {
-                "score": 3,
-                "reason": "It names specific metrics (Hotfix Frequency, Review Turnaround Time) with clear targets (<5%, <24 hours) and explains what success or failure looks like."
+                "score": 2,
+                "reason": "Names metrics with targets but lacks explicit 'what to do if missed' steps, though implies process adjustment through the context."
               },
               "correctness": {
                 "score": 3,
-                "reason": "It correctly identifies that mobile app store reviews cannot be bypassed for public users and proposes a realistic strategy of reducing hotfix *frequency* rather than justifying an impossible speed increase for the final store submission."
+                "reason": "Sound and precise about limits (e.g., flags work server-side instantly, staged rollouts auto-halt), correctly leveraging platform capabilities for speed and safety."
               }
             },
             "baseline": {
               "cadence": {
                 "score": 2,
-                "reason": "It proposes a specific two-week cadence justified by balancing the review window and avoiding integration conflicts, but fails to explicitly state the trade-off regarding reduced feedback frequency compared to a weekly schedule."
+                "reason": "Proposes a weekly cadence justified by store review time (allowing a weekend buffer) and team size (reducing context switching), but fails to explicitly state the trade-off of potentially waiting up to 3 days for approval."
               },
               "hotfix": {
-                "score": 1,
-                "reason": "It suggests making hotfixes rarer through continuous delivery but provides no concrete mechanism for faster resolution or specific technical implementation details beyond 'shifting to production environments' which is vague for mobile apps with store reviews."
+                "score": 2,
+                "reason": "Provides a concrete mechanism (TestFlight/Internal Testing) to make hotfixes faster by bypassing public review, but fails to address how this path makes hotfixes rarer or integrates with the staged rollout logic for the general user base."
               },
               "flags": {
                 "score": 2,
-                "reason": "It states a rule (non-trivial changes ship behind flags) but lacks specific examples of what constitutes non-trivial and provides no discipline for flag retirement."
+                "reason": "States a rule with examples (user-facing logic vs. cosmetic changes) but lacks a clear discipline for retiring flags, risking code sprawl."
               },
               "constraints": {
-                "score": 1,
-                "reason": "It respects the team size but suggests deploying to 'production environments instantly' which implies backend-only capabilities or misrepresents mobile app store constraints, as iOS/Android apps cannot be updated instantly without store review."
+                "score": 2,
+                "reason": "Respects the six-engineer/no-QA constraint by relying on automated tests and staged rollouts, but suggests an 'automated' staged rollout pause which is not a standard App Store feature, requiring manual intervention."
               },
               "measurement": {
-                "score": 0,
-                "reason": "It fails to provide any measurable metrics or success criteria for the three-month evaluation."
+                "score": 3,
+                "reason": "Names specific metrics (cadence variance, hotfix frequency, MTTR) with clear targets and explains what failure looks like for each."
               },
               "correctness": {
-                "score": 1,
-                "reason": "It makes questionable claims about mobile app store processes by implying changes can be deployed to production environments instantly without triggering reviews, which contradicts the stated constraints."
+                "score": 2,
+                "reason": "Sound overall, but incorrectly implies TestFlight is a 'hotfix path' that reaches users instantly (it only reaches beta testers, not the general public) and conflates manual pause with automated stopping in App Store Connect."
               }
             },
             "preferred": "swarm",
-            "note": "Answer B is better overall because it provides concrete, feasible mechanisms that respect the strict constraints of app store reviews and lack of QA, whereas Answer A proposes a process that ignores the technical reality of mobile app distribution and fails to define success metrics."
+            "note": "Answer B is better because it offers a more robust and technically accurate solution for the 'hotfix' constraint by using feature flags to make them rarer and instant, whereas A's TestFlight approach only helps beta testers. B also provides a stronger cadence justification that directly addresses the rejection risk."
           },
           {
             "order": {
@@ -246,65 +246,65 @@
             },
             "swarm": {
               "cadence": {
-                "score": 3,
-                "reason": "Proposes a bi-weekly cadence and justifies it by balancing feature accumulation with the 1-3 day review window and avoiding heroic efforts."
+                "score": 2,
+                "reason": "Proposes a bi-weekly cadence justified by the integration buffer of the review window, but lacks a clear statement of trade-offs regarding potential rejections or team capacity limits."
               },
               "hotfix": {
-                "score": 2,
-                "reason": "Provides a concrete mechanism (pre-release validation via TestFlight/Internal tracks) to make hotfixes rarer, acknowledging the store constraint."
+                "score": 3,
+                "reason": "Provides a concrete mechanism (server-side feature flag kill switches) that directly addresses the constraint by bypassing the app store review queue, making hotfixes faster and rarer."
               },
               "flags": {
-                "score": 3,
-                "reason": "States a clear rule (UI/network/state changes behind flags), gives examples, and explains how it acts as a QA gate/kill switch."
+                "score": 2,
+                "reason": "States a clear rule for when to use flags (UI/core logic) but lacks specific details on how flags are retired or cleaned up over time."
               },
               "constraints": {
-                "score": 2,
-                "reason": "Respects the no-QA/no-hire constraints by leveraging existing engineers for peer review and internal validation tracks, though lacks explicit 'retirement' discipline for flags."
+                "score": 3,
+                "reason": "Respects the six-person team and no-QA constraints by relying on automated alerting and platform-native staged rollouts, turning the lack of QA into a design choice for automation."
               },
               "measurement": {
                 "score": 3,
-                "reason": "Names specific metrics (hotfix frequency, review turnaround) with targets (<5%, <24h) and explains what success/failure looks like."
+                "reason": "Names specific metrics (Release Cleanliness, Review Efficiency) with targets (>90%, >85%) and explains what success looks like in three months."
               },
               "correctness": {
-                "score": 3,
-                "reason": "Soundly addresses the store review constraint by distinguishing between validation (internal tracks) and distribution (public release), acknowledging limits."
+                "score": 2,
+                "reason": "Sound overall strategy where flag-based hotfixes bypass store review; however, it slightly overstates Apple's auto-halt capabilities which usually require manual pause or crash-sensitive heuristics."
               }
             },
             "baseline": {
               "cadence": {
                 "score": 3,
-                "reason": "Proposes a two-week cadence with a detailed justification regarding stability, momentum, and review bottlenecks."
+                "reason": "Proposes a weekly cadence with detailed reasoning based on batch size and review time, explicitly stating the trade-off of avoiding logistical bottlenecks."
               },
               "hotfix": {
-                "score": 1,
-                "reason": "Mentions flags to reduce hotfixes but lacks a concrete mechanism for faster fixes or retirement, failing to address the 'faster' aspect effectively for a store-bound app."
+                "score": 2,
+                "reason": "Suggests TestFlight for speed but fails to address the constraint that hotfixes must reach general users; TestFlight does not solve the 'two days to reach users' problem for the majority."
               },
               "flags": {
-                "score": 2,
-                "reason": "States a rule (non-trivial changes behind flags) and gives a general reason, but lacks specific examples of what constitutes 'non-trivial' or retirement discipline."
+                "score": 3,
+                "reason": "Provides a clear rule with examples (user-facing logic vs cosmetic) and mentions retirement/discipline implicitly through the 'ready' definition."
               },
               "constraints": {
-                "score": 1,
-                "reason": "Contains a material error claiming flagged code can be deployed to production without triggering app store reviews for every iteration, which contradicts the iOS/Android constraint."
+                "score": 2,
+                "reason": "Respects constraints by using automation and staged rollouts, but relies heavily on manual monitoring of TestFlight which is risky for a team with no QA."
               },
               "measurement": {
-                "score": 1,
-                "reason": "Describes general benefits (reduced stress, mitigated risk) but fails to name specific measurable metrics or targets for three months."
+                "score": 3,
+                "reason": "Names multiple metrics (Cadence Consistency, Hotfix Frequency, MTTR) with targets and explains how they indicate success or failure."
               },
               "correctness": {
-                "score": 0,
-                "reason": "Contains material errors by claiming that internal deployments for flagged code bypass app store reviews entirely in a way that allows immediate user visibility, which is technically inaccurate for mobile apps."
+                "score": 1,
+                "reason": "Contains a questionable claim that TestFlight 'reaches users' generally; TestFlight is for beta testing and does not distribute to the public app store users, failing to address the core constraint of hotfix speed for all users."
               }
             },
             "preferred": "swarm",
-            "note": "Answer A is significantly better because it respects the technical constraints of mobile app stores and provides actionable, measurable solutions. Answer B fails on correctness by proposing a CI/CD model that doesn't work for store-bound apps and fails on measurement."
+            "note": "Answer A is better because it correctly identifies that server-side feature flags can bypass the app store review process entirely, solving the 'hotfix speed' problem. Answer B incorrectly assumes TestFlight reaches general users or solves the public release delay, which violates the constraints regarding app store review."
           }
         ],
         "judgeSkipped": [],
         "scores": {
-          "swarm": 91.66666666666666,
-          "baseline": 44.047619047619044,
-          "delta": 47.61904761904761,
+          "swarm": 86.90476190476191,
+          "baseline": 75,
+          "delta": 11.904761904761912,
           "winner": "swarm",
           "consistency": 7.142857142857139
         },
@@ -362,43 +362,43 @@
           "statement": "Two developers are building a local-first notes app: text notes with attachments up to 10 MB, on phones and laptops, fully usable offline. They have no server today and want none for the first release, but they plan to offer a paid hosted sync service within a year. Customers will often edit the same note on two devices before either has connected, and they expect not to lose text when that happens.\n\nRecommend how the app should store data on the device and how it should sync, how concurrent edits are reconciled and what the user sees when they conflict, and how the team gets from \"no server\" to a hosted sync service without existing users having to migrate anything. Name the risks of your recommendation and how the team would find out early if one of them is real."
         },
         "swarm": {
-          "runId": "01a1c3da-17f6-7416-a149-ac450ab80a88",
-          "answer": "We recommend adopting a local-first architecture using Automerge for the core text data and standard file system storage for attachments. Each note is stored as an Automerge document (a binary/blob) on disk, containing the text history and metadata. This satisfies the offline requirement by making the local file the single source of truth, while structuring the data in a way that allows a future hosted sync service to simply replicate these blobs without schema migration.\n\nFor attachments up to 10MB, we decouple storage from the CRDT state. Attachments are saved as external files on disk, keyed by content-hash or UUID. The Automerge document stores only the URI or hash reference. This keeps the sync payload lightweight (sending only small metadata changes rather than large binaries) and allows the server to act as a passive key-value store for text blobs and an object storage for attachments.\n\nConcurrent edits are reconciled automatically by Automerge's CRDT engine, which merges text changes based on causal order and device identifiers. This guarantees that no text is lost, even if two devices edit the same note offline. However, because conflict resolution for concurrent inserts is deterministic but invisible to the user (relying on device ID tie-breakers), users may see text appear in an unexpected order. To address this UX risk, we recommend providing a 'conflict preview' mode or clear indicators when divergent edits are detected, allowing users to verify the merged result if desired.\n\nThe migration path from 'no server' to 'hosted sync' is handled via a client-side feature flag. Initially, notes exist only locally. When a user opts into sync, the app generates a unique Document ID for each note and uploads the existing Automerge blob to the new server. Existing users do not need manual data migration; they simply begin pushing their local state to the cloud. The server acts as a replicator, storing the blobs and attachment files transparently.\n\nThe primary risks are CRDT state bloat (mitigated by periodic compaction of the Automerge document) and attachment lifecycle consistency (ensuring the server can serve attachments when the client is offline or local files are lost). To test these early, implement a sync simulation that forces offline editing on two devices and verifies convergence. Additionally, load-test the attachment upload/download flow to ensure referential integrity between the metadata blob and the external files.",
+          "runId": "01a1c3e6-45a5-7a38-b32c-1ef5f9761f9a",
+          "answer": "Recommendation: Adopt Yjs as the local-first sync engine with `y-indexeddb` for persistent storage on both mobile and laptop. This choice satisfies the requirement for handling up to 10MB attachments efficiently via native `Y.Blob` support, avoiding the serialization overhead and performance risks associated with Automerge (H12, H16, H30). The local data model is a single YDoc document stored in IndexedDB, which allows for seamless future migration to a hosted service without data transformation or user intervention (H22, H24, H29).\n\nSync Strategy: Implement an event-driven sync loop where the client listens to local `update` events and pushes deltas/blobs to a Neutral Relay asynchronously. The Neutral Relay acts as a 'Versioned Blob Store' rather than a simple Last-Writer-Wins store (H25, H27). It stores multiple divergent YDoc buffers for each Note ID, keyed by client vector or timestamp. This ensures that no edits are lost during network partitions; if two devices upload conflicting versions, the server keeps both, allowing the clients to fetch all necessary blobs and deterministically merge them using Yjs's CRDT logic (H23, H27).\n\nConflict Reconciliation & UI: Rely on Yjs's automatic deterministic merge for text changes, which prevents data loss without complex LWW strategies. However, because automatic merging can produce unintelligible results in edge cases (e.g., concurrent deletions), implement a 'Transparent Merge with Manual Override' UI pattern (H26). Users will see a 'Show Changes' button that displays a side-by-side diff of local vs. server state when divergence is detected. This allows users to manually resolve conflicts, ensuring no text is lost and providing peace of mind during the transition from offline to online states.\n\nMigration Path: The architecture starts as 'Local-Only' with no server dependency. Existing YDoc structures in IndexedDB are preserved. When the hosted sync service launches, the app simply connects to a new HTTP endpoint that accepts/returns full YDoc buffers (H24). No schema migration is required because the binary format is identical locally and remotely. To prevent 'conflict storms' during initial sync after long offline periods, implement periodic snapshotting (H24), where full snapshots are uploaded and downloaded periodically to reduce bandwidth usage and keep the delta history manageable.\n\nRisks & Validation: The primary risk is performance degradation on mobile devices when syncing large 10MB attachments over cellular networks. Validate this early by building a 'Mock Server' that echoes back data via HTTP GET/POST (H5, H29) and testing the Yjs sync loop with simulated network partitions. A secondary risk is the complexity of implementing a Versioned Blob Store on the server; mitigate this by starting with a simple LWW fallback in the mock server and refining to versioning only if split-brain conflicts are observed during testing (H23, H27). If write latency exceeds 100ms for 10MB files, refactor to a hybrid storage model where blobs are chunked locally before sync.",
           "confidence": 0.85,
           "rounds": 12,
           "status": "completed",
           "reason": "budget_rounds",
-          "entries": 104,
+          "entries": 109,
           "usage": {
-            "inputTokens": 84313,
-            "outputTokens": 17727,
+            "inputTokens": 95952,
+            "outputTokens": 20585,
             "cacheReadTokens": 0,
             "cacheWriteTokens": 0,
             "costUsd": 0
           },
           "costUsd": 0,
-          "elapsedMs": 314939
+          "elapsedMs": 363845
         },
         "swarmError": null,
         "baseline": {
-          "key": "0b88eb0f162efd1d57f73e5213ec5b631d98a0886b679f4cdb7c80637bacce56",
+          "key": "d1c300305b8d2f4bc94d16a8bf9a8701024124ec8a3966caa5091a1961df6ce1",
           "problemId": "local-first-sync",
           "modelId": "qwen3.6:35b-mlx",
           "capUsd": 0,
           "maxOutputTokens": 4096,
           "wordBudget": 2600,
           "truncated": false,
-          "answer": "Recommendation Summary: For on-device storage, use SQLite with a custom schema where each note is stored as plain text JSON containing an array of operations or a CRDT-enabled binary representation, while attachments are stored as files in a local directory with references in the database. For syncing, implement a CRDT-based (Conflict-free Replicated Data Type) approach using Yjs or Automerge for the text content, coupled with a custom file-transfer protocol like WebRTC direct peer-to-peer when on the same network, and a simple HTTP API for the future hosted service. Concurrent edits are reconciled automatically by the CRDT logic, ensuring no data loss; when conflicts arise, the user sees a merged view that preserves all textual contributions, with a UI indicator highlighting potentially ambiguous merges for manual review if necessary. The migration from 'no server' to 'hosted sync' involves building the local database and CRDT structures identically in both phases, so when the hosted service launches, it simply provides a new synchronization endpoint; existing users' data remains in the same local format, requiring no migration.",
+          "answer": "The recommended on-device storage architecture for this local-first notes app is CRDT-based (Conflict-free Replicated Data Type) embedded directly within a robust, native database engine such as SQLite or Realm, augmented by a content-addressable storage layer for attachments. We reject the idea of using a simple key-value store or flat files because they lack the semantic structure required to handle complex text edits and concurrent modifications reliably. We also reject centralized server-side databases like PostgreSQL for the initial phase because the constraint explicitly forbids a server, and building a custom replication protocol from scratch without CRDT semantics is prone to data loss. Instead, we utilize a CRDT library that operates on operational transforms or sequence-based models (such as Yjs, Automerge, or Dat) which are specifically designed for offline-first scenarios. These libraries maintain a state vector for each document, allowing multiple devices to modify the same note independently and then reconcile those changes deterministically upon reconnection. For attachments up to 10MB, we recommend storing files in the device’s filesystem with their SHA-256 hashes as filenames or keys in a local index. This approach ensures data integrity without duplicating storage efforts and allows for efficient deduplication when syncing later.\n\nRegarding the sync strategy, the system must support peer-to-peer synchronization that does not require an initial server handshake. We recommend implementing a 'sync engine' that acts as a middleware layer between the UI and the local database. This engine will expose a standard interface for pushing and pulling changes based on state vectors. When a device goes offline, all edits are applied locally to the CRDT instance. The sync engine queues these changes in a local transaction log. When network connectivity is restored (or when devices are physically close via Bluetooth/Wi-Fi Direct for local sync), the engine initiates a peer-to-peer exchange of state vectors. It identifies divergent versions of each note, applies the CRDT merge algorithm to resolve conflicts at the byte or block level, and updates the local database accordingly. We reject simple file syncing (like Dropbox-style) because it is binary-opaque and cannot handle concurrent text edits without overwriting one user's work entirely. The P2P approach allows for immediate utility offline and lays the groundwork for server-mediated sync later by treating the future server as just another peer in the graph of available storage locations.\n\nConcurrent edit reconciliation should be handled automatically by the CRDT logic, ensuring that no text is lost. For text notes, we recommend using a block-based or character-level CRDT such as Yjs’s YXML/YText or Automerge. These systems allow two users to insert characters at different positions without conflict, and if they insert at the same position, the system uses a deterministic tie-breaking rule (such as session ID or logical clock) to order the characters. The user should never see a 'merge conflict' UI for text unless the edit involves structural changes that are semantically ambiguous (e.g., one user adds a header while another deletes it). In such cases, the CRDT merges both additions if they can coexist, or keeps them separate if they cannot. If the system encounters a true semantic conflict where two versions of a note diverge irreconcilably, the app should present a unified view showing both versions side-by-side or in a thread, allowing the user to manually select the preferred version. However, for 95% of text edits, the reconciliation should be silent and automatic, preserving all characters from both devices.\n\nThe migration path from 'no server' to a hosted sync service must be seamless and require no manual migration for existing users. The key insight is to design the initial local storage structure to be compatible with the eventual remote storage schema. Initially, the app will have a 'local-only' mode where the CRDT state is stored solely on the device. We will introduce a virtual 'sync peer' concept in the codebase from day one. When the hosted service launches, it will act as a new sync peer for existing clients. The client’s sync engine will already be capable of negotiating with multiple peers. To migrate users, we do not need to move their data; we simply need to make their local CRDT state available to the server. We can achieve this by having the app periodically (or on-demand) upload a 'state snapshot' or delta log to the new hosted service. The server stores these snapshots in a cloud-compatible format. Future devices can sync with the server, and existing devices can also sync with the server once they connect. Crucially, because CRDTs are commutative and associative, the order of synchronization does not matter. An existing user who edits on Device A while offline can later sync with the hosted service; the server will merge Device A’s changes with any other device that has already synced with it. There is no 'migration' of data files; rather, the data becomes distributed across multiple reliable peers.\n\nA critical risk in this architecture is the 'storage explosion' problem inherent in CRDTs. As users edit notes extensively, the internal history (or log) within the CRDT structure can grow indefinitely, leading to bloated local storage and slow sync times. To mitigate this, we must implement a compaction strategy where the CRDT periodically merges its internal operations into a single state snapshot, pruning redundant history. Another risk is the complexity of debugging conflict resolution logic. Since conflicts are handled algorithmically rather than manually, bugs in the merge function can lead to silent data corruption or loss. The team must also consider the security of attachments; storing 10MB files locally without encryption exposes sensitive data if the device is stolen. We recommend implementing end-to-end encryption for the sync channel and local storage encryption.\n\nThe second major risk is the complexity of implementing a robust P2P sync engine from scratch. Developing a custom CRDT backend can be time-consuming for two developers. An alternative approach might involve using existing frameworks like Joplin or Standard Notes’ open-source models, but these may be too heavy or restrictive. A third risk is the 'split-brain' scenario where devices are connected to different servers or no server at all, leading to divergent histories that are difficult to reconcile without a central truth. To address this, we must ensure that the CRDT choice supports multi-peer consistency and that the sync protocol allows for efficient resolution of divergences.\n\nTo mitigate these risks, the team should conduct rigorous unit testing of the CRDT logic with edge cases involving concurrent insertions, deletions, and moves. They should also perform load testing to measure storage growth over time. For the migration risk, they can simulate the transition by introducing a dummy server early on to test the client’s ability to sync with multiple peers. Regular user feedback loops are essential to verify that the 'silent' conflict resolution meets user expectations for data preservation.\n\nThe recommended storage choice is a hybrid of a relational-like local database (SQLite/Realm) for metadata and attachments, coupled with a CRDT engine (like Yjs or Automerge) for text content. This separation allows efficient querying of notes while preserving the flexibility of CRDTs for text editing. We reject pure NoSQL local databases because they lack native support for complex text structures. We also reject cloud-only solutions because they violate the offline-first constraint. The sync strategy relies on state-vector based peer-to-peer exchange, ensuring that changes are applied deterministically regardless of network topology.\n\nConcurrent edits are reconciled automatically by the CRDT algorithm, which treats text as a sequence of characters or blocks with unique IDs. If two users edit the same character, the system uses a deterministic tie-breaker to order them. If edits are non-overlapping, they are both preserved. The user sees no conflict unless the edit involves structural changes that cannot be merged semantically. In such cases, the app presents a 'merge view' showing both versions side-by-side, allowing the user to choose or manually merge. This approach minimizes user friction while ensuring data integrity.\n\nThe migration path leverages the commutative property of CRDTs. Existing users’ local data remains untouched. When the hosted service launches, it registers as a new peer. Clients automatically sync with this peer when online. The server stores snapshots or deltas in a compatible format. Future devices can sync with the server, and existing devices continue to function locally while syncing with the server when possible. There is no manual migration; the data simply becomes accessible via a new reliable peer.\n\nKey risks include storage bloat due to CRDT history growth, complexity of implementing P2P sync correctly, and potential for silent data corruption in conflict resolution. Mitigation strategies include implementing periodic compaction of CRDT logs, using well-tested open-source CRDT libraries where possible, and extensive testing with simulated concurrent edits. The team should also plan for end-to-end encryption to protect sensitive data.\n\nEarly validation can be achieved by building a prototype that simulates offline editing on two devices and then syncing them via a local network or file exchange. This tests the core CRDT logic and sync protocol without needing a server. The team can also conduct user testing with mock 'conflict' scenarios to ensure the UX is clear and data preservation is effective. Monitoring storage growth metrics during development will help identify potential bloat issues early.\n\nIn conclusion, this approach balances the need for robust offline functionality with future scalability. By using CRDTs for text and a hybrid local database structure, the app ensures data integrity and flexibility. The P2P sync strategy facilitates a seamless transition to hosted services. Risks are managed through careful architecture choices, rigorous testing, and user-centric design. This plan supports the team’s constraints while paving the way for sustainable growth.",
           "usage": {
-            "inputTokens": 506,
-            "outputTokens": 231,
+            "inputTokens": 536,
+            "outputTokens": 1982,
             "cacheReadTokens": 0,
             "cacheWriteTokens": 0,
             "costUsd": 0
           },
-          "latencyMs": 3914,
-          "at": "2026-11-10T05:12:07.475Z",
-          "passId": "eval:01a1c3d5-4ef5-77b0-a9c3-ae6835c7efd3"
+          "latencyMs": 28544,
+          "at": "2026-11-10T05:26:14.509Z",
+          "passId": "eval:01a1c3e0-93e5-788f-8f83-d9c109a3f12e"
         },
         "baselineCached": false,
         "baselineSkipped": null,
@@ -411,49 +411,49 @@
             "swarm": {
               "storage": {
                 "score": 3,
-                "reason": "Recommendates Automerge for text and file system for attachments, explicitly rejecting schema-heavy DBs by tying the decision to offline-first reliability and lightweight sync payloads."
+                "reason": "Answer A recommends a specific engine (Yjs) and storage (IndexedDB), rejecting alternatives like Automerge based on specific performance constraints relevant to the app's size limits."
               },
               "conflicts": {
                 "score": 2,
-                "reason": "Explains CRDT merging and user-visible behavior but fails to discuss specific failure modes like attachment loss or long-term offline drift."
+                "reason": "It describes automatic merging via CRDTs but only partially addresses the failure mode by suggesting a 'Show Changes' UI for unintelligible results, without explicitly detailing edge cases like concurrent deletes."
               },
               "migration": {
                 "score": 3,
-                "reason": "Provides a concrete path using client-side feature flags and direct blob uploads, addressing the 'no migration' constraint effectively."
+                "reason": "It provides a concrete path where the local YDoc binary format is identical to what would be stored remotely, ensuring zero migration overhead and addressing snapshotting for large offline periods."
               },
               "correctness": {
-                "score": 3,
-                "reason": "The technical approach of decoupling text (CRDT) from attachments (files) is sound and fits the constraints of local-first architecture."
+                "score": 2,
+                "reason": "The recommendation of Yjs with IndexedDB is technically sound for this use case, though the description of 'Y.Blob' support in standard Yjs requires specific setup not fully detailed, but the core logic is correct."
               },
               "risks": {
-                "score": 2,
-                "reason": "Identifies risks like state bloat and attachment consistency with tests, but lacks a specific fallback plan if these signals fire."
+                "score": 3,
+                "reason": "It identifies performance risks with large attachments and complexity, providing specific early tests (mock server, simulated partitions) and a clear fallback (chunking/hybrid storage) if latency thresholds are exceeded."
               }
             },
             "baseline": {
               "storage": {
-                "score": 1,
-                "reason": "Recommends SQLite with JSON/CRDT mixed storage but provides no rejected alternatives or reasoning tied to constraints."
+                "score": 3,
+                "reason": "It recommends a hybrid approach (SQLite/Realm for metadata, CRDT for text) and rejects alternatives with clear reasons tied to offline constraints and semantic structure requirements."
               },
               "conflicts": {
                 "score": 2,
-                "reason": "Describes automatic merging and user visibility but lacks detail on specific failure modes like deletes or offline duration."
+                "reason": "It explains automatic reconciliation via CRDTs and side-by-side UI for structural conflicts, but fails to address how the system behaves if it encounters irreconcilable states or silent corruption beyond a general 'merge view'."
               },
               "migration": {
                 "score": 2,
-                "reason": "Suggests identical local structures to avoid migration, which is a valid high-level path, though less concrete than A's blob approach."
+                "reason": "It describes a path using a 'sync peer' concept and state snapshots, but is less precise than A regarding the actual data format compatibility, relying more on the abstract property of commutativity."
               },
               "correctness": {
-                "score": 1,
-                "reason": "The suggestion to use WebRTC for sync alongside a server introduces significant complexity and potential correctness issues for a two-person team with no server currently."
+                "score": 2,
+                "reason": "The advice to use SQLite for text editing alongside CRDTs is architecturally complex and potentially problematic for offline consistency compared to a native CRDT storage engine, but the overall logic is sound enough."
               },
               "risks": {
-                "score": 0,
-                "reason": "Does not name specific risks or early detection methods, failing the criteria entirely."
+                "score": 2,
+                "reason": "It identifies storage bloat and complexity risks with testing strategies (unit tests, load tests), but lacks specific fallback plans if those risks materialize during development."
               }
             },
             "preferred": "swarm",
-            "note": "Answer A is better because it provides a specific, coherent technical recommendation (Automerge + Files) that directly addresses all constraints and success criteria, whereas Answer B is vague on storage alternatives and critically fails the 'risks' criterion."
+            "note": "Answer A is better because it provides a more concrete, technically precise storage recommendation (Yjs/IndexedDB) that directly addresses the attachment size constraint and offers a clearer, format-preserving migration path with specific fallback strategies for performance risks."
           },
           {
             "order": {
@@ -462,59 +462,59 @@
             },
             "swarm": {
               "storage": {
-                "score": 3,
-                "reason": "Answer B recommends Automerge (CRDT) for text and file system for attachments, explicitly rejecting monolithic storage to satisfy offline/attachment constraints, and justifying the separation for lightweight sync payloads."
+                "score": 2,
+                "reason": "It recommends Yjs + IndexedDB, but the justification for rejecting Automerge is weak (performance overhead), and it fails to adequately address how large binary attachments are stored efficiently in a browser-native DB vs file system."
               },
               "conflicts": {
                 "score": 2,
-                "reason": "It explains that Automerge merges based on causal order/device IDs and describes the user-visible behavior (text appearing in unexpected order) with a specific mitigation (conflict preview), though it misses detailing the failure mode for attachments or long offline periods."
+                "reason": "It explains automatic merging and a manual override UI, but does not detail the specific behavior for complex offline scenarios or where the mechanism fails (e.g., attachment handling), focusing more on server-side logic than client-side reconciliation."
               },
               "migration": {
-                "score": 3,
-                "reason": "It details a concrete path using client-side feature flags and unique Document IDs to upload existing local state to the server, ensuring zero manual migration for users, and implicitly handles identity management."
+                "score": 2,
+                "reason": "It proposes using YDoc buffers directly, which is a valid binary-compatible path, but assumes a 'Neutral Relay' architecture that isn't fully explained in terms of the initial 'no server' constraint's impact on identity management."
               },
               "correctness": {
-                "score": 2,
-                "reason": "The technical claim that Automerge can serve as the local-first store while attachments are keyed externally is sound for a local-first architecture, though it simplifies the complexity of maintaining referential integrity between blob and file storage."
+                "score": 1,
+                "reason": "It claims Yjs handles 10MB attachments efficiently via native Y.Blob support to avoid serialization overhead, which is technically questionable for browser-based IndexedDB performance at that size and ignores the mobile filesystem constraint entirely."
               },
               "risks": {
                 "score": 2,
-                "reason": "It identifies state bloat and attachment lifecycle consistency as risks with specific tests (sync simulation, load testing), but fails to provide a fallback plan if these signals fire, missing the third element of the top anchor."
+                "reason": "It names performance degradation as a risk and suggests mock server testing, but lacks a comprehensive fallback strategy or early detection signal for data loss/corruption risks inherent in local-first apps."
               }
             },
             "baseline": {
               "storage": {
-                "score": 2,
-                "reason": "Answer A recommends SQLite for storage but fails to tie this choice to specific constraints like offline-first reliability or attachment handling, merely listing alternatives without rejecting them based on the problem's specific offline/attachment requirements."
+                "score": 3,
+                "reason": "Answer A recommends a specific hybrid architecture (CRDT library like Yjs/Automerge + SQLite) and explicitly rejects key-value stores and centralized databases with clear reasons tied to offline constraints and data loss risks."
               },
               "conflicts": {
-                "score": 1,
-                "reason": "It claims CRDTs ensure no data loss but fails to explain *how* edits are merged (mechanism) or specifically address what the user sees during conflicts beyond a vague 'merged view' and 'indicator', lacking the required detail on user-visible behavior."
+                "score": 3,
+                "reason": "It details the automatic merge mechanism of CRDTs, specifies the deterministic tie-breaking for conflicts, and describes the user-visible behavior (silent merge vs. side-by-side view) while acknowledging semantic conflict failures."
               },
               "migration": {
                 "score": 2,
-                "reason": "It provides a concrete path where local DB structure matches future server needs, avoiding migration, but misses the nuance of how identity is established for the new service without disrupting existing users."
+                "reason": "It proposes a clear path where the server acts as a new peer in the existing P2P graph, leveraging CRDT commutativity, though it suggests uploading 'state snapshots' which might imply some schema alignment rather than pure binary compatibility."
               },
               "correctness": {
-                "score": 1,
-                "reason": "It claims storing notes as 'plain text JSON' inside SQLite while using CRDTs is a coherent technical approach, but this is technically inconsistent; CRDTs like Yjs/Automerge typically operate on binary or specific structured types, not raw plain text JSON which breaks the merge logic described."
+                "score": 3,
+                "reason": "The technical claims regarding CRDTs, offline-first patterns, and SHA-256 for deduplication are sound and fit the constraints of a local-first app with attachments."
               },
               "risks": {
-                "score": 1,
-                "reason": "It names no risks explicitly in the summary provided, failing to address the rubric requirement for identifying main risks and early detection methods."
+                "score": 3,
+                "reason": "It identifies storage bloat (CRDT history growth) and silent data corruption as main risks, and suggests specific early tests like unit testing edge cases and load testing for storage growth."
               }
             },
-            "preferred": "swarm",
-            "note": "Answer B is better overall because it provides a technically sounder and more constrained recommendation for storage (separating text CRDT from binary attachments) and offers a clearer migration path, whereas Answer A contains technical contradictions regarding data format and ignores the risks section entirely."
+            "preferred": "baseline",
+            "note": "Answer A is better overall because it provides a more robust, realistic technical recommendation for a mobile app (using native storage for attachments rather than browser-centric IndexedDB limitations), correctly addresses the CRDT conflict resolution details, and identifies critical risks like storage bloat with appropriate mitigation strategies."
           }
         ],
         "judgeSkipped": [],
         "scores": {
-          "swarm": 83.33333333333334,
-          "baseline": 45.83333333333333,
-          "delta": 37.500000000000014,
-          "winner": "swarm",
-          "consistency": 4.166666666666668
+          "swarm": 73.61111111111111,
+          "baseline": 81.94444444444443,
+          "delta": -8.333333333333314,
+          "winner": "tie",
+          "consistency": 22.22222222222222
         },
         "costUsd": 0
       }
@@ -524,17 +524,17 @@
     "aggregate": {
       "problems": 2,
       "judged": 2,
-      "swarmMean": 87.5,
-      "baselineMean": 44.94047619047619,
-      "meanDelta": 42.55952380952381,
-      "wins": 2,
+      "swarmMean": 80.2579365079365,
+      "baselineMean": 78.47222222222221,
+      "meanDelta": 1.785714285714299,
+      "wins": 1,
       "losses": 0,
-      "ties": 0,
+      "ties": 1,
       "firstShownPreferred": {
-        "count": 2,
+        "count": 3,
         "of": 4
       },
-      "consistency": 5.654761904761903
+      "consistency": 14.68253968253968
     }
   }
 }
