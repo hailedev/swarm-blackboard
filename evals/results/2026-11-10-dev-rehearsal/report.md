@@ -1,8 +1,8 @@
 # Eval pass: dev-rehearsal
 
-- Pass id: `01a1c397-7eae-7298-843f-b2e60dfed824`
-- Started: 2026-11-10T03:54:07.919Z; ended: 2026-11-10T04:04:57.770Z
-- Controller commit: `c30ff8e`
+- Pass id: `01a1c3a3-3329-7736-8508-4e154ee6e69b`
+- Started: 2026-11-10T04:06:55.017Z; ended: 2026-11-10T04:16:50.134Z
+- Controller commit: `538a51e`
 - Swarm profile: `dev`
   - planner: `local-fast` (ollama/qwen3.6:35b-mlx)
   - researcher: `local-fast` (ollama/qwen3.6:35b-mlx)
@@ -20,12 +20,12 @@
 
 | | Swarm | Baseline |
 |---|---|---|
-| Mean rubric score | 77.8% | 8.3% |
+| Mean rubric score | 74.3% | 83.3% |
 | Judged pairs | 2 of 2 | |
-| Wins / ties / losses (swarm) | 2 / 0 / 0 | |
-| Mean delta (swarm − baseline) | +69.4 points | |
-| Judge consistency (spread between orders) | 11.1 points | |
-| First-shown answer preferred | 2 of 4 decided judgements | |
+| Wins / ties / losses (swarm) | 0 / 1 / 1 | |
+| Mean delta (swarm − baseline) | -9.0 points | |
+| Judge consistency (spread between orders) | 18.8 points | |
+| First-shown answer preferred | 3 of 4 decided judgements | |
 
 With 2 judged pairs, a difference smaller than the judge's own consistency figure is not evidence of anything. The swarm's spend includes every traced call of its runs; the baseline's cap was each run's cost.
 
@@ -33,10 +33,10 @@ With 2 judged pairs, a difference smaller than the judge's own consistency figur
 
 | Problem | Run | Rounds | End | Swarm cost | Baseline cap → cost | Swarm | Baseline | Δ | Winner | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| mobile-release-cadence | `01a1c397-7eaf-794c-ab9c-04b0ebdf9e9a` | 12 | completed/budget_rounds | $0.0000 | $0.0000 → $0.0000 | 73.6% | 0.0% | +73.6 | swarm |  |
-| local-first-sync | `01a1c39c-5d4e-727c-b377-4ada4aa2383b` | 12 | completed/budget_rounds | $0.0000 | $0.0000 → $0.0000 | 81.9% | 16.7% | +65.3 | swarm |  |
+| mobile-release-cadence | `01a1c3a3-3329-7707-9468-42786eae2c39` | 8 | completed/completed | $0.0000 | $0.0000 → $0.0000 | 73.6% | 94.4% | -20.8 | baseline |  |
+| local-first-sync | `01a1c3a6-ae1a-7a0a-9973-580a9e4f22f0` | 12 | completed/budget_rounds | $0.0000 | $0.0000 → $0.0000 | 75.0% | 72.2% | +2.8 | tie |  |
 
 ## Pairs written out
 
-- `pairs/mobile-release-cadence.md` — the swarm's widest win
-- `pairs/local-first-sync.md` — the baseline's widest win
+- `pairs/local-first-sync.md` — the swarm's widest win
+- `pairs/mobile-release-cadence.md` — the baseline's widest win

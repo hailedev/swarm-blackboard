@@ -1,0 +1,18 @@
+{
+  "key": "b5cc2bdccce49e3934b327dc02c8f654837d0966252a67ceb75b0fc205fc664f",
+  "problemId": "mobile-release-cadence",
+  "modelId": "qwen3.6:35b-mlx",
+  "capUsd": 0,
+  "maxOutputTokens": 4096,
+  "answer": "Adopt a weekly release cadence with mandatory staged rollouts, shifting the burden from 'heroic' monthly shipping to routine, manageable weekly cycles. This frequency balances the team's ability to maintain code quality against the friction of app store reviews; shipping every week allows for small, digestible changes that are easier to review and debug than large monthly bundles, while avoiding the burnout risk of daily deployments given the 1-3 day review delay. The 'release manager' engineer facilitates a lightweight Friday planning check to ensure any code ready by Wednesday is bundled, ensuring the process remains predictable and stress-free.\n\nImplement a mandatory staged rollout for all updates where any non-trivial change (UI, logic, or API interaction) ships behind a feature flag or percentage-based release. Since the team has no dedicated QA, automated unit tests and a 'feature flag toggle' are the primary safety nets. A change goes behind a feature flag if it introduces new logic paths, modifies existing user-facing behavior, or touches critical infrastructure; if it is purely cosmetic (e.g., color change) or backend-only with no UI impact, it may ship fully. This ensures that even if a bug slips through Apple's review, only 10-20% of users are affected initially, allowing the team to kill the release via feature flag or push a hotfix update while minimizing user-visible impact.\n\nReduce hotfix latency by decoupling hotfixes from the main app bundle when possible. For UI/content bugs, use backend configuration changes or remote config flags to disable features instantly without an App Store review, effectively making the 'hotfix' time zero for those cases. For code-level hotfixes that require a new build, maintain a streamlined, pre-approved CI/CD pipeline specifically for 'emergency' builds with priority support from the release manager and designated Apple Developer contacts who can expedite reviews if needed. While full app store review still takes 24-48 hours, this process is faster than the current ad-hoc approach because it is triggered immediately and prioritized, and the use of staged rollouts makes actual code hotfixes rarer by catching issues early in the smaller release window.\n\nMeasure success in three months by tracking two key metrics: (1) The 'Mean Time to Recovery' (MTTR) for production issues, targeting a reduction from 48 hours to under 24 hours (or near-instant via remote config), and (2) The rate of post-release hotfixes per release cycle, targeting a decrease from 25% to under 10%. If the team can ship weekly without burnout, maintain low hotfix rates due to staged rollouts catching bugs early, and recover faster from inevitable issues using flags/config, the process is working. Additionally, gather qualitative feedback from the team on stress levels; if releases feel 'routine' rather than 'crises,' the behavioral goal is met.",
+  "usage": {
+    "inputTokens": 451,
+    "outputTokens": 616,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "costUsd": 0
+  },
+  "latencyMs": 9478,
+  "at": "2026-11-10T04:10:13.079Z",
+  "passId": "eval:01a1c3a3-3329-7736-8508-4e154ee6e69b"
+}
