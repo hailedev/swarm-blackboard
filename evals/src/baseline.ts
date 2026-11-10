@@ -41,12 +41,12 @@ export const BASELINE_SYSTEM = [
   'Return JSON matching the schema: `paragraphs` is the answer as an array of strings, one',
   'paragraph per element in plain markdown with no line breaks inside it; a heading or a',
   'list item is its own element. The prompt ends with the length you have: plan the answer',
-  'to fit it and finish inside it, since anything past it is cut off. A complete answer',
-  'beats a long one.',
+  'to use most of it and to finish inside it, since anything past it is cut off. Explain',
+  'rather than summarise while there is room; do not pad once the point is made.',
 ].join(' ');
 
 /** Bump when the system prompt, the answer shape or the prompt layout changes, so cached answers are redone. */
-export const BASELINE_PROMPT_VERSION = 3;
+export const BASELINE_PROMPT_VERSION = 4;
 
 export const BaselineAnswerSchema = z.object({ paragraphs: z.array(z.string().min(1)).min(1) });
 
@@ -67,8 +67,10 @@ export const wordBudgetFor = (maxOutputTokens: number): number =>
       WORD_BUDGET_STEP,
   );
 
+// Worded to be used, not just obeyed: told only to "fit in N words", a local model in the
+// rehearsal wrote a tenth of its budget as one paragraph (evals/results/2026-11-10-dev-rehearsal).
 export const baselinePrompt = (problem: Problem, wordBudget: number): string =>
-  `${problemText(problem)}\n\nLength: the whole answer, all paragraphs together, must fit in about ${String(wordBudget)} words. Stop before that rather than run past it.`;
+  `${problemText(problem)}\n\nLength: you have about ${String(wordBudget)} words for the whole answer, all paragraphs together. Use most of them: a thorough answer that fills the room beats a terse one, and anything past the limit is cut off.`;
 
 /**
  * The key a cached answer must still match: the problem text, the prompt layout and the

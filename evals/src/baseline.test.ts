@@ -63,7 +63,7 @@ describe('sizeBaseline and generateBaseline', () => {
     // The prompt states the budget as words derived from the allowance that fits.
     expect(wordBudget).toBe(wordBudgetFor(fit.fits ? fit.maxOutputTokens : 0));
     expect(wordBudget).toBeLessThan(fit.fits ? fit.maxOutputTokens : 0);
-    expect(prompt).toContain(`must fit in about ${String(wordBudget)} words`);
+    expect(prompt).toContain(`you have about ${String(wordBudget)} words`);
     expect(prompt).toContain('Do the thing.');
     const generated = await generateBaseline(
       { model, problem, capUsd: 0.01, maxOutputTokens: 4_096 },

@@ -1,18 +1,20 @@
 {
-  "key": "b5cc2bdccce49e3934b327dc02c8f654837d0966252a67ceb75b0fc205fc664f",
+  "key": "f687c43b1720ee696e75dec6287692e82a6de05e1c62cf593fb2b72d4a178416",
   "problemId": "mobile-release-cadence",
   "modelId": "qwen3.6:35b-mlx",
   "capUsd": 0,
   "maxOutputTokens": 4096,
-  "answer": "Adopt a weekly release cadence with mandatory staged rollouts, shifting the burden from 'heroic' monthly shipping to routine, manageable weekly cycles. This frequency balances the team's ability to maintain code quality against the friction of app store reviews; shipping every week allows for small, digestible changes that are easier to review and debug than large monthly bundles, while avoiding the burnout risk of daily deployments given the 1-3 day review delay. The 'release manager' engineer facilitates a lightweight Friday planning check to ensure any code ready by Wednesday is bundled, ensuring the process remains predictable and stress-free.\n\nImplement a mandatory staged rollout for all updates where any non-trivial change (UI, logic, or API interaction) ships behind a feature flag or percentage-based release. Since the team has no dedicated QA, automated unit tests and a 'feature flag toggle' are the primary safety nets. A change goes behind a feature flag if it introduces new logic paths, modifies existing user-facing behavior, or touches critical infrastructure; if it is purely cosmetic (e.g., color change) or backend-only with no UI impact, it may ship fully. This ensures that even if a bug slips through Apple's review, only 10-20% of users are affected initially, allowing the team to kill the release via feature flag or push a hotfix update while minimizing user-visible impact.\n\nReduce hotfix latency by decoupling hotfixes from the main app bundle when possible. For UI/content bugs, use backend configuration changes or remote config flags to disable features instantly without an App Store review, effectively making the 'hotfix' time zero for those cases. For code-level hotfixes that require a new build, maintain a streamlined, pre-approved CI/CD pipeline specifically for 'emergency' builds with priority support from the release manager and designated Apple Developer contacts who can expedite reviews if needed. While full app store review still takes 24-48 hours, this process is faster than the current ad-hoc approach because it is triggered immediately and prioritized, and the use of staged rollouts makes actual code hotfixes rarer by catching issues early in the smaller release window.\n\nMeasure success in three months by tracking two key metrics: (1) The 'Mean Time to Recovery' (MTTR) for production issues, targeting a reduction from 48 hours to under 24 hours (or near-instant via remote config), and (2) The rate of post-release hotfixes per release cycle, targeting a decrease from 25% to under 10%. If the team can ship weekly without burnout, maintain low hotfix rates due to staged rollouts catching bugs early, and recover faster from inevitable issues using flags/config, the process is working. Additionally, gather qualitative feedback from the team on stress levels; if releases feel 'routine' rather than 'crises,' the behavioral goal is met.",
+  "wordBudget": 2600,
+  "truncated": false,
+  "answer": "Recommendation: The team should adopt a continuous delivery model with a two-week release cadence for full releases, supported by a feature-flag gating mechanism where all non-trivial changes ship immediately behind flags. This approach fundamentally shifts the team from 'shipping when ready' to 'shipping daily,' thereby decoupling code integration from user visibility. By flagging most features and bugs, the team can deploy to production environments instantly for internal validation without triggering app store reviews for every iteration. The actual App Store release becomes a scheduled event every two weeks, where only tested, un-flagged code is submitted. This reduces stress by normalizing deployment and mitigates hotfix risks by ensuring that 90% of changes are invisible to users until they are deemed safe.\n\nThe primary reason for adopting a two-week cadence is to balance stability with momentum while respecting the App Store review bottleneck. A weekly cadence may be too aggressive given the one-to-three-day review window and the risk of rejection, which could cause deployment collisions if multiple branches are in flight. However, waiting three to five weeks creates a 'batching' effect where too many changes accumulate, increasing the probability of integration conflicts and making regression testing exponentially harder. Two weeks is a standard agile sprint length that allows for sufficient development time while keeping the feedback loop short enough to catch major issues before they reach users. This cadence ensures that if a release fails, the next one is only two weeks away, preventing long periods of stagnation or buggy exposure.",
   "usage": {
-    "inputTokens": 451,
-    "outputTokens": 616,
+    "inputTokens": 506,
+    "outputTokens": 318,
     "cacheReadTokens": 0,
     "cacheWriteTokens": 0,
     "costUsd": 0
   },
-  "latencyMs": 9478,
-  "at": "2026-11-10T04:10:13.079Z",
-  "passId": "eval:01a1c3a3-3329-7736-8508-4e154ee6e69b"
+  "latencyMs": 5168,
+  "at": "2026-11-10T05:06:24.730Z",
+  "passId": "eval:01a1c3d5-4ef5-77b0-a9c3-ae6835c7efd3"
 }
