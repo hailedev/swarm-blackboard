@@ -33,6 +33,10 @@ rubric:
     weight: 2
     criterion: Names what to measure in three months and what result would count as success or failure.
     scale: "0 = nothing measurable; 1 = a metric with no target; 2 = metrics with targets; 3 = metrics with targets and what to do if they are missed."
+  - id: correctness
+    weight: 2
+    criterion: Claims about app-store review, staged rollouts and feature flags hold up, and the parts fit together.
+    scale: "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
 ---
 A six-person team builds a consumer mobile app for iOS and Android. Each release must pass app-store review, which takes one to three days and occasionally rejects the build for reasons unrelated to the change. Today the team ships "when things are ready", roughly every three to five weeks, and about one release in four is followed by a hotfix that takes two days to reach users because of the review queue. The founders want releases to feel routine rather than stressful, and they want users to stop seeing bugs that a staged rollout would have caught.
 

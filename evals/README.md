@@ -48,7 +48,7 @@ rubric:                       # 3–6 criteria
 The statement both arms receive, verbatim.
 ```
 
-The statement, constraints and success criteria go to the swarm as its `problem` entry and to the baseline as its prompt. The baseline answers as an array of paragraphs that the harness joins with a blank line, the shape the Synthesizer uses, because a local model under a JSON `format` may not be able to emit a line break inside a string (ADR-0008). The judge sees the statement, the constraints, the success criteria, each criterion with its scale (not its weight) and the two answers as "Answer A" and "Answer B". A problem should be answerable from general knowledge in text, since v1 agents have no tools.
+The statement, constraints and success criteria go to the swarm as its `problem` entry and to the baseline as its prompt. The baseline answers as an array of paragraphs that the harness joins with a blank line, the shape the Synthesizer uses, because a local model under a JSON `format` may not be able to emit a line break inside a string (ADR-0008). Its prompt ends with the length it has, as a word count derived from the output allowance that fits the cap; an answer that still uses its whole allowance is reported as truncated. Before judging, every board handle (H16, E24, …) is removed from both answers so the judge cannot tell the arms apart; the report and the pair files keep the original text. The judge sees the statement, the constraints, the success criteria, each criterion with its scale (not its weight) and the two answers as "Answer A" and "Answer B". A problem should be answerable from general knowledge in text, since v1 agents have no tools.
 
 ## Reading a report
 

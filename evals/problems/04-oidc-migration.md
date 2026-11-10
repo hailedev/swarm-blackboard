@@ -33,6 +33,10 @@ rubric:
     weight: 2
     criterion: Identifies the point of no return and what is decommissioned after it.
     scale: "0 = not addressed; 1 = 'turn off the old system'; 2 = a defined cutover with a criterion for reaching it; 3 = cutover criterion, monitoring for a week after, and the cleanup list."
+  - id: correctness
+    weight: 2
+    criterion: Claims about OIDC, bcrypt, sessions and what the identity provider can do hold up, and the steps fit together.
+    scale: "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
 ---
 A product company runs a monolith with its own login: usernames, bcrypt password hashes and server-side sessions, about 40,000 active users. It has bought a hosted identity provider that speaks OIDC and can migrate credentials through a hook at login time. Three engineers have one quarter, alongside their product work, to move authentication to the provider. There may be no planned downtime, no forced password reset, and no step that cannot be undone within an hour if it goes wrong.
 

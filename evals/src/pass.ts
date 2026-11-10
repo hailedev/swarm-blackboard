@@ -17,6 +17,7 @@ import {
 } from './baseline';
 import {
   blindOrder,
+  blindText,
   JUDGE_SYSTEM,
   judgePrompt,
   judgementSchema,
@@ -249,6 +250,7 @@ const runProblem = async (
     );
     if (!generated.ok) {
       if (generated.error.kind === 'invalid_output') budget.charge(generated.error.usage.costUsd);
+      if (generated.error.kind === 'truncated') budget.charge(generated.error.usage.usage.costUsd);
       result.baselineSkipped = describeBaselineError(generated.error);
       deps.log(`   baseline skipped: ${result.baselineSkipped}`);
     } else {
@@ -256,7 +258,7 @@ const runProblem = async (
       await deps.cache.put(generated.value);
       result.baseline = generated.value;
       deps.log(
-        `   baseline: ${String(generated.value.maxOutputTokens)} output tokens allowed, $${generated.value.usage.costUsd.toFixed(4)}`,
+        `   baseline: ${String(generated.value.usage.outputTokens)} of ${String(generated.value.maxOutputTokens)} output tokens used (asked for about ${String(generated.value.wordBudget)} words), $${generated.value.usage.costUsd.toFixed(4)}${generated.value.truncated ? ', TRUNCATED' : ''}`,
       );
     }
   }
@@ -274,7 +276,11 @@ const runProblem = async (
   }
   const first = blindOrder(() => deps.rng());
   const orders: BlindOrder[] = options.judgeOrders === 2 ? [first, swapped(first)] : [first];
-  const answers = { swarm: swarm.value.answer, baseline: result.baseline.answer };
+  // Both arms pass through the same blinding, so the judge cannot tell them apart by it.
+  const answers = {
+    swarm: blindText(swarm.value.answer),
+    baseline: blindText(result.baseline.answer),
+  };
   for (const order of orders) {
     const prompt = judgePrompt(problem, { A: answers[order.A], B: answers[order.B] });
     const schema = judgementSchema(problem);

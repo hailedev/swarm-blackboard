@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   blindOrder,
+  blindText,
   judgePrompt,
   judgementSchema,
   mulberry32,
@@ -95,5 +96,27 @@ describe('judgePrompt', () => {
     );
     expect(prompt).not.toContain('swarm');
     expect(prompt).not.toContain('weight');
+  });
+});
+
+describe('blindText', () => {
+  it('removes board handles and the parentheses that held only handles, and tidies the gaps', () => {
+    expect(
+      blindText(
+        'Adopt a canary (H16). Evidence E24 and E28 confirm it, per E29; see also (S2, E4 and C3). The decision (D1) stands.',
+      ),
+    ).toBe('Adopt a canary. Evidence and confirm it, per; see also. The decision stands.');
+    expect(
+      blindText('Flags are not kill switches, as noted in E19 and H19, so plan for review.'),
+    ).toBe('Flags are not kill switches, as noted in and, so plan for review.');
+  });
+
+  it('leaves ordinary text, other letter-digit tokens and paragraph breaks alone', () => {
+    const text =
+      'Use A4 paper for the E2E report in H1 of the year.\n\nSecond paragraph with 2026 and v3.';
+    expect(blindText(text)).toBe(
+      'Use paper for the E2E report in of the year.\n\nSecond paragraph with 2026 and v3.',
+    );
+    expect(blindText('No handles here.\n\nStill none.')).toBe('No handles here.\n\nStill none.');
   });
 });

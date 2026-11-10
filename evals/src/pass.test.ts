@@ -347,3 +347,64 @@ describe('baseline cache keys', () => {
     expect(redone.results[0]?.baselineCached).toBe(false);
   });
 });
+
+describe('what the judge sees', () => {
+  it('is both answers with board handles removed, while the report keeps the original', async () => {
+    const judge = createFakeJudge(SCENARIO_PRICING);
+    const answer = 'Adopt a canary (H16). Evidence E24 and E28 confirm it.';
+    const pass = await runPass(
+      options({ problems: [problem('one')], judgeOrders: 1 }),
+      deps({
+        judgeModel: judge,
+        runSwarm: (p) => Promise.resolve(ok(swarmOutcome(p.id, 0.02, answer))),
+      }),
+    );
+    const prompt = judge.calls[0]?.request.prompt ?? '';
+    expect(prompt).toContain('Adopt a canary. Evidence and confirm it.');
+    expect(prompt).not.toMatch(/\b[HE]\d+\b/);
+    expect(pass.results[0]?.swarm?.answer).toBe(answer);
+  });
+
+  it('notes a baseline that used its whole allowance in the table and the notes', async () => {
+    const truncating = createFakeModel({
+      id: 'fake-baseline',
+      pricing: SCENARIO_PRICING,
+      script: () => ({
+        object: { paragraphs: ['A long answer that ran out of room'] },
+        usage: { inputTokens: 500, outputTokens: 2_048 },
+      }),
+    });
+    const pass = await runPass(
+      options({ problems: [problem('one')], capUsd: 10, runCapUsd: 1 }),
+      deps({
+        baselineModel: truncating,
+        runSwarm: (p) => Promise.resolve(ok(swarmOutcome(p.id, 0.5))),
+      }),
+    );
+    expect(pass.results[0]?.baseline?.truncated).toBe(true);
+    const local = { alias: 'x', provider: 'ollama' as const, model: 'm' };
+    const report = renderReport(pass, {
+      label: 'cut',
+      profile: {
+        name: 'dev',
+        roles: {
+          planner: local,
+          researcher: local,
+          solver: local,
+          critic: local,
+          synthesizer: local,
+        },
+        bidder: null,
+        fallback: null,
+        paid: false,
+      },
+      evalModels: { baseline: local, judge: local },
+      commit: null,
+      baselineModelId: 'fake-baseline',
+      judgeModelId: 'fake-judge',
+    });
+    expect(report).toContain('2048/2048 (1300 words) **truncated**');
+    expect(report).toContain('baseline truncated at its allowance');
+    expect(report).toContain('1 baseline answer used the whole output allowance (one)');
+  });
+});

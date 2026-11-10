@@ -40,3 +40,11 @@ Dependencies added to `evals/` on 2026-11-10, both already pinned elsewhere in t
 - **The harness in `apps/cli`, like the trial** — rejected: PLAN.md §5 put the harness in `evals/`, and the two dependencies it needs are already in the workspace.
 - **JSON rubric sidecars instead of YAML front matter** — rejected: one file per problem is easier to read and review, and `yaml` was already a workspace dependency.
 - **A local judge for paid passes** — rejected for now: the judge's quality bounds the whole measurement, and the paid passes exist to measure answers, not to save a few cents on grading. `dev` passes use `local-fast` for both so they cost nothing.
+
+## Amendment, 2026-11-10: before the first paid call
+
+Hai's review of the problems and the `dev` rehearsal asked for three changes, all made before anything was billed.
+
+- **Every rubric scores correctness.** The six problems that had no such criterion (01, 04, 05, 08, 09, 10) gained one at weight 2 with the anchors of 02 and 03: material errors 0, one questionable claim 1, sound 2, sound and precise about limits and guarantees 3.
+- **The baseline is told its length.** The call's output allowance already shrank to fit the swarm's cost, but the model was never told, so a shrunk allowance could only cut an answer off. The prompt now ends with the budget as a word count derived from the fitted allowance (`wordBudgetFor`: three quarters of a word per token, 15 % headroom for the JSON and the tokenizer, rounded down to fifty, never under a hundred), `BASELINE_PROMPT_VERSION` is 3, and an answer that still uses its whole allowance is kept and reported as truncated in the table, the notes and the pair file. The word budget is deliberately not part of the cache key, so a pass reuses a baseline when only the swarm's cost has moved; the drift note states the cap and the words the cached answer was given.
+- **The judge sees no handles.** Swarm answers carried board handles ("(H16)", "E24 and E28") that would have told the judge which arm wrote them. Both answers now pass through `blindText`, which removes a parenthesis holding only handles and any bare handle in prose and tidies the punctuation around the gap; the report and the pair files keep the original text. Each change has a test.

@@ -51,6 +51,29 @@ export const judgementSchema = (problem: Problem): z.ZodType<Judgement> => {
   });
 };
 
+// Board handles (H16, E24, D1…) in a swarm answer would tell the judge which arm wrote it.
+// A parenthesis that holds only handles goes entirely; a bare handle in running prose goes
+// on its own, and the punctuation around the gap is tidied. The report keeps the original.
+const HANDLE = String.raw`[PSHECQDAN]\d+`;
+const HANDLE_LIST = String.raw`${HANDLE}(?:\s*(?:,|;|/|&|and|or)\s*${HANDLE})*`;
+const PARENTHESISED_HANDLES = new RegExp(
+  String.raw`\s*\((?:(?:see|cf\.?|per|from)\s+)?${HANDLE_LIST}\)`,
+  'g',
+);
+const BARE_HANDLE = new RegExp(String.raw`\b${HANDLE}\b`, 'g');
+
+/** The text the judge sees: the answer with every board handle removed. */
+export const blindText = (text: string): string =>
+  text
+    .replace(PARENTHESISED_HANDLES, '')
+    .replace(BARE_HANDLE, '')
+    .replace(/[ \t]+([,.;:)])/g, '$1')
+    .replace(/\(\s*\)/g, '')
+    .replace(/(^|\s)(?:,|;)\s+/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +\n/g, '\n')
+    .trim();
+
 export const judgePrompt = (problem: Problem, answers: Record<Slot, string>): string =>
   [
     '# Problem',

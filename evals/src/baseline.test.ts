@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   baselineCacheKey,
+  baselinePrompt,
+  hitAllowance,
   BaselineRecordSchema,
   describeBaselineError,
   generateBaseline,
   sizeBaseline,
+  wordBudgetFor,
 } from './baseline';
 import type { Problem } from './problems';
 
@@ -48,10 +51,20 @@ describe('sizeBaseline and generateBaseline', () => {
       }),
     });
     // $0.01 at $5 per million output tokens buys 2,000 output tokens minus the prompt.
-    const fit = sizeBaseline({ model, problem, capUsd: 0.01, maxOutputTokens: 4_096 });
+    const { fit, wordBudget, prompt } = sizeBaseline({
+      model,
+      problem,
+      capUsd: 0.01,
+      maxOutputTokens: 4_096,
+    });
     expect(fit.fits && fit.shrunk).toBe(true);
     expect(fit.fits && fit.maxOutputTokens).toBeLessThan(2_000);
     expect(fit.fits && fit.maxOutputTokens).toBeGreaterThanOrEqual(MIN_OUTPUT_TOKENS);
+    // The prompt states the budget as words derived from the allowance that fits.
+    expect(wordBudget).toBe(wordBudgetFor(fit.fits ? fit.maxOutputTokens : 0));
+    expect(wordBudget).toBeLessThan(fit.fits ? fit.maxOutputTokens : 0);
+    expect(prompt).toContain(`must fit in about ${String(wordBudget)} words`);
+    expect(prompt).toContain('Do the thing.');
     const generated = await generateBaseline(
       { model, problem, capUsd: 0.01, maxOutputTokens: 4_096 },
       tags,
@@ -69,7 +82,10 @@ describe('sizeBaseline and generateBaseline', () => {
       at: '2026-11-10T00:00:00.000Z',
     });
     expect(generated.value.maxOutputTokens).toBe(fit.fits ? fit.maxOutputTokens : -1);
+    expect(generated.value.wordBudget).toBe(wordBudget);
+    expect(generated.value.truncated).toBe(false);
     expect(model.calls[0]?.request.maxOutputTokens).toBe(generated.value.maxOutputTokens);
+    expect(model.calls[0]?.request.prompt).toBe(prompt);
     expect(generated.value.usage.costUsd).toBeCloseTo(0.002, 6);
   });
 
@@ -113,5 +129,73 @@ describe('sizeBaseline and generateBaseline', () => {
     expect(describeBaselineError({ kind: 'network', message: 'down', attempts: 3 })).toBe(
       'network: down',
     );
+  });
+});
+
+describe('word budget and truncation', () => {
+  it('derives a round word count from the allowance, never below the floor', () => {
+    expect(wordBudgetFor(4_096)).toBe(2_600);
+    expect(wordBudgetFor(1_700)).toBe(1_050);
+    expect(wordBudgetFor(MIN_OUTPUT_TOKENS)).toBe(150);
+    expect(wordBudgetFor(10)).toBe(100);
+    expect(wordBudgetFor(1_000) % 50).toBe(0);
+  });
+
+  it('keeps an answer that used its whole allowance but marks it truncated', async () => {
+    const model = createFakeModel({
+      id: 'fake-baseline',
+      pricing: null,
+      script: () => ({
+        object: { paragraphs: ['Cut off mid'] },
+        usage: { inputTokens: 400, outputTokens: 1_024 },
+      }),
+    });
+    const generated = await generateBaseline(
+      { model, problem, capUsd: 0, maxOutputTokens: 1_024 },
+      tags,
+      0,
+    );
+    expect(generated.ok && generated.value.truncated).toBe(true);
+    expect(generated.ok && generated.value.answer).toBe('Cut off mid');
+    expect(hitAllowance(1_023, 1_024)).toBe(true);
+    expect(hitAllowance(900, 1_024)).toBe(false);
+  });
+
+  it('reports an answer that ran into the allowance before closing its JSON as truncated', async () => {
+    const model = createFakeModel({
+      id: 'fake-baseline',
+      pricing: null,
+      script: () => ({
+        error: {
+          kind: 'invalid_output',
+          issues: ['unexpected end of JSON input'],
+          raw: '{"paragraphs": ["An answer that goes on and',
+          usage: {
+            inputTokens: 400,
+            outputTokens: 512,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            costUsd: 0.004,
+          },
+        },
+      }),
+    });
+    const result = await generateBaseline(
+      { model, problem, capUsd: 1, maxOutputTokens: 512 },
+      tags,
+      0,
+    );
+    expect(!result.ok && result.error.kind).toBe('truncated');
+    expect(!result.ok && describeBaselineError(result.error)).toBe(
+      'truncated: the answer used its whole allowance of 512 output tokens and its JSON never closed',
+    );
+    expect(
+      !result.ok && result.error.kind === 'truncated' && result.error.usage.usage.costUsd,
+    ).toBe(0.004);
+  });
+
+  it('leaves the cache key alone when only the word budget changes', () => {
+    expect(baselineCacheKey(problem, 'm1')).toBe(baselineCacheKey(problem, 'm1'));
+    expect(baselinePrompt(problem, 300)).not.toBe(baselinePrompt(problem, 900));
   });
 });

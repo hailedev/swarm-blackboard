@@ -33,6 +33,10 @@ rubric:
     weight: 2
     criterion: Gives a rule or mechanism that stops new flakiness from accumulating.
     scale: "0 = none; 1 = 'be careful'; 2 = a mechanism (quarantine policy with an owner and a deadline, flake budget, CI check on new tests); 3 = mechanism plus who enforces it and what happens when it is breached."
+  - id: correctness
+    weight: 2
+    criterion: Claims about CI, test tooling and the causes of flakiness hold up, and the numbers are consistent with the constraints.
+    scale: "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
 ---
 An eight-person team maintains a web product with about 400 automated tests: unit, integration and browser tests. CI takes 45 minutes, and roughly 8 % of runs fail on tests that pass when re-run, so engineers habitually re-run the whole pipeline and have stopped trusting a red build. The team can spend at most two engineer-weeks on this over the next six weeks while still shipping features. Tests may be deleted only if something else covers the behaviour or the behaviour is gone.
 

@@ -79,8 +79,8 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
 
   lines.push('## Per problem', '');
   lines.push(
-    '| Problem | Run | Rounds | End | Swarm cost | Baseline cap → cost | Swarm | Baseline | Δ | Winner | Notes |',
-    '|---|---|---|---|---|---|---|---|---|---|---|',
+    '| Problem | Run | Rounds | End | Swarm cost | Baseline cap → cost | Baseline tokens used/allowed (words asked) | Swarm | Baseline | Δ | Winner | Notes |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|',
   );
   for (const r of pass.results) lines.push(problemRow(r));
   lines.push('');
@@ -108,14 +108,26 @@ const problemRow = (r: ProblemResult): string => {
   if (r.baselineCached) notes.push('baseline cached');
   if (r.baselineSkipped !== null) notes.push(`baseline skipped: ${r.baselineSkipped}`);
   for (const skipped of r.judgeSkipped) notes.push(`judge: ${skipped}`);
+  if (r.baseline?.truncated === true) notes.push('baseline truncated at its allowance');
   const baselineCell =
     r.baseline === null ? '—' : `${usd(r.baseline.capUsd)} → ${usd(r.baseline.usage.costUsd)}`;
-  return `| ${r.problem.id} | ${swarm === null ? '—' : `\`${swarm.runId}\``} | ${swarm === null ? '—' : String(swarm.rounds)} | ${swarm === null ? '—' : `${swarm.status}/${swarm.reason}`} | ${swarm === null ? '—' : usd(swarm.costUsd)} | ${baselineCell} | ${pct(r.scores.swarm)} | ${pct(r.scores.baseline)} | ${signed(r.scores.delta)} | ${r.scores.winner ?? '—'} | ${cell(notes.join('; '))} |`;
+  const tokensCell = r.baseline === null ? '—' : baselineTokens(r.baseline);
+  return `| ${r.problem.id} | ${swarm === null ? '—' : `\`${swarm.runId}\``} | ${swarm === null ? '—' : String(swarm.rounds)} | ${swarm === null ? '—' : `${swarm.status}/${swarm.reason}`} | ${swarm === null ? '—' : usd(swarm.costUsd)} | ${baselineCell} | ${tokensCell} | ${pct(r.scores.swarm)} | ${pct(r.scores.baseline)} | ${signed(r.scores.delta)} | ${r.scores.winner ?? '—'} | ${cell(notes.join('; '))} |`;
 };
+
+/** "1,234/2,000 (≈1,300 words)", with a flag when the answer ran into its allowance. */
+const baselineTokens = (b: NonNullable<ProblemResult['baseline']>): string =>
+  `${String(b.usage.outputTokens)}/${String(b.maxOutputTokens)} (${String(b.wordBudget)} words)${b.truncated ? ' **truncated**' : ''}`;
 
 /** Things a reader must know before trusting the table. */
 export const honestyNotes = (pass: PassResult): string[] => {
   const notes: string[] = [];
+  const truncated = pass.results.filter((r) => r.baseline?.truncated === true);
+  if (truncated.length > 0) {
+    notes.push(
+      `${String(truncated.length)} baseline answer${truncated.length === 1 ? '' : 's'} used the whole output allowance (${truncated.map((r) => r.problem.id).join(', ')}) and probably lost ${truncated.length === 1 ? 'its' : 'their'} ending; the judge scored what arrived.`,
+    );
+  }
   const drifted = pass.results.filter(
     (r) =>
       r.baselineCached &&
@@ -127,7 +139,7 @@ export const honestyNotes = (pass: PassResult): string[] => {
   for (const r of drifted) {
     if (r.baseline === null || r.swarm === null) continue;
     notes.push(
-      `\`${r.problem.id}\`: the cached baseline was capped at ${usd(r.baseline.capUsd)} on an earlier pass; this pass's swarm run cost ${usd(r.swarm.costUsd)}, so the arms were not quite at equal cost. Pass \`--refresh-baselines\` to redo it.`,
+      `\`${r.problem.id}\`: the cached baseline was capped at ${usd(r.baseline.capUsd)} (about ${String(r.baseline.wordBudget)} words) on an earlier pass; this pass's swarm run cost ${usd(r.swarm.costUsd)}, so the arms were not quite at equal cost. Pass \`--refresh-baselines\` to redo it.`,
     );
   }
   const noAnswer = pass.results.filter((r) => r.swarm !== null && r.swarm.answer === null);
@@ -227,7 +239,7 @@ export const renderPair = (result: ProblemResult, why: string): string => {
     '',
     result.baseline === null
       ? '_No baseline answer._'
-      : `_${result.baseline.modelId}, ${String(result.baseline.maxOutputTokens)} output tokens allowed under a ${usd(result.baseline.capUsd)} cap, cost ${usd(result.baseline.usage.costUsd)}${result.baselineCached ? ', cached from an earlier pass' : ''}._`,
+      : `_${result.baseline.modelId}, asked for about ${String(result.baseline.wordBudget)} words, used ${String(result.baseline.usage.outputTokens)} of ${String(result.baseline.maxOutputTokens)} output tokens allowed under a ${usd(result.baseline.capUsd)} cap, cost ${usd(result.baseline.usage.costUsd)}${result.baseline.truncated ? ', truncated at the allowance' : ''}${result.baselineCached ? ', cached from an earlier pass' : ''}. Board handles are shown here; the judge saw the answers with them removed._`,
     '',
     result.baseline?.answer ?? '',
     '',

@@ -33,6 +33,10 @@ rubric:
     weight: 2
     criterion: Fits four librarian hours a week and realistic volunteer effort.
     scale: "0 = needs much more staff time; 1 = plausible but unscoped; 2 = time accounted for; 3 = time accounted for with prep done once and reused."
+  - id: correctness
+    weight: 2
+    criterion: "Practical claims hold up: what $500, four librarian hours a week and volunteers can actually buy, and what teenagers will do."
+    scale: "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
 ---
 A public library branch in a mid-sized town wants to run a six-week programme for 13-to-17-year-olds, most of whom do not use the library today. One librarian can give four hours a week; volunteers can be recruited; the budget is $500 for everything beyond the room and the existing collection. The branch manager will repeat the programme only if there is evidence it changed something for the participants, not just that some turned up.
 

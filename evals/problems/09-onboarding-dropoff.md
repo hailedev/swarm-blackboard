@@ -33,6 +33,10 @@ rubric:
     weight: 1
     criterion: States how the team decides what to ship at week four, including what to do with an inconclusive result.
     scale: "0 = none; 1 = 'ship the winner'; 2 = a decision rule with thresholds; 3 = plus the inconclusive case."
+  - id: correctness
+    weight: 2
+    criterion: Claims about funnels, experiments and sample sizes hold up, and the arithmetic matches 1,200 sign-ups a month.
+    scale: "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
 ---
 A B2B SaaS product for small teams has a five-step setup: create an account, name the workspace, invite teammates, connect a data source, build a first dashboard. About 1,200 teams sign up each month and 40 % never finish setup. The team has per-step funnel numbers but no session recordings or interviews. Two engineers and a designer have four weeks; with current traffic an experiment needs at least two weeks to read. Nothing may be removed from setup, but steps may be reordered, deferred or made optional.
 

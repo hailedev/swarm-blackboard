@@ -33,6 +33,10 @@ rubric:
     weight: 2
     criterion: States the costs and risks of its own recommendation, not only of the alternative.
     scale: "0 = one-sided; 1 = token risks; 2 = real risks of the chosen path; 3 = risks with mitigations and the one the author worries about most."
+  - id: correctness
+    weight: 2
+    criterion: Claims about monorepo tooling, CI and package versioning hold up, and the parts fit together.
+    scale: "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
 ---
 A software company with 30 engineers in five teams maintains 12 repositories in TypeScript and Go, including three shared libraries published as internal packages. Changes to a shared library take days to reach every consumer and tend to break them late, after the library version has been bumped. Finance watches the CI-minutes bill. A migration may not stop feature work for more than one sprint in total, and teams want to keep owning their own deploy schedules.
 
