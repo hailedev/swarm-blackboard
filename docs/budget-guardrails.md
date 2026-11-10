@@ -1,6 +1,6 @@
 # Budget guardrails
 
-**Status:** Phase 2 parts implemented on 2026-11-09 (profiles, per-run cap, pricing, error classification, JSONL ledger, CLI banner); the Phase 2 hardening pass of the same day made the token estimate per model with calibration; Phase 3 (ledger over `model_calls`, calibration source) pending. Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
+**Status:** Phases 2–4 implemented, 2026-11-09 to 2026-11-10 (§8 says what landed when: profiles, per-run cap with per-model calibrated estimates, pricing, error classification, the `model_calls` ledger shared by CLI and server, the CLI banner and the web cost meter). Phase 5 adds the bidder's calls to the per-run cap and an eval pass cap (§9). Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
 
 ## Goal
 
