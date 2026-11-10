@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { RosterSchema } from '../schemas/roster';
 
-import { describeRosterError, loadRoster, resolveProfile } from './resolve-profile';
+import {
+  describeRosterError,
+  loadRoster,
+  resolveEvalModels,
+  resolveProfile,
+} from './resolve-profile';
 
 // A roster in the shape of agents.yaml (docs/budget-guardrails.md §1), not a copy of it:
 // here the Solver thinks and `quality` has no bidder, to exercise those paths.
@@ -211,6 +216,72 @@ describe('resolveProfile on a roster that skipped loadRoster', () => {
     });
     expect(!fallback.ok && describeRosterError(fallback.error)).toContain(
       'falls back to the unknown model alias "ghost"',
+    );
+  });
+});
+
+describe('eval models', () => {
+  const evals = {
+    dev: { baseline: 'local', judge: 'local' },
+    cheap: { baseline: 'sonnet', judge: 'sonnet' },
+  };
+
+  it('resolves the baseline and judge aliases of a profile that has them', () => {
+    const loaded = loadRoster({ ...roster, evals });
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    const cheap = resolveEvalModels(loaded.value, 'cheap');
+    expect(cheap.ok && cheap.value).toEqual({
+      baseline: { alias: 'sonnet', provider: 'anthropic', model: 'claude-sonnet-5-5' },
+      judge: { alias: 'sonnet', provider: 'anthropic', model: 'claude-sonnet-5-5' },
+    });
+    const dev = resolveEvalModels(loaded.value, 'dev');
+    expect(dev.ok && dev.value.judge.provider).toBe('ollama');
+  });
+
+  it('says which profiles have eval models when one has none, and refuses an unknown profile', () => {
+    const loaded = loadRoster({ ...roster, evals });
+    if (!loaded.ok) return;
+    const quality = resolveEvalModels(loaded.value, 'quality');
+    expect(!quality.ok && quality.error).toEqual({
+      kind: 'no_eval_models',
+      profile: 'quality',
+      known: ['dev', 'cheap'],
+    });
+    expect(!quality.ok && describeRosterError(quality.error)).toBe(
+      'agents.yaml has no evals entry for profile "quality"; profiles with one are "dev", "cheap"',
+    );
+    const nope = resolveEvalModels(loaded.value, 'nope');
+    expect(!nope.ok && nope.error.kind).toBe('unknown_profile');
+    const bare = loadRoster(roster);
+    expect(bare.ok && resolveEvalModels(bare.value, 'dev').ok).toBe(false);
+  });
+
+  it('rejects at load an eval for an unknown profile, an unknown alias, or a paid eval on a free profile', () => {
+    const unknownProfile = loadRoster({ ...roster, evals: { nope: evals.dev } });
+    expect(!unknownProfile.ok && unknownProfile.error.kind).toBe('eval_for_unknown_profile');
+    const unknownAlias = loadRoster({
+      ...roster,
+      evals: { cheap: { baseline: 'opus', judge: 'sonnet' } },
+    });
+    expect(!unknownAlias.ok && unknownAlias.error).toMatchObject({
+      kind: 'unknown_model_alias',
+      profile: 'cheap',
+      role: 'baseline',
+      alias: 'opus',
+    });
+    const paidOnFree = loadRoster({
+      ...roster,
+      evals: { dev: { baseline: 'local', judge: 'sonnet' } },
+    });
+    expect(!paidOnFree.ok && paidOnFree.error).toEqual({
+      kind: 'paid_eval_on_local_profile',
+      profile: 'dev',
+      role: 'judge',
+      alias: 'sonnet',
+    });
+    expect(!paidOnFree.ok && describeRosterError(paidOnFree.error)).toContain(
+      'evaluate a free profile with free models',
     );
   });
 });

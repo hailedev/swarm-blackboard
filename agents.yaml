@@ -53,3 +53,10 @@ agents:
   solver: { prompt: prompts/solver.md }
   critic: { prompt: prompts/critic.md }
   synthesizer: { prompt: prompts/synthesizer.md }
+
+# The eval harness (`pnpm eval --profile <name>`, ADR-0012): the swarm runs on the profile,
+# the single-call baseline and the blind judge on these. A free profile evaluates for free.
+evals:
+  dev: { baseline: local-fast, judge: local-fast }
+  cheap: { baseline: sonnet, judge: sonnet }
+  quality: { baseline: sonnet, judge: sonnet }

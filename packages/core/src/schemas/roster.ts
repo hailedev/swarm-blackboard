@@ -39,11 +39,21 @@ export type Profile = z.infer<typeof ProfileSchema>;
 
 export const AgentDefinitionSchema = z.object({ prompt: z.string().min(1) });
 
+// The two models an eval pass needs besides the swarm (Phase 5, ADR-0012): the single-call
+// baseline the swarm is compared with, and the judge that scores both answers. Keyed by the
+// profile the swarm runs on, so `dev` evaluates for free and a paid profile on Sonnet.
+export const EvalModelsSchema = z.object({
+  baseline: z.string().min(1),
+  judge: z.string().min(1),
+});
+export type EvalModels = z.infer<typeof EvalModelsSchema>;
+
 export const RosterSchema = z.object({
   defaultProfile: z.string().min(1),
   models: z.record(z.string().min(1), ModelAliasSchema),
   profiles: z.record(z.string().min(1), ProfileSchema),
   agents: z.record(AgentRoleSchema, AgentDefinitionSchema),
+  evals: z.record(z.string().min(1), EvalModelsSchema).optional(),
 });
 export type Roster = z.infer<typeof RosterSchema>;
 
@@ -67,3 +77,9 @@ export const RunProfileSchema = z.object({
   paid: z.boolean(),
 });
 export type RunProfile = z.infer<typeof RunProfileSchema>;
+
+export const ResolvedEvalModelsSchema = z.object({
+  baseline: ResolvedModelSchema,
+  judge: ResolvedModelSchema,
+});
+export type ResolvedEvalModels = z.infer<typeof ResolvedEvalModelsSchema>;
