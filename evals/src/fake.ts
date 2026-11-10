@@ -14,11 +14,11 @@ export const createFakeBaseline = (pricing: ModelPricing | null): FakeModel =>
     pricing,
     script: (request) => ({
       object: {
-        answer: [
+        paragraphs: [
           'Recommendation: adopt the smallest change that addresses the stated pain first, and measure it.',
           `Reasoning: the problem text (${String(request.prompt.length)} characters) names constraints that rule out the larger options; the modest option keeps them all.`,
           'Caveats: this is a scripted stand-in for a model answer, written so the harness can be exercised without spending anything.',
-        ].join('\n\n'),
+        ],
       },
       usage: FAKE_BASELINE_USAGE,
     }),

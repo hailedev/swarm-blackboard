@@ -43,7 +43,7 @@ describe('sizeBaseline and generateBaseline', () => {
       id: 'fake-baseline',
       pricing: SCENARIO_PRICING,
       script: () => ({
-        object: { answer: 'An answer.' },
+        object: { paragraphs: ['An answer.', 'In two paragraphs.'] },
         usage: { inputTokens: 500, outputTokens: 300 },
       }),
     });
@@ -64,7 +64,7 @@ describe('sizeBaseline and generateBaseline', () => {
       problemId: 'demo',
       modelId: 'fake-baseline',
       capUsd: 0.01,
-      answer: 'An answer.',
+      answer: 'An answer.\n\nIn two paragraphs.',
       passId: 'eval:p1',
       at: '2026-11-10T00:00:00.000Z',
     });
@@ -86,7 +86,7 @@ describe('sizeBaseline and generateBaseline', () => {
     const free = createFakeModel({
       id: 'free',
       pricing: null,
-      script: () => ({ object: { answer: 'Free answer.' } }),
+      script: () => ({ object: { paragraphs: ['Free answer.'] } }),
     });
     const generated = await generateBaseline(
       { model: free, problem, capUsd: 0, maxOutputTokens: 1_024 },
@@ -100,7 +100,7 @@ describe('sizeBaseline and generateBaseline', () => {
     const broken = createFakeModel({
       id: 'broken',
       pricing: null,
-      script: () => ({ object: { answer: 42 } }),
+      script: () => ({ object: { paragraphs: 42 } }),
     });
     const result = await generateBaseline(
       { model: broken, problem, capUsd: 1, maxOutputTokens: 1_024 },

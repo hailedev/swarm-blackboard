@@ -26,17 +26,26 @@ import { problemText, type Problem } from './problems';
 // against the same baseline instead of paying for it again; the record keeps the cap it
 // was given, and the report says when that cap has drifted from the swarm's current cost.
 
+// The answer is an array of paragraphs, joined with a blank line, for the same reason the
+// Synthesizer's is (ADR-0008, third amendment): a local model under a JSON `format` may
+// be unable to put a line break inside a string, and closes the string instead where a
+// markdown heading or paragraph would end. The rehearsal that found this is in
+// evals/results/2026-11-10-dev-rehearsal (its first baseline answer was 31 tokens long).
 export const BASELINE_SYSTEM = [
   'You are a careful analyst answering a problem for the person who posed it. Lead with',
   'your recommendation, then the reasoning behind it, then the main caveats and open',
   'questions. Address every success criterion explicitly and respect every constraint.',
-  'Write in plain markdown paragraphs. Do not pad: a complete answer beats a long one.',
+  'Return JSON matching the schema: `paragraphs` is the answer as an array of strings, one',
+  'paragraph per element in plain markdown with no line breaks inside it; a heading or a',
+  'list item is its own element. Do not pad: a complete answer beats a long one.',
 ].join(' ');
 
-/** Bump when the system prompt or the prompt layout changes, so cached answers are redone. */
-export const BASELINE_PROMPT_VERSION = 1;
+/** Bump when the system prompt, the answer shape or the prompt layout changes, so cached answers are redone. */
+export const BASELINE_PROMPT_VERSION = 2;
 
-export const BaselineAnswerSchema = z.object({ answer: z.string().min(1) });
+export const BaselineAnswerSchema = z.object({ paragraphs: z.array(z.string().min(1)).min(1) });
+
+export const PARAGRAPH_SEPARATOR = '\n\n';
 
 export const baselinePrompt = (problem: Problem): string => problemText(problem);
 
@@ -123,7 +132,7 @@ export const generateBaseline = async (
     modelId: request.model.id,
     capUsd: request.capUsd,
     maxOutputTokens: fit.maxOutputTokens,
-    answer: response.value.object.answer,
+    answer: response.value.object.paragraphs.join(PARAGRAPH_SEPARATOR),
     usage: response.value.usage,
     latencyMs: response.value.latencyMs,
     at: isoFromMs(nowMs),

@@ -1,0 +1,514 @@
+{
+  "meta": {
+    "label": "dev-rehearsal",
+    "profile": {
+      "name": "dev",
+      "roles": {
+        "planner": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "researcher": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "solver": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "critic": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "synthesizer": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        }
+      },
+      "bidder": {
+        "alias": "local-fast",
+        "provider": "ollama",
+        "model": "qwen3.6:35b-mlx",
+        "think": false
+      },
+      "fallback": null,
+      "paid": false
+    },
+    "evalModels": {
+      "baseline": {
+        "alias": "local-fast",
+        "provider": "ollama",
+        "model": "qwen3.6:35b-mlx",
+        "think": false
+      },
+      "judge": {
+        "alias": "local-fast",
+        "provider": "ollama",
+        "model": "qwen3.6:35b-mlx",
+        "think": false
+      }
+    },
+    "commit": "c30ff8e",
+    "baselineModelId": "qwen3.6:35b-mlx",
+    "judgeModelId": "qwen3.6:35b-mlx"
+  },
+  "pass": {
+    "passId": "01a1c397-7eae-7298-843f-b2e60dfed824",
+    "startedAt": "2026-11-10T03:54:07.919Z",
+    "endedAt": "2026-11-10T04:04:57.770Z",
+    "options": {
+      "passId": "01a1c397-7eae-7298-843f-b2e60dfed824",
+      "capUsd": 1,
+      "runCapUsd": 0.08,
+      "judgeOrders": 2,
+      "refreshBaselines": false,
+      "baselineMaxOutputTokens": 4096,
+      "judgeMaxOutputTokens": 2048,
+      "problemIds": [
+        "mobile-release-cadence",
+        "local-first-sync"
+      ]
+    },
+    "results": [
+      {
+        "problem": {
+          "id": "mobile-release-cadence",
+          "title": "Release cadence for a store-reviewed mobile app",
+          "domain": "engineering-process",
+          "constraints": [
+            "Six engineers, one of them also the de-facto release manager; no dedicated QA.",
+            "Every release goes through app-store review, which takes one to three days and sometimes rejects the build.",
+            "A hotfix takes about two days to reach users, so a bad release hurts for at least that long.",
+            "The team cannot hire or add a platform team this year."
+          ],
+          "successCriteria": [
+            "A release cadence the team can keep without heroics, with the reasoning for its length.",
+            "A hotfix path that is faster than today's two days or makes hotfixes rarer, and says which.",
+            "A clear rule for when a change ships behind a feature flag and when it does not.",
+            "Something measurable the team can look at in three months to know whether it worked."
+          ],
+          "rubric": [
+            {
+              "id": "cadence",
+              "weight": 3,
+              "criterion": "Proposes a specific release cadence and justifies it against store review time and team size.",
+              "scale": "0 = no cadence or an unjustified one; 1 = a cadence with a vague reason; 2 = a cadence argued from review time or team size; 3 = a cadence argued from both, with the trade-off stated."
+            },
+            {
+              "id": "hotfix",
+              "weight": 3,
+              "criterion": "Gives a hotfix path that is faster or needed less often, and explains the mechanism.",
+              "scale": "0 = hotfixes not addressed; 1 = 'use feature flags' with no mechanism; 2 = a concrete mechanism (staged rollout, server-side kill switch, expedited review) with its effect; 3 = a mechanism plus what it does not cover."
+            },
+            {
+              "id": "flags",
+              "weight": 2,
+              "criterion": "States a rule for what ships behind a feature flag and how flags are retired.",
+              "scale": "0 = flags not mentioned; 1 = 'flag risky things'; 2 = a rule with examples; 3 = a rule, examples, and a retirement discipline."
+            },
+            {
+              "id": "constraints",
+              "weight": 2,
+              "criterion": "Respects six engineers, no QA, no new hires; does not assume tooling or people the team lacks.",
+              "scale": "0 = relies on a QA team or new hires; 1 = mostly respects them with one slip; 2 = respects them; 3 = respects them and turns a constraint into part of the design."
+            },
+            {
+              "id": "measurement",
+              "weight": 2,
+              "criterion": "Names what to measure in three months and what result would count as success or failure.",
+              "scale": "0 = nothing measurable; 1 = a metric with no target; 2 = metrics with targets; 3 = metrics with targets and what to do if they are missed."
+            }
+          ],
+          "statement": "A six-person team builds a consumer mobile app for iOS and Android. Each release must pass app-store review, which takes one to three days and occasionally rejects the build for reasons unrelated to the change. Today the team ships \"when things are ready\", roughly every three to five weeks, and about one release in four is followed by a hotfix that takes two days to reach users because of the review queue. The founders want releases to feel routine rather than stressful, and they want users to stop seeing bugs that a staged rollout would have caught.\n\nDesign the team's release process: how often it releases and why, how a hotfix reaches users faster or is needed less often, when a change goes behind a feature flag, and how the team will know in three months whether the new process works."
+        },
+        "swarm": {
+          "runId": "01a1c397-7eaf-794c-ab9c-04b0ebdf9e9a",
+          "answer": "To make releases feel routine and reduce the stress associated with hotfixes, the team should adopt a **Bi-Weekly Release Cadence** combined with a rigorous **Staged Rollout** protocol. The two-week rhythm is sustainable for a six-person team without dedicated QA, providing enough time for peer review and internal testing while keeping the window of exposure small. This cadence addresses the founders' desire to stop 'heroics' by establishing a predictable pattern that fits within the constraints of the App Store review queue.\n\nThe core mechanism for reducing visible bugs is the **Staged Rollout**. New features and UI changes must be released to only 10-20% of users initially, allowing the team to monitor crash-free rates (target >99.5%) before full distribution. This leverages iOS/Android analytics to catch regressions early, turning potential hotfix situations into manageable scheduled fixes. Evidence E24 and E28 confirm that staged rollouts automatically pause distribution upon detecting high crash rates, effectively shielding the majority of users from visible bugs.\n\nFor the **Feature Flag Rule**, we must distinguish between backend-configurable features and UI/data changes. Any change affecting user-facing UI or data persistence MUST be behind a feature flag until it has survived a two-week stability period on internal tracks (e.g., TestFlight). However, as noted in E19 and H19, these flags are not instant 'kill switches' for deployed UI bugs; they mitigate risk during the staging phase. Critical security patches that bypass flags require immediate shadow releases via internal tracks where available, though iOS constraints mean even these need review.\n\nSuccess will be measured over three months using three objective metrics: **Crash-Free User Rate** (target >99.5%), **Staged Rollout Halt Rate** (frequency of bugs caught during staging), and **Hotfix Frequency** (aiming for a 50% reduction). These metrics replace subjective stress scores with verifiable data on user impact. By focusing on 'fatal' bugs that cause the majority of user impact (per E29), we ensure that the team is optimizing for stability rather than just bug counts.\n\nKey open questions remain regarding the specific implementation of the Pre-release Checklist to reduce superficial App Store rejections (H18) and whether the 'Release Candidate freeze' timeline (H17) is sufficient given the 1-3 day review variability. These process details should be refined in the next iteration once the primary cadence and staging protocols are operational.",
+          "confidence": 0.85,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 103,
+          "usage": {
+            "inputTokens": 79101,
+            "outputTokens": 17220,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0
+          },
+          "costUsd": 0,
+          "elapsedMs": 302241
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "76d906edf072f72fabbf5629f076752fb65b5d16bedd8f8a09a023f0d97e71fd",
+          "problemId": "mobile-release-cadence",
+          "modelId": "qwen3.6:35b-mlx",
+          "capUsd": 0,
+          "maxOutputTokens": 4096,
+          "answer": "# Release Process Design: The ",
+          "usage": {
+            "inputTokens": 413,
+            "outputTokens": 31,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0
+          },
+          "latencyMs": 1013,
+          "at": "2026-11-10T03:59:10.163Z",
+          "passId": "eval:01a1c397-7eae-7298-843f-b2e60dfed824"
+        },
+        "baselineCached": false,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "cadence": {
+                "score": 2,
+                "reason": "Proposes a bi-weekly cadence justified by the six-person team size and peer review needs, but lacks a detailed trade-off analysis against store review variability."
+              },
+              "hotfix": {
+                "score": 3,
+                "reason": "Explains that staged rollouts make hotfixes rarer by catching bugs early, noting this mitigates risk during staging rather than speeding up the deployment of a post-release fix."
+              },
+              "flags": {
+                "score": 2,
+                "reason": "States a rule for backend/UI changes but fails to explain how flags are retired after promotion to stable releases."
+              },
+              "constraints": {
+                "score": 2,
+                "reason": "Respects the six-engineer/no-QA constraint by relying on peer review and automated analytics, though it references external evidence codes oddly."
+              },
+              "measurement": {
+                "score": 3,
+                "reason": "Names specific metrics (Crash-Free Rate, Halt Rate) with targets and implies tracking hotfix frequency to measure success over three months."
+              }
+            },
+            "baseline": {
+              "cadence": {
+                "score": 0,
+                "reason": "The answer is empty and provides no release cadence or justification."
+              },
+              "hotfix": {
+                "score": 0,
+                "reason": "The answer is empty and does not address the hotfix process."
+              },
+              "flags": {
+                "score": 0,
+                "reason": "The answer is empty and does not mention feature flags."
+              },
+              "constraints": {
+                "score": 0,
+                "reason": "The answer is empty and fails to respect constraints or provide a design."
+              },
+              "measurement": {
+                "score": 0,
+                "reason": "The answer is empty and provides no measurable success criteria."
+              }
+            },
+            "preferred": "swarm",
+            "note": "Answer A is completely empty. Answer B provides a complete design that addresses all criteria according to the rubric, despite some minor imperfections in flag retirement and constraint adherence details."
+          },
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "cadence": {
+                "score": 2,
+                "reason": "The answer proposes a specific bi-weekly cadence but justifies it primarily by the team's size and the need for predictability, rather than explicitly connecting the duration to the app store review times as required."
+              },
+              "hotfix": {
+                "score": 2,
+                "reason": "It offers a concrete mechanism (staged rollout) with a specific effect (auto-pause on high crash rates), but fails to mention what it does not cover (e.g., backend logic changes)."
+              },
+              "flags": {
+                "score": 1,
+                "reason": "It states a rule for using flags (for UI/data changes) but lacks specific examples and completely omits a retirement discipline for the flags."
+              },
+              "constraints": {
+                "score": 3,
+                "reason": "The answer explicitly respects the six-engineer/no-QA constraints by relying on peer review and internal testing tracks available to the existing team."
+              },
+              "measurement": {
+                "score": 2,
+                "reason": "It names measurable metrics with clear targets (e.g., >99.5% crash-free rate) but does not specify actions to take if these targets are missed within the three-month window."
+              }
+            },
+            "baseline": {
+              "cadence": {
+                "score": 0,
+                "reason": "The answer is truncated and provides no content regarding release cadence or any other criterion."
+              },
+              "hotfix": {
+                "score": 0,
+                "reason": "The answer is truncated and provides no content regarding hotfix mechanisms."
+              },
+              "flags": {
+                "score": 0,
+                "reason": "The answer is truncated and provides no content regarding feature flag rules."
+              },
+              "constraints": {
+                "score": 0,
+                "reason": "The answer is truncated and provides no content demonstrating respect for constraints."
+              },
+              "measurement": {
+                "score": 0,
+                "reason": "The answer is truncated and provides no content regarding measurement strategies."
+              }
+            },
+            "preferred": "swarm",
+            "note": "Answer A is significantly better as it provides a complete, structured response addressing all rubric criteria, whereas Answer B is empty/truncated."
+          }
+        ],
+        "judgeSkipped": [],
+        "scores": {
+          "swarm": 73.61111111111111,
+          "baseline": 0,
+          "delta": 73.61111111111111,
+          "winner": "swarm",
+          "consistency": 6.94444444444445
+        },
+        "costUsd": 0
+      },
+      {
+        "problem": {
+          "id": "local-first-sync",
+          "title": "Storage and sync for a local-first notes app",
+          "domain": "architecture",
+          "constraints": [
+            "The app must work fully offline on phone and laptop; sync is a convenience, never a requirement.",
+            "Two developers; the first paying customers are expected in six months.",
+            "Notes are text with attachments up to 10 MB; users expect edits on two devices at once not to lose text.",
+            "The team wants to start with no server and add a hosted sync service later without migrating users' data by hand."
+          ],
+          "successCriteria": [
+            "A recommended on-device storage choice and a sync strategy, with the alternatives rejected and why.",
+            "How concurrent edits on two devices are reconciled, and what the user sees when they conflict.",
+            "A migration path from no server to a hosted service that existing users do not notice.",
+            "The main risks of the recommendation and how to find out early whether they bite."
+          ],
+          "rubric": [
+            {
+              "id": "storage",
+              "weight": 2,
+              "criterion": "Recommends a specific on-device storage approach and rejects at least one alternative for a stated reason.",
+              "scale": "0 = no recommendation; 1 = a recommendation with no alternatives; 2 = recommendation plus a rejected alternative with a reason; 3 = plus a reason tied to this app's constraints (offline, attachments, two developers)."
+            },
+            {
+              "id": "conflicts",
+              "weight": 3,
+              "criterion": "Explains how edits from two devices are merged and what the user sees on conflict.",
+              "scale": "0 = conflicts ignored; 1 = 'last write wins' or 'use CRDTs' with no detail; 2 = a mechanism and its user-visible behaviour; 3 = a mechanism, its user-visible behaviour, and where it fails (attachments, deletes, offline for weeks)."
+            },
+            {
+              "id": "migration",
+              "weight": 3,
+              "criterion": "Gives a path from no server to hosted sync that does not require users to export or re-import data.",
+              "scale": "0 = migration not addressed; 1 = 'add a server later'; 2 = a concrete path (data format, identity, first sync) users do not notice; 3 = plus what must be decided now to keep that path open."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Technical claims are correct and the recommended parts exist and fit together.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits (sizes, platforms, guarantees)."
+            },
+            {
+              "id": "risks",
+              "weight": 2,
+              "criterion": "Names the main risks and an early test for each.",
+              "scale": "0 = no risks; 1 = risks with no way to detect them; 2 = risks with early signals; 3 = risks, signals, and the fallback if a signal fires."
+            }
+          ],
+          "statement": "Two developers are building a local-first notes app: text notes with attachments up to 10 MB, on phones and laptops, fully usable offline. They have no server today and want none for the first release, but they plan to offer a paid hosted sync service within a year. Customers will often edit the same note on two devices before either has connected, and they expect not to lose text when that happens.\n\nRecommend how the app should store data on the device and how it should sync, how concurrent edits are reconciled and what the user sees when they conflict, and how the team gets from \"no server\" to a hosted sync service without existing users having to migrate anything. Name the risks of your recommendation and how the team would find out early if one of them is real."
+        },
+        "swarm": {
+          "runId": "01a1c39c-5d4e-727c-b377-4ada4aa2383b",
+          "answer": "**Recommended Architecture: Local-First with Yjs and SQLite Metadata**  The app should adopt **Yjs** as the core CRDT engine for text synchronization, storing its serialized state in a lightweight format (JSON for small notes, chunked snapshots for large notes) within **SQLite**. **Attachments (>1MB)** must be stored as **external files on the filesystem**, linked to notes by UUID. This hybrid approach avoids Out-Of-Memory (OOM) risks associated with large BLOBs in SQLite while leveraging Yjs's robust conflict resolution. The 'sync metadata' table in SQLite should store persistent UUIDs and version vectors for each note, decoupling local state from server-specific identifiers to enable a seamless zero-migration sync path.\n\n **Reconciliation Strategy: Automated Merging with UI Fallback**  For concurrent edits, rely entirely on **Yjs's deterministic CRDT merging** to automatically merge text changes, ensuring no data is lost. Conflicts requiring user intervention should be minimal and limited to structural changes (e.g., adding/removing attachments) or severe corruption. In these rare cases, a '**Resolution Center**' UI should present divergent versions side-by-side, allowing the user to manually pick the winner. This approach balances automated safety with explicit user control where CRDTs cannot determine semantic intent.\n\n **Migration Path: UUID-First Policy**  To ensure zero-migration overhead when introducing a hosted sync service, enforce a strict '**UUID-first**' policy: every note and attachment must have a stable, globally unique ID stored in the SQLite metadata table. The future server will be designed to import local databases by reading these UUIDs and version vectors, treating existing local data as the source of truth. This allows the server to index notes without parsing the opaque CRDT state, enabling a smooth transition from local-only to sync-enabled operation.\n\n **Key Risks and Early Validation**  The main risk is the complexity of implementing Yjs client-side on mobile platforms and debugging CRDT state divergence during network partitions. To validate early, the team should build a '**dual-device editor**' prototype that simulates simultaneous edits offline with network dropouts. This stress test will measure merge latency, text integrity, and attachment consistency, allowing for an early pivot if performance degrades on low-end devices. Additionally, ensure atomicity of writes by committing text metadata within SQLite transactions while relying on OS-level file system integrity for external blobs.",
+          "confidence": 0.85,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 111,
+          "usage": {
+            "inputTokens": 87453,
+            "outputTokens": 17405,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0
+          },
+          "costUsd": 0,
+          "elapsedMs": 311112
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "289dc11180a836720fb22bc29b9003b1c8310cd24173f07b1034e0314f514885",
+          "problemId": "local-first-sync",
+          "modelId": "qwen3.6:35b-mlx",
+          "capUsd": 0,
+          "maxOutputTokens": 4096,
+          "answer": "# Recommendation: CRDT-based Replicated Local Storage with Conflict-Aware Sync Interface and Serverless-to-Hosted Bridge ## 1. On-Device Storage and Sync Strategy ### Recommended Approach: **Yjs (or similar text-based CRDT) + IndexedDB/Filesystem + Encrypted Blob Storage** For on-device storage, use a Content-Addressable or Object-Graph Local Database like **IndexedDB** (Web) or **SQLite** (Mobile) backed by a **Conflict-Free Replicated Data Type (CRDT)** library such as **Yjs**. Yjs is specifically designed for collaborative text editing and handles the ",
+          "usage": {
+            "inputTokens": 413,
+            "outputTokens": 133,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0
+          },
+          "latencyMs": 2518,
+          "at": "2026-11-10T04:04:38.167Z",
+          "passId": "eval:01a1c397-7eae-7298-843f-b2e60dfed824"
+        },
+        "baselineCached": false,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "storage": {
+                "score": 3,
+                "reason": "Recommends SQLite with external files for attachments, explicitly rejecting in-memory or BLOB storage to address the 10MB constraint and offline reliability on mobile devices."
+              },
+              "conflicts": {
+                "score": 2,
+                "reason": "Describes automated merging via Yjs CRDTs and a 'Resolution Center' UI for structural conflicts, but fails to detail user-visible behavior for text merge failures or offline scenarios beyond weeks as required by the top scale."
+              },
+              "migration": {
+                "score": 3,
+                "reason": "Proposes a specific 'UUID-first' policy stored in SQLite metadata that decouples local state from server identifiers, ensuring data is ready for import without re-importing when a server is added."
+              },
+              "correctness": {
+                "score": 2,
+                "reason": "The technical approach of using Yjs with SQLite and external files is sound and standard for this domain, though it oversimplifies the complexity of managing version vectors manually."
+              },
+              "risks": {
+                "score": 3,
+                "reason": "Identifies mobile performance/complexity risks and proposes a specific 'dual-device editor' prototype test with clear success metrics (latency, integrity), plus a fallback pivot mention."
+              }
+            },
+            "baseline": {
+              "storage": {
+                "score": 1,
+                "reason": "Provides a recommendation but cuts off mid-sentence before providing the reasoning for the choice or rejecting alternatives."
+              },
+              "conflicts": {
+                "score": 0,
+                "reason": "The text is incomplete and does not explain how edits are merged or what the user sees."
+              },
+              "migration": {
+                "score": 0,
+                "reason": "The text is incomplete and does not address the migration path from no server to hosted service."
+              },
+              "correctness": {
+                "score": 0,
+                "reason": "The response is truncated and contains no verifiable technical claims due to incompleteness."
+              },
+              "risks": {
+                "score": 0,
+                "reason": "The response is truncated and does not name any risks or detection methods."
+              }
+            },
+            "preferred": "swarm",
+            "note": "Answer A is better because Answer B is truncated and fails to provide the majority of required information."
+          },
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "storage": {
+                "score": 3,
+                "reason": "Answer B recommends SQLite with Yjs and explicitly rejects large in-database BLOBs due to OOM risks, directly addressing the attachment size constraint."
+              },
+              "conflicts": {
+                "score": 2,
+                "reason": "It describes automated merging via CRDTs but fails to specify the user-visible behavior for text conflicts (e.g., 'side-by-side diff') or how deletes are handled, limiting it to a score of 2."
+              },
+              "migration": {
+                "score": 2,
+                "reason": "It provides a concrete path using UUID-first storage in SQLite metadata, though it lacks the detail on what specific decisions must be made now to keep that path open for a score of 3."
+              },
+              "correctness": {
+                "score": 3,
+                "reason": "The technical claims regarding Yjs, SQLite, and external file storage are sound and fit together logically for the stated constraints."
+              },
+              "risks": {
+                "score": 2,
+                "reason": "It names risks (complexity, divergence) and an early test (dual-device prototype), but fails to describe the fallback if that signal fires, limiting it to a score of 2."
+              }
+            },
+            "baseline": {
+              "storage": {
+                "score": 2,
+                "reason": "Answer A recommends IndexedDB/SQLite with Yjs but truncates the explanation before providing the specific reasoning tied to the app's constraints, failing to achieve a score of 3."
+              },
+              "conflicts": {
+                "score": 1,
+                "reason": "The answer is incomplete and does not explain how concurrent edits are merged or what the user sees in case of conflict."
+              },
+              "migration": {
+                "score": 1,
+                "reason": "The answer cuts off before describing any migration path from serverless to hosted."
+              },
+              "correctness": {
+                "score": 0,
+                "reason": "The text is truncated and incomplete, making it impossible to evaluate the technical claims or correctness."
+              },
+              "risks": {
+                "score": 0,
+                "reason": "The answer is truncated and does not name any risks or early tests."
+              }
+            },
+            "preferred": "swarm",
+            "note": "Answer A is truncated/incomplete. Answer B is a complete response that addresses all rubric criteria, though with some minor shortcomings in detail compared to a perfect 3. Therefore, B is better overall."
+          }
+        ],
+        "judgeSkipped": [],
+        "scores": {
+          "swarm": 81.94444444444446,
+          "baseline": 16.666666666666668,
+          "delta": 65.27777777777779,
+          "winner": "swarm",
+          "consistency": 15.277777777777775
+        },
+        "costUsd": 0
+      }
+    ],
+    "spentUsd": 0,
+    "stopped": null,
+    "aggregate": {
+      "problems": 2,
+      "judged": 2,
+      "swarmMean": 77.77777777777779,
+      "baselineMean": 8.333333333333334,
+      "meanDelta": 69.44444444444446,
+      "wins": 2,
+      "losses": 0,
+      "ties": 0,
+      "firstShownPreferred": {
+        "count": 2,
+        "of": 4
+      },
+      "consistency": 11.111111111111112
+    }
+  }
+}
