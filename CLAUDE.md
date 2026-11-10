@@ -40,7 +40,7 @@ pnpm typecheck
 pnpm solve "<problem>" [--fake]  # run the swarm from the CLI; --fake uses FakeModel
 pnpm ledger:import [file]        # one-shot import of the old data/spend.jsonl into model_calls
 pnpm db:generate                 # regenerate the SQL migrations after a schema change
-pnpm eval                        # swarm vs single-agent baseline at equal budget
+pnpm eval [--profile cheap --yes] # swarm vs single-call baseline at equal cost, judged blind (evals/README.md); --fake needs nothing
 ```
 
 ## Architecture rules — non-negotiable

@@ -15,4 +15,5 @@ One file per decision. Accepted ADRs are never edited; a change is a new ADR tha
 | [0009](0009-profiles-with-profile-level-fallback.md) | Model profiles in `agents.yaml`; fallback is a profile property | accepted |
 | [0010](0010-host-package-one-ledger-and-phase-3-dependencies.md) | `packages/host` shares the Node adapters and the SQLite store; one spend ledger per machine; Phase 3 dependencies | accepted |
 | [0011](0011-web-ui-stack-and-phase-4-dependencies.md) | Web UI on Vite and React; the browser folds the event log; force synthesis as a recorded request; Phase 4 dependencies | accepted |
+| [0012](0012-eval-harness-equal-cost-baseline-blind-judge.md) | Eval harness: swarm vs a single-call baseline at equal cost, judged blind in both orders; eval models in `agents.yaml`; pass cap; cached baselines | accepted |
 

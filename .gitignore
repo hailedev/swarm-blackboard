@@ -23,3 +23,6 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Output of `pnpm eval --fake`: scripted answers, never a real result
+evals/results/fake/

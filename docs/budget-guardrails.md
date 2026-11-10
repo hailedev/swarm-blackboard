@@ -216,3 +216,16 @@ The provider layer maps every failure to a typed `ProviderError`:
 Suggested line for the Phase 2 kick-off prompt:
 
 > Implement `docs/budget-guardrails.md` as part of Phase 2 (sections 1, 2, 4, 5 and the Phase 2 items in section 8), add its items to the Phase 2 checklist in `docs/PLAN.md`, and record the profile/fallback design as ADR-0009.
+
+---
+
+## 9. Eval pass cap (Phase 5)
+
+An eval pass (`pnpm eval`, ADR-0012) spends on three kinds of call: the swarm runs, one baseline call per problem, and one judge call per problem per order. All three go through the same traced models and the same `model_calls` ledger as everything else; the baseline and judge calls carry `runId` `eval:<pass id>` and the roles `eval-baseline` and `eval-judge`.
+
+- **The pass cap** (`--max-cost`, default $1.00) is a hard limit over the whole pass, kept in code by a sequential ledger (`PassBudget`): each call is charged its actual cost when it returns, and before each call the harness checks the worst case fits what is left.
+- **Each swarm run** gets `maxCostUsd = min(--run-cap, remaining)` (default run cap $0.08, about three times the recorded `cheap` run), and the controller enforces it as in §2.
+- **The baseline call** is capped at the smaller of the swarm run's measured cost and the pass's remainder, and sized with the §2 arithmetic: the output allowance shrinks to fit, and below the 256-token floor the call is skipped and the report says so.
+- **A judge call** is sized the same way against the pass's remainder; a call that does not fit is skipped with a reason and the pair goes unjudged.
+- **The month** is re-read from the ledger before each problem; a spent month stops the pass before the next problem, with a partial report. A paid pass is refused up front when `spentThisMonth + passCap > limitUsd`, with the cap that would fit, and needs `--yes` or a yes at the prompt. `--fake` passes bill nothing and never touch the month.
+- **Cached baselines** are not charged; the report says when a cached baseline's cap no longer matches the swarm's current cost.

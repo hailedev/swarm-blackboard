@@ -159,7 +159,7 @@ swarm-blackboard/
 ├── evals/
 │   ├── problems/             # benchmark problems (markdown + rubric)
 │   ├── results/              # committed eval reports
-│   └── run.ts                # swarm vs baseline; LLM judge; report
+│   └── src/                  # pnpm eval: swarm vs baseline, blind judge, report (ADR-0012)
 ├── prompts/                  # role prompts, one file per agent
 ├── fixtures/
 │   └── runs/                 # recorded runs used as replay and UI test fixtures
@@ -292,6 +292,6 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 ## 10. Open questions
 
 - ~~Which 2–3 local models to trial for the worker roles in Phase 2.~~ Settled by ADR-0008.
-- Judge model and rubric format for the evals.
+- ~~Judge model and rubric format for the evals.~~ Settled by ADR-0012: Sonnet judges blind in both orders; markdown problems with a YAML rubric of weighted 0–3 criteria.
 - Whether bidding should run on a local model or Claude Haiku — decide on measured reliability in Phase 5.
 - Web search provider, when Phase 6 arrives.
