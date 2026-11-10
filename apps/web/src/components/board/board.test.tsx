@@ -182,6 +182,7 @@ describe('EntryDetail', () => {
       outputTokens: 500,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0,
       estimateChars: 9_000,
       estimateCharsPerToken: 3,

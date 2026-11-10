@@ -66,7 +66,13 @@ export const usageFromSdk = (usage: LanguageModelUsage, pricing: ModelPricing | 
     usage.inputTokenDetails.noCacheTokens ??
     Math.max(0, (usage.inputTokens ?? 0) - cacheReadTokens - cacheWriteTokens);
   return withCost(
-    { inputTokens, outputTokens: usage.outputTokens ?? 0, cacheReadTokens, cacheWriteTokens },
+    {
+      inputTokens,
+      outputTokens: usage.outputTokens ?? 0,
+      cacheReadTokens,
+      cacheWriteTokens,
+      reasoningTokens: usage.outputTokenDetails.reasoningTokens ?? 0,
+    },
     pricing,
   );
 };

@@ -88,3 +88,24 @@ describe('loadRosterFile', () => {
     );
   });
 });
+
+describe('thinking on the Claude aliases (ADR-0013)', () => {
+  it('turns thinking off for sonnet and haiku and keeps thinking aliases for experiments', async () => {
+    const result = await loadRosterFile(REPO_AGENTS_YAML);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const { models } = result.value;
+    expect(models['sonnet']).toEqual({
+      provider: 'anthropic',
+      model: 'claude-sonnet-5-5',
+      think: false,
+    });
+    expect(models['haiku']).toEqual({
+      provider: 'anthropic',
+      model: 'claude-haiku-5-5',
+      think: false,
+    });
+    expect(models['sonnet-think']?.think).toBe(true);
+    expect(models['haiku-think']?.think).toBe(true);
+  });
+});

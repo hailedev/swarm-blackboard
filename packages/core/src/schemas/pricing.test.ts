@@ -50,6 +50,7 @@ const tokens = (partial: Partial<Parameters<typeof costOf>[0]>) => ({
   outputTokens: 0,
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
+  reasoningTokens: 0,
   ...partial,
 });
 
@@ -67,6 +68,7 @@ describe('costOf', () => {
         inputTokens: 1000,
         cacheReadTokens: 10_000,
         cacheWriteTokens: 1000,
+        reasoningTokens: 0,
         outputTokens: 100,
       }),
       flat,
@@ -93,6 +95,7 @@ describe('costOf', () => {
       outputTokens: 500,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0,
     });
   });

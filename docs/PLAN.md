@@ -220,7 +220,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 ### Phase 5 — Smarter control + evals (~2–3 days)
 
-- [ ] LLM bidding with a small model; conflict detection → forced critique / decision; stall escalation; critic gating of synthesis.
+- [ ] LLM bidding with a small model; conflict detection → forced critique / decision; stall escalation; critic gating of synthesis; thinking on for the Critic and Synthesizer (`haiku-think`, `sonnet-think`) measured against thinking off (ADR-0013). Each change is adopted or rejected on a paid eval pass.
 - [ ] Eval harness: ≥10 problems with rubrics; swarm vs single-Claude baseline at equal cost; LLM judge plus human spot-check; report committed to `evals/results/`.
 - **DoD:** an eval report exists; at least one controller change has been adopted or rejected on eval evidence.
 

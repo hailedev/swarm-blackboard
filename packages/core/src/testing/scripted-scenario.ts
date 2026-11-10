@@ -38,7 +38,7 @@ export const SCENARIO_PRICING: ModelPricing = {
 
 /** What one scripted call costs at SCENARIO_PRICING: $0.0027. */
 export const SCENARIO_CALL_COST_USD = costOf(
-  { ...SCENARIO_TOKENS, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  { ...SCENARIO_TOKENS, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 },
   SCENARIO_PRICING,
 );
 

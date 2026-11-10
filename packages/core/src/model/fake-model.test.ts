@@ -51,6 +51,7 @@ describe('createFakeModel', () => {
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0,
     });
     expect(first.ok && first.value.modelId).toBe('scripted');
@@ -102,6 +103,7 @@ describe('createFakeModel', () => {
       outputTokens: 200,
       cacheReadTokens: 500,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: expect.closeTo(0.001 + 0.001 + 0.00005, 10) as number,
     });
     const explicit = await model.generateObject(request());

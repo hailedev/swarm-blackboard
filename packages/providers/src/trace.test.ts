@@ -67,6 +67,7 @@ describe('traceModel', () => {
           outputTokens: 10,
           cacheReadTokens: 0,
           cacheWriteTokens: 0,
+          reasoningTokens: 0,
           costUsd: expect.closeTo(0.0001 + 0.00005, 12) as number,
         },
         // The controller's estimate for the same request at the model's chars per token.

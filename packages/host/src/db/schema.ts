@@ -10,6 +10,8 @@ const usageColumns = {
   outputTokens: integer('output_tokens').notNull().default(0),
   cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
   cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+  /** The part of output_tokens spent thinking (ADR-0013). */
+  reasoningTokens: integer('reasoning_tokens').notNull().default(0),
   costUsd: real('cost_usd').notNull().default(0),
 };
 
@@ -98,6 +100,7 @@ export const modelCalls = sqliteTable(
     outputTokens: integer('output_tokens'),
     cacheReadTokens: integer('cache_read_tokens'),
     cacheWriteTokens: integer('cache_write_tokens'),
+    reasoningTokens: integer('reasoning_tokens'),
     costUsd: real('cost_usd'),
     estimateChars: integer('estimate_chars'),
     estimateCharsPerToken: real('estimate_chars_per_token'),

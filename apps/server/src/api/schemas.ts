@@ -106,6 +106,8 @@ export const ModelCallSummarySchema = z.object({
   outputTokens: z.number().nullable(),
   cacheReadTokens: z.number().nullable(),
   cacheWriteTokens: z.number().nullable(),
+  /** The part of the output spent thinking; null for rows older than ADR-0013. */
+  reasoningTokens: z.number().nullable(),
   costUsd: z.number().nullable(),
   estimateChars: z.number().nullable(),
   estimateCharsPerToken: z.number().nullable(),

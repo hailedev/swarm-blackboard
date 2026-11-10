@@ -110,6 +110,7 @@ describe('AgentPanel', () => {
     outputTokens: 200,
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
+    reasoningTokens: 0,
     costUsd,
     estimateChars: 3_000,
     estimateCharsPerToken: 3,
@@ -215,6 +216,7 @@ describe('the trace viewer', () => {
     outputTokens: 500,
     cacheReadTokens: 100,
     cacheWriteTokens: 0,
+    reasoningTokens: 0,
     costUsd: 0,
     estimateChars: 9_000,
     estimateCharsPerToken: 3,
@@ -236,6 +238,7 @@ describe('the trace viewer', () => {
     inputTokens: null,
     outputTokens: null,
     cacheReadTokens: null,
+    reasoningTokens: null,
     cacheWriteTokens: null,
     costUsd: null,
     actualInputTokens: null,
@@ -261,11 +264,11 @@ describe('the trace viewer', () => {
       );
     // Prompt tokens are what the model read (cache reads included), beside the estimate.
     expect(cells('call-1')).toMatch(
-      /2 solver qwen3\.6:35b-a3b-q8_0 local ✓ ok 2\.1K \(3\.0K\) 500 \$0\.0000 13\.1s /,
+      /2 solver qwen3\.6:35b-a3b-q8_0 local ✓ ok 2\.1K \(3\.0K\) 500 \(0\) \$0\.0000 13\.1s /,
     );
     // A refused call has no usage: dashes, not zeros.
     expect(cells('call-2')).toMatch(
-      /2 critic claude-haiku-5-5 paid ✕ invalid_request — \(3\.0K\) — — 0\.0s /,
+      /2 critic claude-haiku-5-5 paid ✕ invalid_request — \(3\.0K\) — \(—\) — 0\.0s /,
     );
     expect(
       text(render(<TraceTable calls={[]} selectedId={null} onSelect={() => undefined} />)),
@@ -283,7 +286,9 @@ describe('the trace viewer', () => {
     const html = render(<CallDetail call={detail} error={null} onClose={() => undefined} />);
     const seen = text(html);
     expect(seen).toContain('solver · round 2 · qwen3.6:35b-a3b-q8_0');
-    expect(seen).toContain('output allowance 4.1K · estimate 9.0K chars at 3.00 per token');
+    expect(seen).toContain(
+      'output 500 of 4.1K allowed, thinking 0 · estimate 9.0K chars at 3.00 per token',
+    );
     expect(seen).toContain('Warnings unsupported setting: seed');
     expect(seen).toContain('System prompt # Solver You are the Solver.');
     expect(seen).toContain('Prompt Round 2 of 12.');

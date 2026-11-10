@@ -87,7 +87,7 @@ export const renderSummary = (summary: RunSummary): string[] => {
   const tokens = totals.usage.inputTokens + totals.usage.outputTokens;
   const lines = [
     `== ${HEADING[summary.status]}: ${summary.reason} after ${String(summary.rounds)} rounds ==`,
-    `entries ${String(totals.entries)} | tokens ${String(tokens)} | cost $${totals.usage.costUsd.toFixed(4)} | elapsed ${String(totals.elapsedMs)} ms`,
+    `entries ${String(totals.entries)} | tokens ${String(tokens)} (${String(totals.usage.reasoningTokens)} thinking) | cost $${totals.usage.costUsd.toFixed(4)} | elapsed ${String(totals.elapsedMs)} ms`,
   ];
   const synthesis = summary.view.liveOfType('synthesis').at(-1);
   if (synthesis !== undefined) lines.push('', 'Answer:', synthesis.content);

@@ -41,7 +41,7 @@ export const TraceTable = ({ calls, selectedId, onSelect }: TraceTableProps) => 
               'Model',
               'Outcome',
               'Prompt tokens (est.)',
-              'Output',
+              'Output (thinking)',
               'Cost',
               'Latency',
               'At',
@@ -89,7 +89,10 @@ export const TraceTable = ({ calls, selectedId, onSelect }: TraceTableProps) => 
                   {dash(promptTokens(call))}{' '}
                   <span className="text-ink-2">({dash(call.estimateTokens)})</span>
                 </td>
-                <td className="px-3 py-1.5">{dash(call.outputTokens)}</td>
+                <td className="px-3 py-1.5 whitespace-nowrap">
+                  {dash(call.outputTokens)}{' '}
+                  <span className="text-ink-2">({dash(call.reasoningTokens)})</span>
+                </td>
                 <td className="px-3 py-1.5">{dash(call.costUsd, usd)}</td>
                 <td className="px-3 py-1.5">{(call.latencyMs / 1_000).toFixed(1)}s</td>
                 <td className="px-3 py-1.5 whitespace-nowrap text-ink-2">{clockTime(call.at)}</td>
@@ -157,8 +160,9 @@ export const CallDetail = ({ call, error, onClose }: CallDetailProps) => (
       <>
         <p className="mt-1 text-xs text-ink-2">
           {call.outcome} · {(call.latencyMs / 1_000).toFixed(1)}s · {dash(call.costUsd, usd)} ·
-          output allowance {dash(call.maxOutputTokens)} · estimate {dash(call.estimateChars)} chars
-          at {dash(call.estimateCharsPerToken, (n) => n.toFixed(2))} per token
+          output {dash(call.outputTokens)} of {dash(call.maxOutputTokens)} allowed, thinking{' '}
+          {dash(call.reasoningTokens)} · estimate {dash(call.estimateChars)} chars at{' '}
+          {dash(call.estimateCharsPerToken, (n) => n.toFixed(2))} per token
         </p>
         {call.error === null ? null : <Block title="Error" text={call.error} />}
         {warningsOf(call.warningsJson).length === 0 ? null : (

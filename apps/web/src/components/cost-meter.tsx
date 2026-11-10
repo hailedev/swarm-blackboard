@@ -105,7 +105,8 @@ export const CostMeter = ({ run, month }: CostMeterProps) => (
 
 export interface BudgetStripProps extends CostMeterProps {
   rounds: { done: number; max: number };
-  tokens: { used: number; max: number };
+  /** `reasoning` is the part of the output tokens spent thinking (ADR-0013). */
+  tokens: { used: number; max: number; reasoning: number };
   time: { elapsedMs: number; maxMs: number };
 }
 
@@ -115,7 +116,14 @@ export const BudgetStrip = ({ run, month, rounds, tokens, time }: BudgetStripPro
     <CostMeter run={run} month={month} />
     <div className="grid grid-cols-3 gap-4">
       <Meter id="rounds" label="Rounds" value={rounds.done} limit={rounds.max} format={String} />
-      <Meter id="tokens" label="Tokens" value={tokens.used} limit={tokens.max} format={compact} />
+      <div>
+        <Meter id="tokens" label="Tokens" value={tokens.used} limit={tokens.max} format={compact} />
+        <p data-testid="reasoning-tokens" className="mt-1 text-xs text-ink-2">
+          {tokens.reasoning > 0
+            ? `${compact(tokens.reasoning)} of them thinking`
+            : 'none spent thinking'}
+        </p>
+      </div>
       <Meter id="time" label="Time" value={time.elapsedMs} limit={time.maxMs} format={duration} />
     </div>
   </div>

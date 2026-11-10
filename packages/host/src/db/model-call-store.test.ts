@@ -48,6 +48,7 @@ const trace = (overrides: Partial<ModelCallTrace> = {}): ModelCallTrace => ({
     outputTokens: 100,
     cacheReadTokens: 200,
     cacheWriteTokens: 0,
+    reasoningTokens: 0,
     costUsd: 0.002,
   },
   estimate: { chars: 3_000, charsPerToken: 2, tokens: 1_500 },
@@ -64,6 +65,7 @@ const usageWith = (costUsd: number) => ({
   outputTokens: 100,
   cacheReadTokens: 200,
   cacheWriteTokens: 0,
+  reasoningTokens: 0,
   costUsd,
 });
 
@@ -85,6 +87,7 @@ describe('ModelCallStore', () => {
       outputTokens: 100,
       cacheReadTokens: 200,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0.002,
       estimateChars: 3_000,
       estimateCharsPerToken: 2,
@@ -257,6 +260,7 @@ describe('importSpendJsonl', () => {
         outputTokens: 50,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
+        reasoningTokens: 0,
         costUsd,
       });
     await writeFile(

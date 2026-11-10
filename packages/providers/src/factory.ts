@@ -86,6 +86,7 @@ export const createModelFactory = (options: ModelFactoryOptions): ModelFactory =
             apiKey: options.anthropicApiKey,
             pricing,
             structuredOutputMode: options.anthropicStructuredOutputMode,
+            think: resolved.think,
             charsPerToken: charsPerToken(resolved, ANTHROPIC_CHARS_PER_TOKEN),
             timeoutMs: options.timeouts?.anthropicMs,
             now: options.now,

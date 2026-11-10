@@ -17,6 +17,8 @@ export interface FakeUsage {
   outputTokens: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  /** The part of `outputTokens` spent thinking; defaults to none. */
+  reasoningTokens?: number;
   costUsd?: number;
 }
 
@@ -60,6 +62,7 @@ const toUsage = (fake: FakeUsage, pricing: ModelPricing | null): Usage => {
     outputTokens: fake.outputTokens,
     cacheReadTokens: fake.cacheReadTokens ?? 0,
     cacheWriteTokens: fake.cacheWriteTokens ?? 0,
+    reasoningTokens: fake.reasoningTokens ?? 0,
   };
   return fake.costUsd === undefined
     ? withCost(tokens, pricing)

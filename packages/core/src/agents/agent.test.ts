@@ -164,6 +164,7 @@ describe('createRoleAgent: repair → fallback → discard', () => {
               outputTokens: 1,
               cacheReadTokens: 0,
               cacheWriteTokens: 0,
+              reasoningTokens: 0,
               costUsd: 0,
             },
             latencyMs: 0,

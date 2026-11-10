@@ -17,11 +17,36 @@ export const ANTHROPIC_TIMEOUT_MS = 60_000;
  */
 export const ANTHROPIC_CHARS_PER_TOKEN = 2;
 
+/**
+ * What the request says about thinking (ADR-0013). Claude Sonnet 5.5 and Haiku 5.5 think
+ * adaptively when the request says nothing, and the thinking tokens are billed as output
+ * and count against `maxOutputTokens`, so an alias with `think: false` turns it off:
+ * Sonnet 5.5 rejects `disabled` and offers `between_tools` as its lowest setting (with no
+ * tools in play, that is off); every other model takes `disabled`. `think: true` asks for
+ * adaptive thinking explicitly, and an alias that says nothing leaves the model's default.
+ */
+export interface AnthropicThinkingOption {
+  thinking: { type: 'adaptive' | 'disabled' | 'between_tools' };
+}
+
+export const anthropicThinking = (
+  modelId: string,
+  think: boolean | undefined,
+): Partial<AnthropicThinkingOption> => {
+  if (think === undefined) return {};
+  if (think) return { thinking: { type: 'adaptive' } };
+  return {
+    thinking: { type: modelId.startsWith('claude-sonnet-5-5') ? 'between_tools' : 'disabled' },
+  };
+};
+
 export interface AnthropicModelOptions {
   modelId: string;
   apiKey: string;
   pricing: ModelPricing;
   structuredOutputMode?: AnthropicStructuredOutputMode;
+  /** The alias's `think` flag; undefined leaves the model's own default. */
+  think?: boolean;
   /** Overrides ANTHROPIC_CHARS_PER_TOKEN: an agents.yaml value or the host's calibration. */
   charsPerToken?: number;
   timeoutMs?: number;
@@ -47,7 +72,10 @@ export const createAnthropicModel = (options: AnthropicModelOptions): Model => {
       providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
     }),
     providerOptions: () => ({
-      anthropic: { structuredOutputMode: options.structuredOutputMode ?? 'auto' },
+      anthropic: {
+        structuredOutputMode: options.structuredOutputMode ?? 'auto',
+        ...anthropicThinking(options.modelId, options.think),
+      },
     }),
     timeoutMs: options.timeoutMs ?? ANTHROPIC_TIMEOUT_MS,
     now: options.now,

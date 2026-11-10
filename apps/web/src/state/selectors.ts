@@ -245,6 +245,8 @@ export interface AgentSpend {
   calls: number;
   costUsd: number;
   tokens: number;
+  /** The part of the output tokens spent thinking (ADR-0013). */
+  reasoningTokens: number;
   latencyMs: number;
 }
 
@@ -256,7 +258,13 @@ export const agentSpendOf = (
   const spend = new Map<string, AgentSpend>();
   for (const call of calls) {
     if (throughRound !== null && call.round !== null && call.round > throughRound) continue;
-    const current = spend.get(call.role) ?? { calls: 0, costUsd: 0, tokens: 0, latencyMs: 0 };
+    const current = spend.get(call.role) ?? {
+      calls: 0,
+      costUsd: 0,
+      tokens: 0,
+      reasoningTokens: 0,
+      latencyMs: 0,
+    };
     spend.set(call.role, {
       calls: current.calls + 1,
       costUsd: current.costUsd + (call.costUsd ?? 0),
@@ -266,6 +274,7 @@ export const agentSpendOf = (
         (call.outputTokens ?? 0) +
         (call.cacheReadTokens ?? 0) +
         (call.cacheWriteTokens ?? 0),
+      reasoningTokens: current.reasoningTokens + (call.reasoningTokens ?? 0),
       latencyMs: current.latencyMs + call.latencyMs,
     });
   }

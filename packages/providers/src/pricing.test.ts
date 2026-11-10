@@ -8,6 +8,7 @@ const tokens = (inputTokens: number, outputTokens: number, cacheReadTokens = 0) 
   outputTokens,
   cacheReadTokens,
   cacheWriteTokens: 0,
+  reasoningTokens: 0,
 });
 
 describe('PRICE_TABLE', () => {

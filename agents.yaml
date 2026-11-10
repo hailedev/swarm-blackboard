@@ -7,8 +7,15 @@
 defaultProfile: dev
 
 models:
-  sonnet: { provider: anthropic, model: claude-sonnet-5-5 }
-  haiku: { provider: anthropic, model: claude-haiku-5-5 }
+  # Claude Sonnet 5.5 and Haiku 5.5 think adaptively unless told otherwise, and the thinking
+  # tokens are billed as output and count against the call's allowance: the pilot of
+  # 2026-11-10 found half to three quarters of the swarm's Haiku output tokens were hidden
+  # thinking (ADR-0013). `think: false` turns it off; the `-think` aliases keep it for
+  # experiments (Step 2 of Phase 5 measures thinking on for the Critic and Synthesizer).
+  sonnet: { provider: anthropic, model: claude-sonnet-5-5, think: false }
+  haiku: { provider: anthropic, model: claude-haiku-5-5, think: false }
+  sonnet-think: { provider: anthropic, model: claude-sonnet-5-5, think: true }
+  haiku-think: { provider: anthropic, model: claude-haiku-5-5, think: true }
   # Worker model chosen by the Phase 2 trial (ADR-0008). Thinking is off: on this model
   # it was 7x slower and less link-valid. `local-think` stays for experiments.
   local: { provider: ollama, model: qwen3.6:35b-a3b-q8_0, think: false }

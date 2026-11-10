@@ -24,6 +24,7 @@ describe('BudgetTracker', () => {
       outputTokens: 6,
       cacheReadTokens: 2,
       cacheWriteTokens: 3,
+      reasoningTokens: 0,
       costUsd: 0.03,
     });
     expect(tracker.rounds).toBe(0);

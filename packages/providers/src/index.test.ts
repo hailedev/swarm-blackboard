@@ -13,6 +13,7 @@ describe('@team/providers', () => {
             outputTokens: 2,
             cacheReadTokens: 0,
             cacheWriteTokens: 0,
+            reasoningTokens: 0,
             costUsd: 0,
           },
         },

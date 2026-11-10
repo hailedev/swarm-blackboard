@@ -11,6 +11,7 @@ const usage = {
   outputTokens: 1,
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
+  reasoningTokens: 0,
   costUsd: 0,
 };
 const totals = { rounds: 5, entries: 9, usage, elapsedMs: 1200 };

@@ -46,6 +46,7 @@ const toRecord = (row: typeof runs.$inferSelect): RunRecord => ({
       outputTokens: row.outputTokens,
       cacheReadTokens: row.cacheReadTokens,
       cacheWriteTokens: row.cacheWriteTokens,
+      reasoningTokens: row.reasoningTokens,
       costUsd: row.costUsd,
     },
   },

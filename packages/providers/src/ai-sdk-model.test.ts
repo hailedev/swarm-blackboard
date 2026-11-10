@@ -84,6 +84,7 @@ describe('createAiSdkModel', () => {
       outputTokens: 30,
       cacheReadTokens: 15,
       cacheWriteTokens: 5,
+      reasoningTokens: 0,
       costUsd: expect.closeTo((100 * 1 + 30 * 5 + 15 * 0.1 + 5 * 1.25) / 1e6, 12) as number,
     });
 
@@ -128,6 +129,7 @@ describe('createAiSdkModel', () => {
       outputTokens: 0,
       cacheReadTokens: 20,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0,
     });
     expect(
@@ -150,6 +152,7 @@ describe('createAiSdkModel', () => {
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0,
     });
   });

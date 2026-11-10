@@ -20,6 +20,7 @@ const base = {
     outputTokens: 5,
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
+    reasoningTokens: 0,
     costUsd: 0.001,
   },
 };

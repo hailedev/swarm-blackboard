@@ -87,6 +87,7 @@ describe('headers and summary', () => {
           outputTokens: 50,
           cacheReadTokens: 0,
           cacheWriteTokens: 0,
+          reasoningTokens: 0,
           costUsd: 0.0315,
         },
         elapsedMs: 42,
@@ -103,7 +104,7 @@ describe('headers and summary', () => {
     fx.entry('synthesis', { version: 1, confidence: 0.9, cites: [] }, { content: 'The answer.' });
     expect(renderSummary(summary({ view: fx.view() }))).toEqual([
       '== Done: completed after 4 rounds ==',
-      'entries 12 | tokens 150 | cost $0.0315 | elapsed 42 ms',
+      'entries 12 | tokens 150 (0 thinking) | cost $0.0315 | elapsed 42 ms',
       '',
       'Answer:',
       'The answer.',

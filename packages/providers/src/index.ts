@@ -20,8 +20,17 @@ export { createFakeModel } from '@team/core';
 
 export type { AiSdkModelOptions } from './ai-sdk-model';
 export { createAiSdkModel, describeWarning, usageFromSdk } from './ai-sdk-model';
-export type { AnthropicModelOptions, AnthropicStructuredOutputMode } from './anthropic';
-export { ANTHROPIC_CHARS_PER_TOKEN, ANTHROPIC_TIMEOUT_MS, createAnthropicModel } from './anthropic';
+export type {
+  AnthropicModelOptions,
+  AnthropicStructuredOutputMode,
+  AnthropicThinkingOption,
+} from './anthropic';
+export {
+  ANTHROPIC_CHARS_PER_TOKEN,
+  ANTHROPIC_TIMEOUT_MS,
+  anthropicThinking,
+  createAnthropicModel,
+} from './anthropic';
 export { classifyProviderError } from './errors';
 export type {
   CharsPerTokenLookup,

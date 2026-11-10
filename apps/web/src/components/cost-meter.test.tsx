@@ -95,7 +95,7 @@ describe('BudgetStrip', () => {
         run={{ spentUsd: 0.0238, capUsd: 0.25 }}
         month={month}
         rounds={{ done: 12, max: 12 }}
-        tokens={{ used: 222_125, max: 400_000 }}
+        tokens={{ used: 222_125, max: 400_000, reasoning: 1_500 }}
         time={{ elapsedMs: 467_993, maxMs: 900_000 }}
       />,
     );

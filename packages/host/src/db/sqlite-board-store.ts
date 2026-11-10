@@ -34,6 +34,7 @@ const totalsUpdate = (totals: RunTotals) => ({
   outputTokens: totals.usage.outputTokens,
   cacheReadTokens: totals.usage.cacheReadTokens,
   cacheWriteTokens: totals.usage.cacheWriteTokens,
+  reasoningTokens: totals.usage.reasoningTokens,
   costUsd: totals.usage.costUsd,
 });
 
@@ -84,6 +85,7 @@ const entryRow = (runId: string, seq: number, handle: string, entry: Entry) => (
   outputTokens: entry.usage.outputTokens,
   cacheReadTokens: entry.usage.cacheReadTokens,
   cacheWriteTokens: entry.usage.cacheWriteTokens,
+  reasoningTokens: entry.usage.reasoningTokens,
   costUsd: entry.usage.costUsd,
 });
 
@@ -174,6 +176,7 @@ export class SqliteBoardStore implements BoardStore {
             outputTokens: sql`${runs.outputTokens} + ${event.usage.outputTokens}`,
             cacheReadTokens: sql`${runs.cacheReadTokens} + ${event.usage.cacheReadTokens}`,
             cacheWriteTokens: sql`${runs.cacheWriteTokens} + ${event.usage.cacheWriteTokens}`,
+            reasoningTokens: sql`${runs.reasoningTokens} + ${event.usage.reasoningTokens}`,
             costUsd: sql`${runs.costUsd} + ${event.usage.costUsd}`,
           })
           .where(eq(runs.id, event.runId))

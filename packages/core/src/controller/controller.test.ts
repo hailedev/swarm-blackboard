@@ -197,6 +197,7 @@ describe('createController', () => {
       outputTokens: SCENARIO_TOKENS.outputTokens * calls,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: expect.closeTo(SCENARIO_CALL_COST_USD * calls, 10) as number,
     });
 
@@ -482,6 +483,7 @@ describe('createController', () => {
         outputTokens: 80,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
+        reasoningTokens: 0,
         costUsd: expect.closeTo((400 * 1 + 80 * 5) / 1e6, 12) as number,
       });
       expect(report.ok && report.value.usage.inputTokens).toBe(400);

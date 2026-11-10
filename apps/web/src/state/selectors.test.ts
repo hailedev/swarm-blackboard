@@ -294,6 +294,7 @@ describe('agentSpendOf', () => {
     outputTokens: 20,
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
+    reasoningTokens: 0,
     costUsd: 0.001,
     estimateChars: 300,
     estimateCharsPerToken: 3,
@@ -324,7 +325,13 @@ describe('agentSpendOf', () => {
     expect(all.get('solver')).toMatchObject({ calls: 2, tokens: 290, latencyMs: 4_000 });
     expect(all.get('solver')?.costUsd).toBeCloseTo(0.003, 10);
     // A refused call cost nothing and read nothing, but it was a call.
-    expect(all.get('critic')).toEqual({ calls: 1, costUsd: 0, tokens: 0, latencyMs: 1_000 });
+    expect(all.get('critic')).toEqual({
+      calls: 1,
+      costUsd: 0,
+      tokens: 0,
+      reasoningTokens: 0,
+      latencyMs: 1_000,
+    });
     expect(all.get('planner')).toBeUndefined();
     expect(agentSpendOf(calls, 2).get('solver')).toMatchObject({ calls: 1, costUsd: 0.001 });
   });

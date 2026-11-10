@@ -379,6 +379,7 @@ describe('runs', () => {
         outputTokens: 1,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
+        reasoningTokens: 0,
         costUsd: 4.9,
       },
       estimate: { chars: 2, charsPerToken: 2, tokens: 1 },

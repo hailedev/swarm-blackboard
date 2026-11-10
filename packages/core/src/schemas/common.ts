@@ -10,11 +10,15 @@ export const RoundSchema = z.int().nonnegative();
 // Token accounting for one model call, or a sum of calls. All four token counts
 // are stored (docs/budget-guardrails.md §2): cache reads and writes are billed at
 // their own rates and are part of the prompt, so they count towards token budgets.
+// `reasoningTokens` is the part of `outputTokens` a thinking model spent before it wrote
+// (ADR-0013): billed as output and counted against the allowance, so it is kept visible
+// rather than folded away. Logs written before it existed read as zero.
 export const UsageSchema = z.object({
   inputTokens: z.int().nonnegative(),
   outputTokens: z.int().nonnegative(),
   cacheReadTokens: z.int().nonnegative(),
   cacheWriteTokens: z.int().nonnegative(),
+  reasoningTokens: z.int().nonnegative().default(0),
   costUsd: z.number().nonnegative(),
 });
 export type Usage = z.infer<typeof UsageSchema>;
@@ -24,6 +28,7 @@ export const zeroUsage = (): Usage => ({
   outputTokens: 0,
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
+  reasoningTokens: 0,
   costUsd: 0,
 });
 
@@ -32,6 +37,7 @@ export const addUsage = (a: Usage, b: Usage): Usage => ({
   outputTokens: a.outputTokens + b.outputTokens,
   cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
   cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+  reasoningTokens: a.reasoningTokens + b.reasoningTokens,
   costUsd: a.costUsd + b.costUsd,
 });
 

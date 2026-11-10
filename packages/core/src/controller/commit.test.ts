@@ -155,6 +155,7 @@ describe('prepareEntries', () => {
       outputTokens: 20,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0.002,
     };
     const batch = prepareEntries({

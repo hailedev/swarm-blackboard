@@ -3,7 +3,7 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { ANTHROPIC_CHARS_PER_TOKEN, createAnthropicModel } from './anthropic';
+import { ANTHROPIC_CHARS_PER_TOKEN, anthropicThinking, createAnthropicModel } from './anthropic';
 import { composeModel, createModelFactory, describeFactoryError } from './factory';
 import {
   createOllamaModel,
@@ -55,6 +55,7 @@ describe('createOllamaModel', () => {
       outputTokens: 5,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      reasoningTokens: 0,
       costUsd: 0,
     });
     const call = mock.doGenerateCalls[0];
@@ -305,5 +306,74 @@ describe('createModelFactory', () => {
     expect(result.ok).toBe(true);
     expect(traces.map((t) => t.outcome)).toEqual(['rate_limit', 'overloaded', 'ok']);
     expect(traces.map((t) => t.usage === null)).toEqual([true, true, false]);
+  });
+});
+
+describe('thinking on Claude models (ADR-0013)', () => {
+  const haiku = PRICE_TABLE.models['claude-haiku-5-5'];
+  const sonnet = PRICE_TABLE.models['claude-sonnet-5-5'];
+  if (haiku === undefined || sonnet === undefined) throw new Error('price table lost a model');
+
+  const optionsSent = async (
+    modelId: string,
+    pricing: typeof haiku,
+    think: boolean | undefined,
+  ) => {
+    const mock = new MockLanguageModelV4({ doGenerate: ok });
+    const model = createAnthropicModel({
+      modelId,
+      apiKey: 'sk-test',
+      pricing,
+      languageModel: mock,
+      ...(think === undefined ? {} : { think }),
+    });
+    await model.generateObject(request());
+    return mock.doGenerateCalls[0]?.providerOptions;
+  };
+
+  it('says nothing about thinking when the alias says nothing', async () => {
+    expect(await optionsSent('claude-haiku-5-5', haiku, undefined)).toEqual({
+      anthropic: { structuredOutputMode: 'auto' },
+    });
+  });
+
+  it('turns thinking off the way each model allows: between_tools on Sonnet 5.5, disabled elsewhere', async () => {
+    expect(await optionsSent('claude-sonnet-5-5', sonnet, false)).toEqual({
+      anthropic: { structuredOutputMode: 'auto', thinking: { type: 'between_tools' } },
+    });
+    expect(await optionsSent('claude-haiku-5-5', haiku, false)).toEqual({
+      anthropic: { structuredOutputMode: 'auto', thinking: { type: 'disabled' } },
+    });
+    expect(anthropicThinking('claude-opus-4-8', false)).toEqual({ thinking: { type: 'disabled' } });
+  });
+
+  it('asks for adaptive thinking when the alias says think: true', async () => {
+    expect(await optionsSent('claude-haiku-5-5', haiku, true)).toEqual({
+      anthropic: { structuredOutputMode: 'auto', thinking: { type: 'adaptive' } },
+    });
+  });
+
+  it('records the reasoning tokens the provider reports inside the output count', async () => {
+    const thought: GenerateResult = {
+      ...ok,
+      usage: {
+        inputTokens: { total: 50, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+        outputTokens: { total: 900, text: 100, reasoning: 800 },
+      },
+    };
+    const mock = new MockLanguageModelV4({ doGenerate: thought });
+    const model = createAnthropicModel({
+      modelId: 'claude-haiku-5-5',
+      apiKey: 'sk-test',
+      pricing: haiku,
+      languageModel: mock,
+    });
+    const result = await model.generateObject(request());
+    expect(result.ok && result.value.usage).toMatchObject({
+      outputTokens: 900,
+      reasoningTokens: 800,
+    });
+    // Billed as output: the cost counts all 900.
+    expect(result.ok && result.value.usage.costUsd).toBeCloseTo((50 * 0.1 + 900 * 0.5) / 1e6, 12);
   });
 });

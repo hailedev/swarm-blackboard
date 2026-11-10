@@ -152,7 +152,11 @@ export const RunPage = ({ runId }: { runId: string }) => {
           run={{ spentUsd: usage.costUsd, capUsd: now.config.maxCostUsd }}
           month={budget.data}
           rounds={{ done: shownRound, max: now.config.maxRounds }}
-          tokens={{ used: totalTokens(usage), max: now.config.maxTokens }}
+          tokens={{
+            used: totalTokens(usage),
+            max: now.config.maxTokens,
+            reasoning: usage.reasoningTokens,
+          }}
           time={{ elapsedMs, maxMs: now.config.maxWallClockMs }}
         />
       </section>
