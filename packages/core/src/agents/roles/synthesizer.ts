@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
+import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import { eligible, mandatory, notEligible, type RoleDefinition } from '../agent';
 import { synthesisCandidates } from '../eligibility';
 
 /** Exactly one synthesis, linking only through `refs`. */
-export const synthesizerOutputSchema = (refs: ReferenceSchemas) =>
+export const synthesizerOutputSchema = (refs: ModelReferenceSchemas) =>
   z.object({ contributions: z.array(contributionSchemas(refs).synthesis).min(1).max(1) });
 
 // Contributes the draft answer. Eligible when a hypothesis has no blocking critique, or

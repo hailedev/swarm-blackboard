@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
+import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { hypothesesWithNewEvidence, hypothesesWithoutCritique } from '../eligibility';
 
 // Structurally unable to propose: the schema admits critiques and questions only (ADR-0005).
-export const criticOutputSchema = (refs: ReferenceSchemas) => {
+export const criticOutputSchema = (refs: ModelReferenceSchemas) => {
   const s = contributionSchemas(refs);
   return z.object({
     contributions: z.array(z.discriminatedUnion('type', [s.critique, s.question])).max(6),

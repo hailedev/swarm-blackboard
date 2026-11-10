@@ -220,8 +220,11 @@ export const createScriptedModels = (
         return respond([
           {
             type: 'synthesis',
-            content:
-              'Adopt a single pnpm monorepo, migrating one team per quarter with independent deploys; duplicated tooling is the main pain point.',
+            // Paragraphs, as the model-facing schema asks; the controller joins them.
+            content: [
+              'Adopt a single pnpm monorepo, migrating one team per quarter with independent deploys.',
+              'Duplicated tooling is the main pain point; the migration cost is a quarter of one engineer.',
+            ],
             parents: cites,
             payload: { version: 1, confidence: 0.9, cites },
           },

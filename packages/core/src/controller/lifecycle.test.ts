@@ -253,7 +253,7 @@ describe('force synthesis', () => {
           contributions: [
             {
               type: 'synthesis',
-              content: 'A draft from a thin board.',
+              content: ['A draft from a thin board.'],
               parents: [],
               payload: { version: 1, confidence: 0.4, cites: [] },
             },

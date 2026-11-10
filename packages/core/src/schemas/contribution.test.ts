@@ -67,6 +67,7 @@ describe('contributionSchema over handle references', () => {
     liveOf: Object.fromEntries(
       Object.entries(live).map(([type, handles]) => [type, z.enum(handles)]),
     ),
+    paragraphs: true as const,
   });
 
   it('accepts only the handles in the enum', () => {

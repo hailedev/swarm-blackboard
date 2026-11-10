@@ -50,6 +50,7 @@ export type {
 export {
   describeOllamaPreflightError,
   FORMAT_PROBE,
+  PARAGRAPH_PROBE,
   preflightOllama,
   probeOllamaFormat,
 } from './ollama-preflight';

@@ -3,7 +3,11 @@ import type { ZodType } from 'zod';
 import type { BoardView } from '../board/board-view';
 import type { Model, ModelError, ModelRequest, ModelResponse } from '../ports/model';
 import { err, ok, type Result } from '../ports/result';
-import type { Contribution, ReferenceSchemas } from '../schemas/contribution';
+import type {
+  Contribution,
+  ModelContribution,
+  ModelReferenceSchemas,
+} from '../schemas/contribution';
 import type { AgentRole } from '../schemas/role';
 import type { RunConfig } from '../schemas/run-config';
 import { buildAgentRequest, resolveHandles } from './handles';
@@ -89,9 +93,9 @@ export const mandatory = (targetIds: readonly string[], reason: string): Trigger
   mandatory: true,
 });
 
-/** What a model returns: contributions whose references are handles until resolved. */
+/** What a model returns: references by handle and paragraphs until `resolveHandles` runs. */
 export interface AgentOutput {
-  contributions: readonly Contribution[];
+  contributions: readonly ModelContribution[];
 }
 
 export type AgentError = { kind: 'model'; error: CallError };
@@ -114,7 +118,7 @@ export interface Agent {
 // built per call from the references the agent's view names (agents/handles.ts).
 export interface RoleDefinition {
   readonly role: AgentRole;
-  outputSchema(refs: ReferenceSchemas): ZodType<AgentOutput>;
+  outputSchema(refs: ModelReferenceSchemas): ZodType<AgentOutput>;
   trigger(view: BoardView, ctx: AgentContext): Trigger;
 }
 

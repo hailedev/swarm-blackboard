@@ -1,0 +1,150 @@
+{
+  "ranAt": "2026-11-10T03:26:09.508Z",
+  "baseUrl": "http://192.168.0.86:11434",
+  "models": [
+    {
+      "alias": "local",
+      "model": "qwen3.6:35b-a3b-q8_0",
+      "think": false,
+      "preflight": {
+        "ok": true,
+        "version": "0.40.15",
+        "loadMs": 36982
+      },
+      "text": [
+        {
+          "prompt": "Explain why a software team might move its repositories into one monorepo.",
+          "valid": true,
+          "newline": true,
+          "blankLine": true,
+          "dollar": false,
+          "latencyMs": 11255,
+          "sample": "Consolidating separate codebases into a single monorepo simplifies dependency management by allowing teams to share and update libraries across projects instantly. This approach eliminates the overhead of synchronizing version numbers and managing complex inter-service communication through manual release cycles.\n\nFurthermore, it enables atomic changes that span multiple services, ensuring consistency without requiring coordinated deployments across different teams. Developers gain a unified view of the entire system, which streamlines refactoring efforts and improves overall code quality thro"
+        },
+        {
+          "prompt": "Explain what a rate limiter does for a public API and how it can go wrong.",
+          "valid": true,
+          "newline": true,
+          "blankLine": true,
+          "dollar": false,
+          "latencyMs": 3736,
+          "sample": "A rate limiter acts like a bouncer at a crowded club, controlling how many requests a user can make to an API within a specific timeframe to prevent server overload. This ensures that the service remains stable and responsive for everyone by capping excessive usage from individual clients or malicious bots. Without these limits, a single heavy user could easily consume all available resources, causing the system to crash for legitimate customers.\n\nHowever, rate limiting can go wrong if the thresholds are set too aggressively, inadvertently blocking genuine users who simply have high usage patt"
+        },
+        {
+          "prompt": "Explain how a public library could run a six-week reading programme for teenagers.",
+          "valid": true,
+          "newline": true,
+          "blankLine": true,
+          "dollar": false,
+          "latencyMs": 3423,
+          "sample": "The library should first select a compelling theme that resonates with teens, such as dystopian fiction or graphic novels, to spark their initial interest. Organizing the schedule into bite-sized monthly events like author talks or book club discussions helps maintain momentum without overwhelming participants. Providing small incentives, such as gift cards or exclusive bookmarks for completing each session, can further encourage consistent attendance.\n\nPromotion is key, so staff should utilize social media platforms and local schools to spread the word effectively. Onboarding new members with"
+        }
+      ],
+      "paragraphs": [
+        {
+          "prompt": "Explain why a software team might move its repositories into one monorepo.",
+          "valid": true,
+          "paragraphs": 2,
+          "latencyMs": 2739,
+          "sample": "Consolidating multiple repositories into a single monorepo simplifies the development workflow by allowing teams to make cross-service changes in one atomic commit. This approach eliminates the friction of managing dependencies across separate projects and ensures that all related code updates are synchronized instantly.\n\nIt also enhances visibility, as engineers can easily see how changes in one part of the system impact others without needing deep knowledge of isolated project boundaries. Consequently, this centralization often leads to faster integration cycles and more robust refactoring c"
+        },
+        {
+          "prompt": "Explain what a rate limiter does for a public API and how it can go wrong.",
+          "valid": true,
+          "paragraphs": 2,
+          "latencyMs": 2698,
+          "sample": "A rate limiter controls how many requests a user can make to a public API within a specific time frame, protecting the service from being overwhelmed by excessive traffic. By throttling individual users or groups, it ensures fair access for everyone and maintains system stability during peak usage periods.\n\nHowever, these safeguards can fail if the thresholds are set too low, inadvertently blocking legitimate customers and harming user experience. Conversely, setting limits too high may allow malicious actors to exploit the system, leading to service degradation or costly resource exhaustion."
+        },
+        {
+          "prompt": "Explain how a public library could run a six-week reading programme for teenagers.",
+          "valid": true,
+          "paragraphs": 2,
+          "latencyMs": 3320,
+          "sample": "The library staff should begin by selecting a broad, engaging theme that appeals to diverse teenage interests, such as science fiction or mystery, and curate a list of ten to fifteen books from their existing collection. They can then create eye-catching promotional materials for social media and local schools to build excitement and encourage sign-ups well before the first session.\n\nThroughout the six weeks, organize weekly meetups that blend casual discussion with interactive activities like author Q&A sessions or creative writing workshops to maintain consistent attendance. Finally, conclud"
+        }
+      ]
+    },
+    {
+      "alias": "local-fast",
+      "model": "qwen3.6:35b-mlx",
+      "think": false,
+      "preflight": {
+        "ok": true,
+        "version": "0.40.15",
+        "loadMs": 15745
+      },
+      "text": [
+        {
+          "prompt": "Explain why a software team might move its repositories into one monorepo.",
+          "valid": true,
+          "newline": false,
+          "blankLine": false,
+          "dollar": false,
+          "latencyMs": 1739,
+          "sample": "Merging separate codebases into a single monorepo simplifies dependency management by ensuring that all teams always work with consistent versions of shared libraries. This centralization eliminates the friction often caused by syncing external package updates across multiple independent projects. As a result, developers can make cross-team changes more seamlessly without worrying about version mismatches breaking other services. Furthermore, it provides a unified view of the entire system, making it easier to understand how different parts of the application interact with one another."
+        },
+        {
+          "prompt": "Explain what a rate limiter does for a public API and how it can go wrong.",
+          "valid": true,
+          "newline": false,
+          "blankLine": false,
+          "dollar": false,
+          "latencyMs": 1484,
+          "sample": "A rate limiter acts as a traffic controller for an API, restricting how many requests a user or client can make within a specific time window to prevent system overload. This mechanism ensures fair access for all users while protecting the server from being overwhelmed by sudden spikes in demand or malicious attacks. By enforcing these limits, developers maintain stable performance and protect backend resources from running out of memory or processing power."
+        },
+        {
+          "prompt": "Explain how a public library could run a six-week reading programme for teenagers.",
+          "valid": true,
+          "newline": false,
+          "blankLine": false,
+          "dollar": false,
+          "latencyMs": 1936,
+          "sample": "Start by selecting a cohesive theme that appeals to teen interests, such as dystopian futures or graphic novels, and curate a list of books around it. Market the program through social media platforms like Instagram and TikTok to reach your target demographic effectively. Consider partnering with local schools or bookstores to boost visibility and provide additional resources for participants. The library should host weekly meetups where teens can discuss their progress and share recommendations, fostering a sense of community. Offer small incentives like gift cards or bookmarks to keep engage"
+        }
+      ],
+      "paragraphs": [
+        {
+          "prompt": "Explain why a software team might move its repositories into one monorepo.",
+          "valid": true,
+          "paragraphs": 2,
+          "latencyMs": 2051,
+          "sample": "Consolidating multiple repositories into a single monorepo simplifies the development workflow by allowing teams to easily view and modify code across different projects simultaneously. This centralized approach reduces the friction often associated with managing dependencies between separate codebases, as changes can be traced and tested within one unified version control system.\n\nSuch a structure also enhances security and compliance by providing a single point of control for access permissions and audit logs. Teams can enforce consistent coding standards and build processes more effectively"
+        },
+        {
+          "prompt": "Explain what a rate limiter does for a public API and how it can go wrong.",
+          "valid": true,
+          "paragraphs": 2,
+          "latencyMs": 2191,
+          "sample": "A rate limiter acts as a traffic controller for a public API by capping the number of requests a user or system can make within a specific time window. This protective measure prevents any single client from overwhelming the server, ensuring that resources remain available for all other users and maintaining stable service performance.\n\nHowever, these systems can go wrong if the limits are set too aggressively, causing legitimate users to face unnecessary errors during peak usage times. Conversely, if the thresholds are too lenient or the logic is flawed, attackers might exploit the gap to lau"
+        },
+        {
+          "prompt": "Explain how a public library could run a six-week reading programme for teenagers.",
+          "valid": true,
+          "paragraphs": 2,
+          "latencyMs": 1852,
+          "sample": "The library would begin by designing a themed challenge that encourages teens to explore diverse genres, such as mystery, sci-fi, or non-fiction biographies. Staff members would create digital and physical tracking sheets where participants can log their books, ensuring the process is both fun and easy to manage.\n\nWeekly workshops and social media prompts would keep engagement high throughout the six weeks, culminating in a final celebration with prizes for top readers. This approach not only fosters a habit of reading but also builds a supportive community among young patrons."
+        }
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "model": "qwen3.6:35b-a3b-q8_0",
+      "n": 3,
+      "textValid": 3,
+      "newline": 3,
+      "blankLine": 3,
+      "dollar": 0,
+      "paragraphsValid": 3
+    },
+    {
+      "model": "qwen3.6:35b-mlx",
+      "n": 3,
+      "textValid": 3,
+      "newline": 0,
+      "blankLine": 0,
+      "dollar": 0,
+      "paragraphsValid": 3
+    }
+  ]
+}

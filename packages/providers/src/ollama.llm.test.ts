@@ -8,7 +8,7 @@ import {
   researcherOutputSchema,
   resolveHandles,
   roleDefinitions,
-  UUID_REFERENCES,
+  UUID_MODEL_REFERENCES,
   type AgentRequest,
   type AgentRole,
   type BoardView,
@@ -196,7 +196,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
   it('respects the output allowance through num_predict', async () => {
     const model = ollama();
     const result = await model.generateObject({
-      schema: researcherOutputSchema(UUID_REFERENCES),
+      schema: researcherOutputSchema(UUID_MODEL_REFERENCES),
       system: 'Write as much evidence as you can.',
       prompt: 'List twenty facts about the history of version control systems.',
       maxOutputTokens: 48,
@@ -236,7 +236,7 @@ describe.skipIf(!reachable)(`Ollama contract (${baseUrl}, ${modelId})`, () => {
       { attempts: 3, sleep: () => Promise.resolve() },
     );
     const result = await model.generateObject({
-      schema: researcherOutputSchema(UUID_REFERENCES),
+      schema: researcherOutputSchema(UUID_MODEL_REFERENCES),
       system: 's',
       prompt: 'p',
       maxOutputTokens: 64,

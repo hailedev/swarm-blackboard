@@ -30,7 +30,12 @@ export {
 } from './agent-view';
 export * from './eligibility';
 export type { AgentRequest, AgentRequestError } from './handles';
-export { buildAgentRequest, referenceSchemasFor, resolveHandles } from './handles';
+export {
+  buildAgentRequest,
+  PARAGRAPH_SEPARATOR,
+  referenceSchemasFor,
+  resolveHandles,
+} from './handles';
 export type { RenderedPrompt } from './prompt';
 export { renderAgentPrompt, renderRepairPrompt } from './prompt';
 export { critic, criticOutputSchema } from './roles/critic';

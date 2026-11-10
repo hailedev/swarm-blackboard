@@ -3,7 +3,8 @@
 - **Status:** accepted
 - **Date:** 2026-11-09
 - **Amended:** 2026-11-09, re-run after agents moved to handles (section at the end); the decision stands, the ranking does not
-- **Amended:** 2026-11-10, alias `local-fast` (`qwen3.6:35b-mlx`) for the `dev` profile (last section); `local` and the paid profiles are unchanged
+- **Amended:** 2026-11-10, alias `local-fast` (`qwen3.6:35b-mlx`) for the `dev` profile; `local` and the paid profiles are unchanged
+- **Amended:** 2026-11-10, line-break probe (last section): the synthesis is written as an array of paragraphs that core joins, because the MLX build never emits a newline inside a JSON string
 
 ## Context
 
@@ -129,3 +130,29 @@ Consequences:
 - `+` A `dev` run spends about a third less time on its longer local calls, at no measured cost in validity.
 - `−` `dev` and the paid profiles no longer share a worker model, so a `dev` run is not a rehearsal of the local half of a `cheap` run; a prompt change should be checked on the profile it is meant for.
 - `−` A machine that runs both `dev` and a paid profile keeps two builds of the model resident. The Q8 build alone is 38.7 GB of the Mac mini's 64 GB; the size of the MLX build was not recorded in either trial, so whether both stay loaded together is something to watch in `ollama ps`, not something this record can promise.
+
+## Amendment, 2026-11-10: line breaks under `format`, and paragraphs as an array
+
+No local entry of either recorded run contained a newline (0 of 56 Q8 entries in the Phase 2 fixture, 0 of 28 MLX entries in a `dev` run), and the MLX build once wrote a literal `$$` where paragraph breaks belonged in its synthesis. Before Phase 5's evals judge answers, the question was whether the local models can put a line break inside a JSON string at all under Ollama's schema `format`, or whether long-form content has to arrive another way.
+
+`pnpm trial:local --probe paragraphs` (`apps/cli/src/trial/paragraph-probe.ts`, results in `evals/results/paragraph-probe-2026-11-10.json`, Ollama at the Mac mini) asked each alias three times for the same two-paragraph explanation, first as one string under a system prompt that demanded a blank line between the paragraphs (`{ text: string }`), then as an array (`{ paragraphs: string[] }` with exactly two elements). The probe definitions live beside `FORMAT_PROBE` in `@team/providers` (`PARAGRAPH_PROBE`).
+
+| Model | Alias | n | `text` valid | with `\n` | with blank line | with `$$` | `paragraphs` valid | Median s (text / array) |
+|---|---|---|---|---|---|---|---|---|
+| qwen3.6:35b-a3b-q8_0 | `local` | 3 | 3 | 3 | 3 | 0 | 3 | 3.7 / 2.7 |
+| qwen3.6:35b-mlx | `local-fast` | 3 | 3 | 0 | 0 | 0 | 3 | 1.7 / 2.1 |
+
+The two builds split. The Q8 build writes real paragraph breaks when asked; the MLX build never emits a newline, even when the system prompt spells out the two newline characters it wants, and runs the paragraphs together in one string. Both produce the array form every time.
+
+### Decision
+
+- **The synthesis is written as an array of paragraphs.** The schema a model answers against (`ModelReferenceSchemas`, `paragraphs: true`) gives the synthesis contribution `content: string[]`, one paragraph per element; `resolveHandles` joins them with a blank line at the moment handles become ids, so the board, the event log and everything after the agent keep `content` as one markdown string (`Contribution`, `paragraphs: false`). The Synthesizer's prompt describes `content` as paragraphs; a list is one paragraph per item. No other entry type changes: every other prompt asks for one to five sentences, which is one paragraph.
+- **Why the array and not a prompt fix, when the rule was "neither can → array; both can → prompts":** one build can and one cannot, and the one that cannot is every role of `dev`, the profile the UI is developed against and the eval harness is rehearsed on. A prompt fix would leave `dev` answers as single blocks whatever the prompt says, while the array form worked on both builds in every probe (and costs an API model nothing). Core owning the separator also rules out placeholder tokens like `$$`.
+- **`agents.yaml` is unchanged.** `local` stays the Q8 build for the paid profiles and `local-fast` stays `dev`'s; the evals compare the two on quality as planned, with answers that now break into paragraphs on both.
+
+### Consequences
+
+- `+` A `dev` synthesis renders as paragraphs in the answer panel (shown pre-wrapped, ADR-0011); the judge in Phase 5 sees the same shape of answer from every arm.
+- `+` One probe, kept in the repo, settles the question for a new model or Ollama release in a dozen local calls.
+- `−` The model-facing and stored contribution types differ for one field, so code that builds a synthesis for a model (the scripted scenario, tests) writes an array while the board reads a string. `UUID_MODEL_REFERENCES` exists for contract tests that let a model answer with ids.
+- `−` The probe is three prompts per build at one temperature; it says the MLX build did not emit a newline when asked plainly, not that no prompt could make it.

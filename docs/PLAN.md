@@ -50,7 +50,7 @@ An append-only log of typed **entries**, plus a materialised "current view". Not
 | `synthesis` | Draft final answer | `version`, `confidence`, `cites[]` |
 | `human_note` | User intervention | `priority` |
 
-**Common fields:** `id`, `runId`, `type`, `round`, `author` (agent id or `"human"`), `createdAt`, `parents[]`, `supersedes?`, `status`, `content` (markdown), `payload` (type-specific, Zod-validated), `usage { inputTokens, outputTokens, costUsd }`.
+**Common fields:** `id`, `runId`, `type`, `round`, `author` (agent id or `"human"`), `createdAt`, `parents[]`, `supersedes?`, `status`, `content` (markdown; the Synthesizer returns it as an array of paragraphs that core joins with a blank line, since a local model under a JSON `format` may never emit a line break, ADR-0008), `payload` (type-specific, Zod-validated), `usage { inputTokens, outputTokens, costUsd }`.
 
 ### 2.2 Agents (knowledge sources)
 

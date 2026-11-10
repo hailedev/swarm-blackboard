@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
+import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { boardIsNew } from '../eligibility';
 
 /** Up to 8 subproblems or questions, linking only through `refs`. */
-export const plannerOutputSchema = (refs: ReferenceSchemas) => {
+export const plannerOutputSchema = (refs: ModelReferenceSchemas) => {
   const s = contributionSchemas(refs);
   return z.object({
     contributions: z.array(z.discriminatedUnion('type', [s.subproblem, s.question])).max(8),

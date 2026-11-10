@@ -136,6 +136,34 @@ export const FORMAT_PROBE = {
   ],
 } as const;
 
+// Can a local model put a line break inside a JSON string under `format`? The same
+// two-paragraph request asked for as one string and as an array of paragraphs (ADR-0008,
+// third amendment; `pnpm trial:local --probe paragraphs`).
+export const PARAGRAPH_PROBE = {
+  text: {
+    schema: z.object({ text: z.string().min(1) }),
+    system: [
+      'You write short explanations for a general reader. Reply with JSON only, matching the',
+      'schema: an object with one field, `text`. The text must be exactly two paragraphs',
+      'separated by a blank line, that is two newline characters inside the JSON string.',
+      'Each paragraph is two or three sentences. No headings, no lists.',
+    ].join(' '),
+  },
+  paragraphs: {
+    schema: z.object({ paragraphs: z.array(z.string().min(1)).min(2).max(2) }),
+    system: [
+      'You write short explanations for a general reader. Reply with JSON only, matching the',
+      'schema: an object with one field, `paragraphs`, an array of exactly two strings, one',
+      'per paragraph. Each paragraph is two or three sentences. No headings, no lists.',
+    ].join(' '),
+  },
+  prompts: [
+    'Explain why a software team might move its repositories into one monorepo.',
+    'Explain what a rate limiter does for a public API and how it can go wrong.',
+    'Explain how a public library could run a six-week reading programme for teenagers.',
+  ],
+} as const;
+
 export interface OllamaFormatProbeOptions {
   baseUrl: string;
   model: string;

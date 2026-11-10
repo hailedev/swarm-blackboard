@@ -5,7 +5,7 @@ import { testRolePrompts } from '../../testing/role-prompts';
 const PROMPTS = testRolePrompts();
 
 import { createFakeModel } from '../../model/fake-model';
-import { UUID_REFERENCES } from '../../schemas/contribution';
+import { UUID_MODEL_REFERENCES } from '../../schemas/contribution';
 import { agentContext } from '../../testing/agent-context';
 import { BoardFixture } from '../../testing/board-fixture';
 import { createRoleAgent } from '../agent';
@@ -170,36 +170,39 @@ describe('role output schemas', () => {
   const hypothesis = { type: 'hypothesis', content: 'H', parents: [], payload: hypothesisPayload };
   const synthesis = {
     type: 'synthesis',
-    content: 'S',
+    content: ['S'],
     parents: [],
     payload: { version: 1, confidence: 0.9, cites: [] },
   };
 
   it('the critic cannot propose hypotheses or syntheses', () => {
     expect(
-      critic.outputSchema(UUID_REFERENCES).safeParse({ contributions: [question] }).success,
+      critic.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [question] }).success,
     ).toBe(true);
     expect(
-      critic.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+      critic.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
     ).toBe(false);
     expect(
-      critic.outputSchema(UUID_REFERENCES).safeParse({ contributions: [synthesis] }).success,
+      critic.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [synthesis] }).success,
     ).toBe(false);
   });
 
   it('the synthesizer returns exactly one synthesis', () => {
     expect(
-      synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [synthesis] }).success,
-    ).toBe(true);
-    expect(synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [] }).success).toBe(
-      false,
-    );
-    expect(
-      synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [synthesis, synthesis] })
+      synthesizer.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [synthesis] })
         .success,
+    ).toBe(true);
+    expect(
+      synthesizer.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [] }).success,
     ).toBe(false);
     expect(
-      synthesizer.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+      synthesizer
+        .outputSchema(UUID_MODEL_REFERENCES)
+        .safeParse({ contributions: [synthesis, synthesis] }).success,
+    ).toBe(false);
+    expect(
+      synthesizer.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [hypothesis] })
+        .success,
     ).toBe(false);
   });
 
@@ -211,22 +214,25 @@ describe('role output schemas', () => {
       payload: { source: 's', supports: [], contradicts: [] },
     };
     expect(
-      researcher.outputSchema(UUID_REFERENCES).safeParse({ contributions: [evidence] }).success,
+      researcher.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [evidence] })
+        .success,
     ).toBe(true);
     expect(
-      researcher.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+      researcher.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [hypothesis] })
+        .success,
     ).toBe(false);
     expect(
-      planner.outputSchema(UUID_REFERENCES).safeParse({ contributions: [question] }).success,
+      planner.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [question] }).success,
     ).toBe(true);
     expect(
-      planner.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+      planner.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [hypothesis] })
+        .success,
     ).toBe(false);
     expect(
-      solver.outputSchema(UUID_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
+      solver.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [hypothesis] }).success,
     ).toBe(true);
     expect(
-      solver.outputSchema(UUID_REFERENCES).safeParse({ contributions: [evidence] }).success,
+      solver.outputSchema(UUID_MODEL_REFERENCES).safeParse({ contributions: [evidence] }).success,
     ).toBe(false);
   });
 });

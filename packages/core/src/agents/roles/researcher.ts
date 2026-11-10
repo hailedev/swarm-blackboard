@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
+import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { hypothesesLackingEvidence, openSubproblems } from '../eligibility';
 
 /** Up to 6 evidence entries, linking only through `refs`. */
-export const researcherOutputSchema = (refs: ReferenceSchemas) =>
+export const researcherOutputSchema = (refs: ModelReferenceSchemas) =>
   z.object({ contributions: z.array(contributionSchemas(refs).evidence).max(6) });
 
 // Contributes evidence. Eligible when subproblems are open or hypotheses lack evidence.

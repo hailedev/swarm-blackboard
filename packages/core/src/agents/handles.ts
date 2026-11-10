@@ -6,7 +6,8 @@ import {
   CONTRIBUTION_TYPES,
   type Contribution,
   type ContributionType,
-  type ReferenceSchemas,
+  type ModelContribution,
+  type ModelReferenceSchemas,
 } from '../schemas/contribution';
 import type { Handle } from '../schemas/handle';
 import type { AgentContext, AgentOutput, RoleDefinition } from './agent';
@@ -22,7 +23,7 @@ import { renderAgentPrompt } from './prompt';
 export const referenceSchemasFor = (
   view: BoardView,
   handles: readonly Handle[],
-): ReferenceSchemas => {
+): ModelReferenceSchemas => {
   const liveOf: Partial<Record<ContributionType, ZodType<string>>> = {};
   for (const type of CONTRIBUTION_TYPES) {
     const live = handles.filter((handle) => {
@@ -31,8 +32,11 @@ export const referenceSchemasFor = (
     });
     if (live.length > 0) liveOf[type] = z.enum(live);
   }
-  return { any: z.enum([...handles]), liveOf };
+  return { any: z.enum([...handles]), liveOf, paragraphs: true };
 };
+
+/** How the paragraphs a model returns become the one markdown string the board stores. */
+export const PARAGRAPH_SEPARATOR = '\n\n';
 
 export interface AgentRequest {
   system: string;
@@ -62,11 +66,12 @@ export const buildAgentRequest = (
 };
 
 /**
- * Map every handle in a model's contributions back to the entry id it stands for. Issues
- * are Zod-style `path: message` strings so they can feed the repair prompt directly.
+ * Map every handle in a model's contributions back to the entry id it stands for, and join
+ * long-form paragraphs into the stored string. Issues are Zod-style `path: message` strings
+ * so they can feed the repair prompt directly.
  */
 export const resolveHandles = (
-  contributions: readonly Contribution[],
+  contributions: readonly ModelContribution[],
   view: BoardView,
 ): Result<Contribution[], string[]> => {
   const issues: string[] = [];
@@ -81,7 +86,7 @@ export const resolveHandles = (
       handles.map((handle, i) => one(`${field}.${String(i)}`, handle));
     const supersedes = c.supersedes === undefined ? undefined : one('supersedes', c.supersedes);
     const base = {
-      content: c.content,
+      content: typeof c.content === 'string' ? c.content : c.content.join(PARAGRAPH_SEPARATOR),
       parents: many('parents', c.parents),
       ...(supersedes === undefined ? {} : { supersedes }),
     };

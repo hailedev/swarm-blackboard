@@ -7,11 +7,11 @@ import {
   plannerOutputSchema,
   resolveHandles,
   roleDefinitions,
-  UUID_REFERENCES,
+  UUID_MODEL_REFERENCES,
   type AgentRequest,
   type AgentRole,
   type BoardView,
-  type Contribution,
+  type ModelContribution,
 } from '@team/core';
 import { agentContext, freshBoard, lateBoard } from '@team/core/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -63,7 +63,7 @@ const request = (
 };
 
 /** The controller's commit-time check: handles resolve, and the links they make are valid. */
-const linkIssues = (contributions: readonly Contribution[], view: BoardView): string[] => {
+const linkIssues = (contributions: readonly ModelContribution[], view: BoardView): string[] => {
   const resolved = resolveHandles(contributions, view);
   return resolved.ok ? resolved.value.flatMap((c) => linkProblems(c, view)) : resolved.error;
 };
@@ -159,7 +159,7 @@ describe.skipIf(apiKey === undefined || apiKey === '')('Anthropic contract (real
       createAnthropicModel({ modelId: MODEL_ID, apiKey: 'sk-ant-bogus', pricing }),
     );
     const result = await model.generateObject({
-      schema: plannerOutputSchema(UUID_REFERENCES),
+      schema: plannerOutputSchema(UUID_MODEL_REFERENCES),
       system: 's',
       prompt: 'p',
       maxOutputTokens: 256,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import type { Contribution } from '../schemas/contribution';
+import type { ModelContribution } from '../schemas/contribution';
 import { agentContext } from '../testing/agent-context';
 import { BoardFixture } from '../testing/board-fixture';
 import { testRolePrompts } from '../testing/role-prompts';
@@ -156,7 +156,7 @@ describe('resolveHandles', () => {
     const q1 = must(board.questions[0]);
     const crit1 = must(board.critiques[0]);
     const view = fx.view();
-    const contributions: Contribution[] = [
+    const contributions: ModelContribution[] = [
       {
         type: 'hypothesis',
         content: 'h',
@@ -186,7 +186,7 @@ describe('resolveHandles', () => {
       },
       {
         type: 'synthesis',
-        content: 'a',
+        content: ['a', 'b'],
         parents: ['H1', 'E1'],
         payload: { version: 1, confidence: 0.7, cites: ['H1', 'E1', 'E2'] },
       },
@@ -222,6 +222,8 @@ describe('resolveHandles', () => {
       payload: { chosen: hyp1.id, rejected: [crit1.id], rationale: 'r' },
     });
     expect(resolved.value[6]).toMatchObject({
+      // The synthesis arrives as paragraphs and is stored as one string with blank lines.
+      content: 'a\n\nb',
       parents: [hyp1.id, must(ev1).id],
       payload: { cites: [hyp1.id, must(ev1).id, must(ev2).id] },
     });

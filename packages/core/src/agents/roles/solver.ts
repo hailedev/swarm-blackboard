@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import { contributionSchemas, type ReferenceSchemas } from '../../schemas/contribution';
+import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { evidenceWithoutHypothesis, openSubproblems } from '../eligibility';
 
 /** Up to 6 hypotheses or subproblem status changes, linking only through `refs`. */
-export const solverOutputSchema = (refs: ReferenceSchemas) => {
+export const solverOutputSchema = (refs: ModelReferenceSchemas) => {
   const s = contributionSchemas(refs);
   return z.object({
     contributions: z.array(z.discriminatedUnion('type', [s.hypothesis, s.subproblem])).max(6),
