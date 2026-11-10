@@ -1,0 +1,20 @@
+{
+  "key": "b11b54311c24796053165647a2b93c98850abddaa7493e36deb4be6a6e70fb63",
+  "problemId": "teen-reading-programme",
+  "modelId": "claude-sonnet-5-5",
+  "capUsd": 0.027980844999999997,
+  "maxOutputTokens": 2464,
+  "wordBudget": 1250,
+  "truncated": true,
+  "answer": "**Recommendation**\n\nRun a weekly 90-minute after-school 'make-a-thing' studio, not a reading club. Teens build a zine and audio project about their own town, using phones, free software and the library's collection as raw material. Recruit through the places teens already are, using peer invitations and one partner organisation rather than library posters. Spend the $500 mainly on food, a small audio kit and printing. Judge success against targets set in advance: how many participants were genuine non-users, how many came back, whether they got and used a library card, whether they finished something, and whether their sense of the library changed. All of it runs on four librarian hours a week plus two or three volunteers, though recruitment before launch needs extra hours (see the caveats).\n\n**Why non-reading teens would come**",
+  "usage": {
+    "inputTokens": 1020,
+    "outputTokens": 2464,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "costUsd": 0.02668
+  },
+  "latencyMs": 0,
+  "at": "2026-11-10T06:04:39.568Z",
+  "passId": "eval:01a1c400-2fd2-723f-a95d-4f2b56150a97"
+}

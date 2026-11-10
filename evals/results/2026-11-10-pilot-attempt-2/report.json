@@ -1,0 +1,451 @@
+{
+  "meta": {
+    "label": "pilot",
+    "profile": {
+      "name": "cheap",
+      "roles": {
+        "planner": {
+          "alias": "haiku",
+          "provider": "anthropic",
+          "model": "claude-haiku-5-5"
+        },
+        "researcher": {
+          "alias": "local",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-a3b-q8_0",
+          "think": false
+        },
+        "solver": {
+          "alias": "local",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-a3b-q8_0",
+          "think": false
+        },
+        "critic": {
+          "alias": "haiku",
+          "provider": "anthropic",
+          "model": "claude-haiku-5-5"
+        },
+        "synthesizer": {
+          "alias": "haiku",
+          "provider": "anthropic",
+          "model": "claude-haiku-5-5"
+        }
+      },
+      "bidder": {
+        "alias": "haiku",
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5"
+      },
+      "fallback": {
+        "alias": "haiku",
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5"
+      },
+      "paid": true
+    },
+    "evalModels": {
+      "baseline": {
+        "alias": "sonnet",
+        "provider": "anthropic",
+        "model": "claude-sonnet-5-5"
+      },
+      "judge": {
+        "alias": "sonnet",
+        "provider": "anthropic",
+        "model": "claude-sonnet-5-5"
+      }
+    },
+    "commit": "8a43767",
+    "baselineModelId": "claude-sonnet-5-5",
+    "judgeModelId": "claude-sonnet-5-5"
+  },
+  "pass": {
+    "passId": "01a1c400-2fd2-723f-a95d-4f2b56150a97",
+    "startedAt": "2026-11-10T05:48:29.010Z",
+    "endedAt": "2026-11-10T06:05:37.576Z",
+    "options": {
+      "passId": "01a1c400-2fd2-723f-a95d-4f2b56150a97",
+      "capUsd": 1,
+      "runCapUsd": 0.08,
+      "judgeOrders": 2,
+      "refreshBaselines": false,
+      "baselineMaxOutputTokens": 4096,
+      "judgeMaxOutputTokens": 2048,
+      "problemIds": [
+        "api-rate-limiting",
+        "oidc-migration",
+        "teen-reading-programme"
+      ]
+    },
+    "results": [
+      {
+        "problem": {
+          "id": "api-rate-limiting",
+          "title": "Rate limiting a public API for bursty clients across three regions",
+          "domain": "system-design",
+          "constraints": [
+            "The API runs in three regions behind one global DNS name; a client's requests may land in any region.",
+            "Paying customers are limited by plan (for example 600 requests per minute); free clients to 60 per minute.",
+            "Legitimate clients are bursty: a client may send its whole minute's quota in two seconds, then nothing.",
+            "The limiter must not add more than about five milliseconds to a request, and the API must keep serving if the limiter's storage is unavailable."
+          ],
+          "successCriteria": [
+            "A named limiting algorithm and why it suits bursty clients better than the alternatives.",
+            "Where the limiter's state lives, how three regions see one customer's quota, and what inaccuracy that implies.",
+            "What happens when the state store is slow or down, and what the client sees.",
+            "How a client learns its limit and when to retry."
+          ],
+          "rubric": [
+            {
+              "id": "algorithm",
+              "weight": 3,
+              "criterion": "Names an algorithm (token bucket, sliding window log or counter, leaky bucket) and argues it against alternatives for bursty traffic.",
+              "scale": "0 = no algorithm; 1 = an algorithm with no comparison; 2 = compared with one alternative on burstiness; 3 = compared on burstiness and on memory or accuracy, with the parameters (bucket size, refill rate) stated."
+            },
+            {
+              "id": "state",
+              "weight": 3,
+              "criterion": "Says where the counters live and how three regions share a customer's quota, with the inaccuracy named.",
+              "scale": "0 = state placement not addressed; 1 = 'use Redis' with no regional story; 2 = a regional design (central store, per-region share, or async sync) with its latency; 3 = plus a quantified or clearly described over- or under-admission."
+            },
+            {
+              "id": "failure",
+              "weight": 3,
+              "criterion": "Specifies the behaviour when the state store is slow or unavailable, within the latency budget.",
+              "scale": "0 = failure not addressed; 1 = 'fail open' or 'fail closed' with no reasoning; 2 = a choice with reasoning and a timeout that meets the budget; 3 = plus a local fallback (in-memory bucket) and how it recovers."
+            },
+            {
+              "id": "client",
+              "weight": 1,
+              "criterion": "Describes the response headers or body that tell a client its limit, remaining quota and retry time.",
+              "scale": "0 = not addressed; 1 = 'return 429'; 2 = 429 plus retry timing; 3 = 429, remaining-quota and reset headers, and advice for burst clients."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Technical claims hold up; numbers are consistent with the constraints.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and explicit about the guarantees it does and does not make."
+            }
+          ],
+          "statement": "A company runs a public HTTP API in three regions behind a single global hostname; a client's consecutive requests can land in different regions. Paying plans allow between 600 and 6,000 requests per minute, free accounts 60. Many legitimate clients are bursty: a scheduled job may send its whole minute's allowance in two seconds and then go quiet. The team has been asked to add rate limiting that adds no more than about five milliseconds to a request and that never takes the API down when the limiter's own storage is slow or unavailable.\n\nDesign the rate limiter: the algorithm and why it fits bursty clients, where its state lives and how the three regions share a customer's quota, what happens when that state is slow or unreachable, and how clients learn their limits and when to retry. Be explicit about what the design gets wrong and by how much."
+        },
+        "swarm": {
+          "runId": "01a1c400-2fd3-770d-8778-888bb1f86248",
+          "answer": "Recommendation: enforce each customer's per-minute limit with a sliding window counter that uses one-second sub-windows. Each region checks a local in-memory counter on the request path, and counts are synchronised asynchronously to a central store. This is a conditional recommendation. The cross-region error bound, the fail-open cap and the retry ceiling are all still contested on the board, so the numbers below are bounds to test, not settled values.\n\nWhy this algorithm: a bursty client can spend its whole minute's allowance in two seconds and is not penalised by slow token regeneration, which fits the scheduled-job pattern the problem describes. Sub-window aggregation avoids the fixed-window boundary cliff, where a client could send close to double its limit across a window edge. A token bucket also permits bursts but needs fractional-token synchronisation across regions, and a sliding window log is too heavy for the five-millisecond budget. The cost is a small amount of memory per customer for the sub-window counters.\n\nWhere state lives and cross-region quota: each region keeps its own counters on the request path, so the added latency is in-process and the synchronisation runs in the background and should add well under a tenth of a millisecond to a request. Because each region sees only its own traffic, a client whose requests land in all three regions can exceed the plan limit for as long as the sync lag lasts. The board estimates this at roughly one plan limit per region in the worst case (E19), and a rough figure of about 3 percent over-admission at a one to two second sync interval (E25). Neither estimate is derived for sync latencies of 100 ms or more, so the true error at those latencies is unknown and should be measured before the limit is trusted.\n\nWhat happens when the store is slow or down: when the central store is slow (above about 2 ms) or unreachable, each region fails open to a local cap and does not block the API. The cap value is the open question. A cap of half the plan limit protects the backend but rejects a scheduled job's two-second burst outright, roughly half its requests, for every outage (E26). A cap above the plan limit admits traffic beyond what the customer bought, and no evidence on the board supports that (C23). The board is therefore split between these two extremes. A cap has to be chosen and tested against measured burst shapes; until then, a default between these extremes is a guess, and the scope of the cap (per region or global) must be stated explicitly.\n\nWhat the client sees: responses carry X-RateLimit-Limit with the plan limit, X-RateLimit-Remaining and X-RateLimit-Reset. Remaining is a local approximation that counts only requests the answering region has seen, so it can be wrong by up to a full plan limit during sync lag (C24, E27). Clients should treat it as a hint, not a guarantee. A 429 response includes Retry-After giving seconds until the next sub-window frees capacity. Because a local cap can refuse a request even when global quota remains, a 429 during an outage does not prove the customer is out of quota.\n\nRetry guidance: clients should back off with jitter on 429. The board does not yet set a ceiling on the backoff delay, and a schedule that waits out the window would lose the burst the design exists to serve (C25). Whether retried requests count against quota is also unstated. A fixed ceiling and a rule on retry accounting are needed before this contract can be published.\n\nMain caveats and open questions: the cross-region error bound at high sync latency; the fail-open cap value and its scope; the backoff ceiling and retry accounting; and whether the Remaining header can be made accurate enough to pace clients. Each of these is a major open critique, so confidence stays well below 0.8. The next step is to measure burst shapes of legitimate clients, sync lag across the three regions, and the false-throttle rate under candidate caps.",
+          "confidence": 0.4,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 93,
+          "usage": {
+            "inputTokens": 96077,
+            "outputTokens": 35430,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 32480,
+            "costUsd": 0.0216369
+          },
+          "costUsd": 0.0216369,
+          "elapsedMs": 328307
+        },
+        "swarmError": null,
+        "baseline": null,
+        "baselineCached": false,
+        "baselineSkipped": "truncated: the answer used its whole allowance of 1814 output tokens and not one paragraph was finished",
+        "judgements": [],
+        "judgeSkipped": [
+          "no baseline answer"
+        ],
+        "scores": {
+          "swarm": null,
+          "baseline": 0,
+          "delta": null,
+          "winner": null,
+          "consistency": null
+        },
+        "costUsd": 0.041886900000000005
+      },
+      {
+        "problem": {
+          "id": "oidc-migration",
+          "title": "Moving a monolith from home-grown sessions to OIDC without downtime",
+          "domain": "planning",
+          "constraints": [
+            "One quarter, three engineers part-time alongside product work.",
+            "About 40,000 active users with passwords stored as bcrypt hashes in the monolith's database; users must not be forced to reset passwords.",
+            "The company has chosen a hosted identity provider that supports OIDC and can import or migrate credentials through a hook.",
+            "No planned downtime and no \"big bang\" switch: a failed step must be reversible within an hour."
+          ],
+          "successCriteria": [
+            "An ordered plan of steps across the quarter, each reversible, with what is true at the end of each.",
+            "How existing users move without a forced password reset, and what happens to users who do not log in during the migration.",
+            "How sessions behave during the transition when both systems are live.",
+            "The point of no return, how it is reached safely, and what is cleaned up afterwards."
+          ],
+          "rubric": [
+            {
+              "id": "sequencing",
+              "weight": 3,
+              "criterion": "Gives an ordered sequence of steps, each with a reversal path, that ends with OIDC in control.",
+              "scale": "0 = no sequence; 1 = steps with no reversal story; 2 = steps each reversible; 3 = steps each reversible, with the state after each and the order justified."
+            },
+            {
+              "id": "credentials",
+              "weight": 3,
+              "criterion": "Explains how bcrypt users migrate without a forced reset, and handles users who never log in during the window.",
+              "scale": "0 = not addressed or forces a reset; 1 = 'import the hashes' with no detail; 2 = a lazy migration at login (verify against the old hash, create in the IdP) with the dormant-user case; 3 = plus how the old hashes are retired and the security implications of the window."
+            },
+            {
+              "id": "dual-run",
+              "weight": 2,
+              "criterion": "Describes how sessions, logout and token validation behave while both systems are live.",
+              "scale": "0 = not addressed; 1 = 'run both'; 2 = a clear rule for which system a session belongs to and how logout works; 3 = plus the edge cases (session expiry mid-switch, API clients, admin accounts)."
+            },
+            {
+              "id": "constraints",
+              "weight": 2,
+              "criterion": "Fits three part-time engineers in one quarter, no downtime, one-hour reversibility.",
+              "scale": "0 = ignores the constraints; 1 = plausibly fits with no estimate; 2 = fits with rough effort per step; 3 = fits, with the step most likely to slip named and buffered."
+            },
+            {
+              "id": "cutover",
+              "weight": 2,
+              "criterion": "Identifies the point of no return and what is decommissioned after it.",
+              "scale": "0 = not addressed; 1 = 'turn off the old system'; 2 = a defined cutover with a criterion for reaching it; 3 = cutover criterion, monitoring for a week after, and the cleanup list."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Claims about OIDC, bcrypt, sessions and what the identity provider can do hold up, and the steps fit together.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
+            }
+          ],
+          "statement": "A product company runs a monolith with its own login: usernames, bcrypt password hashes and server-side sessions, about 40,000 active users. It has bought a hosted identity provider that speaks OIDC and can migrate credentials through a hook at login time. Three engineers have one quarter, alongside their product work, to move authentication to the provider. There may be no planned downtime, no forced password reset, and no step that cannot be undone within an hour if it goes wrong.\n\nPlan the migration: the ordered steps across the quarter and what is true after each, how existing users move over (including users who do not log in during the quarter), how sessions behave while both systems are live, and where the point of no return is and what gets cleaned up after it."
+        },
+        "swarm": {
+          "runId": "01a1c405-7d66-79e1-bc1d-79cb2bd77099",
+          "answer": "Recommendation: proceed with a conditional, staged migration in which the hosted identity provider checks passwords by calling a narrow, authenticated verification endpoint on the monolith, so bcrypt hashes never leave the monolith and no user is asked to reset a password. Each stage is switched by a feature flag that can be turned off within an hour. Do not commit to cutover until the provider confirms in writing whether it can accept pre-hashed bcrypt at all; the evidence says major hosted providers generally cannot, which makes the verification bridge the default design rather than a fallback.\n\nPlan across the quarter: in weeks 1 to 4, confirm the provider's hook and callback capabilities, build the monolith verification endpoint with short-lived signed tokens, rate limiting and monitoring, and build the identity provider hook, all behind flags. In week 5, run the full bridge end to end in shadow mode, where the monolith stays the sole source of truth and users see no change. In weeks 6 to 9, enable identity-provider-first login for a 1 percent cohort with an error-rate gate (for example under 0.1 percent) and roll back by flag if the gate fails. In weeks 10 to 12, expand to all users while background jobs keep the identity provider's user records in step. The timeline is at risk: the evidence estimates four to six weeks of dedicated engineering per complex component, so the build may not fit 1.5 full-time equivalent alongside product work, and scope should be cut before the cohort rollout slips.\n\nUsers who log in during the quarter move over on their next successful login: the hook verifies the password against the monolith's bcrypt hash, the identity provider creates the user record and issues tokens, and the user keeps the same password. Users who do not log in stay in the monolith with their bcrypt hashes untouched and are not bulk-imported, and no forced reset is used at any point, including after the quarter. The weak point is that a dormant user returning later still depends on the verification endpoint being live, so that endpoint cannot be removed while any unmigrated user remains.\n\nSessions during dual running: the monolith keeps its own session store, and the identity provider issues its own OIDC tokens; the monolith creates a local session after a successful bridge verification, and sessions issued before migration expire naturally. Single sign-out across the two systems is not solved. A logout or password change at the identity provider may not reach an open monolith session, and no design on the board closes that gap without a webhook or a revocation path, so the team should accept a bounded session lifetime until it is verified.\n\nThe point of no return should be the removal of the monolith's local password route from the auth middleware, not the deletion of data. The bcrypt column and the login code are kept for at least 90 days after that point so that a code revert restores service within the hour. Only after usage metrics show zero local-auth logins for a sustained period should the team delete the hash column and retire the verification endpoint, and only if no dormant users remain. Until then, the rollback path depends on the monolith remaining reachable for every login, which is why the bridge must fail safely: failing closed on verifier outage turns a bridge outage into a total login outage, so a fast revert to the local path is needed for that case.\n\nOpen questions that block a firm recommendation: whether the provider accepts pre-hashed bcrypt or only callbacks; how cross-system logout and password-change propagation work; whether the verifier must stay live indefinitely for dormant users; and whether the build fits the quarter. Confidence is held below 0.8 because the bridge design is unproven against the provider, the timeline is not credible for the stated capacity, and single sign-out is unresolved. The recommendation should be treated as conditional until the provider confirms its capabilities in writing and the shadow-mode results meet the error gate.",
+          "confidence": 0.35,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 101,
+          "usage": {
+            "inputTokens": 104814,
+            "outputTokens": 40552,
+            "cacheReadTokens": 2593,
+            "cacheWriteTokens": 34545,
+            "costUsd": 0.025781155
+          },
+          "costUsd": 0.025781155,
+          "elapsedMs": 336603
+        },
+        "swarmError": null,
+        "baseline": null,
+        "baselineCached": false,
+        "baselineSkipped": "truncated: the answer used its whole allowance of 2236 output tokens and not one paragraph was finished",
+        "judgements": [],
+        "judgeSkipped": [
+          "no baseline answer"
+        ],
+        "scores": {
+          "swarm": null,
+          "baseline": 0,
+          "delta": null,
+          "winner": null,
+          "consistency": null
+        },
+        "costUsd": 0.050175155
+      },
+      {
+        "problem": {
+          "id": "teen-reading-programme",
+          "title": "A six-week teen reading programme on a $500 budget",
+          "domain": "community-planning",
+          "constraints": [
+            "A public library branch in a mid-sized town; one librarian can give four hours a week, plus volunteers if recruited.",
+            "Budget is $500 in total for the six weeks; the library already has a meeting room and a book collection.",
+            "The target is 13-to-17-year-olds, most of whom do not currently use the library.",
+            "The branch manager wants evidence of the outcome, not only attendance numbers, to decide whether to repeat it."
+          ],
+          "successCriteria": [
+            "A programme design (format, frequency, content) that a non-reading teenager would plausibly turn up to.",
+            "A recruitment plan that reaches teens who do not use the library today.",
+            "A budget that allocates the $500 and shows what it buys.",
+            "Outcome measures beyond attendance, measurable within six weeks, and how they are collected."
+          ],
+          "rubric": [
+            {
+              "id": "design",
+              "weight": 3,
+              "criterion": "Describes a concrete programme (what happens each week) suited to teens who do not read for pleasure.",
+              "scale": "0 = 'a book club'; 1 = a format with no reasoning about the audience; 2 = a format argued from what draws non-readers (choice, social element, media tie-ins, creation); 3 = plus a week-by-week outline."
+            },
+            {
+              "id": "recruitment",
+              "weight": 2,
+              "criterion": "Explains how teens who do not visit the library will hear about it and why they would come.",
+              "scale": "0 = 'put up posters'; 1 = one channel; 2 = channels where teens are (schools, youth groups, social media) with a specific hook; 3 = plus a partner or peer-recruiter mechanism."
+            },
+            {
+              "id": "budget",
+              "weight": 2,
+              "criterion": "Allocates the $500 to specific items that fit the design.",
+              "scale": "0 = no budget; 1 = a total with no breakdown; 2 = a breakdown that fits the design; 3 = a breakdown with a cheaper fallback and what is in kind."
+            },
+            {
+              "id": "outcomes",
+              "weight": 3,
+              "criterion": "Proposes outcome measures beyond attendance (reading behaviour, confidence, library card sign-ups, return visits) and how they are collected in six weeks.",
+              "scale": "0 = attendance only; 1 = outcomes named but not measurable; 2 = measurable outcomes with a collection method (short pre/post survey, borrowing data, retention week to week); 3 = plus what result would justify repeating it."
+            },
+            {
+              "id": "feasibility",
+              "weight": 2,
+              "criterion": "Fits four librarian hours a week and realistic volunteer effort.",
+              "scale": "0 = needs much more staff time; 1 = plausible but unscoped; 2 = time accounted for; 3 = time accounted for with prep done once and reused."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Practical claims hold up: what $500, four librarian hours a week and volunteers can actually buy, and what teenagers will do.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
+            }
+          ],
+          "statement": "A public library branch in a mid-sized town wants to run a six-week programme for 13-to-17-year-olds, most of whom do not use the library today. One librarian can give four hours a week; volunteers can be recruited; the budget is $500 for everything beyond the room and the existing collection. The branch manager will repeat the programme only if there is evidence it changed something for the participants, not just that some turned up.\n\nDesign the programme: what happens each week and why teenagers who do not read for pleasure would come, how the library reaches teens who are not already visitors, how the $500 is spent, and how the outcome is measured within the six weeks in a way that goes beyond attendance. Make sure it fits four hours of librarian time a week."
+        },
+        "swarm": {
+          "runId": "01a1c40a-f90f-7b03-9eaf-31ff9f281d43",
+          "answer": "Recommendation: run a six-week Teen Maker Hub pilot, one 60-minute hands-on session a week for up to eight 13-to-17-year-olds, staffed by the librarian and two volunteers at a 1:8 ratio. Treat it as a conditional pilot: the board does not yet show that teens who do not read will attend to the end or that the programme changes anything, so the branch should go ahead only if the baseline and outcome measures below are in place before Week 1.\n\nWhy teens would come: the activities are things a non-reader can start on day one with no reading required, such as making a zine, upcycled jewellery, comic art, and a short audio story recorded on phones. Free food is the main attendance hook, because teens who are not current library users are mainly drawn by tangible incentives. Week 5 lets teens choose the project they finish, and Week 6 is a showcase where they display what they made, which gives the later weeks a concrete goal. Weekly content: Week 1 zine making; Week 2 upcycled jewellery; Week 3 comic art; Week 4 audio storytelling on phones (no library tablets or soundboards are assumed, since the board does not confirm they exist); Week 5 teen-chosen project; Week 6 showcase.\n\nLibrarian time: each week the librarian has four hours, split as about one hour of setup and cleanup, one hour of facilitation, one hour of admin, and one hour of recruitment and data collection. Two volunteers handle registration, snacks, and supervision support. Before Week 1, parental consent forms must be signed and volunteer background checks completed, and the 1:8 ratio must be kept in every session.\n\nRecruitment: the branch should reach non-users through high school media clubs such as yearbook, drama and robotics, using flyers and a free taster session with pizza. Peer Captains from schools can distribute QR codes for a first-visit food voucher. The board does not show that these channels reach teens who do not already engage in creative activities, and the captains may mostly recruit already-active students. Digital ads are dropped, because the board shows teens learn of opportunities mainly through peers and family rather than online marketing.\n\nBudget, totalling $500: about $250 for food vouchers, covering roughly six weeks of food for eight teens at the per-session cost in the board's cost analysis; about $150 for zine, jewellery and audio consumables, which is probably too low, since the board estimates consumables at about $10 per participant per week and the materials line has not been reconciled with that figure; $50 for printed flyers and posters for schools and community centres; and $50 contingency, which also covers thank-you food for Peer Captains. The board does not fund cash or gift-card incentives for Peer Captains, so these are replaced with food vouchers. If materials prove too costly, the programme should cut the number of craft items rather than the number of sessions.\n\nOutcome measures beyond attendance: teens earn Skill Passport stamps for behaviours that show change, such as signing up for a library card, completing one zine or jewellery item, finishing an audio clip, and attending the showcase. Attendance alone must not earn enough stamps to reach the threshold, because attendance can count for four of the stamps and otherwise make the outcome look positive. The success threshold is more than 50 percent of participants earning three or more stamps including at least one made item, plus a positive shift in a three-question pre and post survey. The baseline survey is taken in Week 1 and the post survey in Week 6. Stamps and survey responses are collected from every teen who attends any session, not only those who reach the showcase, so that drop-outs are counted. Survey results are weak evidence because teenagers' self-reports are affected by social desirability and short-term engagement, so they should be read alongside the behavioural stamps. The showcase poll asking whether teens learned something new is only a secondary, low-weight measure.\n\nMain caveats and open questions: there is no comparison group, so any change cannot be attributed to the programme alone. Retention beyond Week 3 is unproven. The materials budget may not cover the craft plan. Recruitment of genuine non-users is untested. The board has no evidence on whether the stamp threshold predicts real change in reading, library use or confidence. Before the branch decides to repeat the programme, it should check whether at least half of the teens who enrol reach Week 4, whether the materials cost stays within the line, and whether the stamps and survey show the pattern described above.",
+          "confidence": 0.4,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 89,
+          "usage": {
+            "inputTokens": 86062,
+            "outputTokens": 42374,
+            "cacheReadTokens": 2682,
+            "cacheWriteTokens": 35397,
+            "costUsd": 0.027980844999999997
+          },
+          "costUsd": 0.027980844999999997,
+          "elapsedMs": 263680
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "b11b54311c24796053165647a2b93c98850abddaa7493e36deb4be6a6e70fb63",
+          "problemId": "teen-reading-programme",
+          "modelId": "claude-sonnet-5-5",
+          "capUsd": 0.027980844999999997,
+          "maxOutputTokens": 2464,
+          "wordBudget": 1250,
+          "truncated": true,
+          "answer": "**Recommendation**\n\nRun a weekly 90-minute after-school 'make-a-thing' studio, not a reading club. Teens build a zine and audio project about their own town, using phones, free software and the library's collection as raw material. Recruit through the places teens already are, using peer invitations and one partner organisation rather than library posters. Spend the $500 mainly on food, a small audio kit and printing. Judge success against targets set in advance: how many participants were genuine non-users, how many came back, whether they got and used a library card, whether they finished something, and whether their sense of the library changed. All of it runs on four librarian hours a week plus two or three volunteers, though recruitment before launch needs extra hours (see the caveats).\n\n**Why non-reading teens would come**",
+          "usage": {
+            "inputTokens": 1020,
+            "outputTokens": 2464,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.02668
+          },
+          "latencyMs": 0,
+          "at": "2026-11-10T06:04:39.568Z",
+          "passId": "eval:01a1c400-2fd2-723f-a95d-4f2b56150a97"
+        },
+        "baselineCached": false,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "design": {
+                "score": 3,
+                "reason": "Gives a week-by-week outline (zine, jewellery, comic art, phone audio, teen-chosen project, showcase) argued from what draws non-readers: no reading needed, hands-on creation, choice and a showcase goal."
+              },
+              "recruitment": {
+                "score": 3,
+                "reason": "Targets school media clubs with a pizza taster session and uses Peer Captains handing out QR codes for a first-visit food voucher, and it admits the captains may mostly recruit already-active teens."
+              },
+              "budget": {
+                "score": 2,
+                "reason": "Itemises the $500 ($250 food, $150 consumables, $50 printing, $50 contingency) and gives a fallback of cutting craft items rather than sessions, but says little about in-kind contributions and itself flags the materials line as probably too low."
+              },
+              "outcomes": {
+                "score": 3,
+                "reason": "Uses a Skill Passport of behavioural stamps (library card, made item, audio clip, showcase) plus a pre/post survey collected from all attendees, and sets a repeat threshold of over 50% earning 3+ stamps and at least half of enrollees reaching Week 4."
+              },
+              "feasibility": {
+                "score": 2,
+                "reason": "Splits the librarian's four hours into setup, facilitation, admin and recruitment/data, with two volunteers on registration and snacks, but does not show prep done once and reused."
+              },
+              "correctness": {
+                "score": 1,
+                "reason": "Repeatedly cites 'the board' and its cost analysis, which are not in the problem, and has a muddled stamp-threshold sentence about attendance, though the caveats on attribution and retention are candid."
+              }
+            },
+            "baseline": {
+              "design": {
+                "score": 1,
+                "reason": "Proposes a weekly 90-minute make-a-thing studio (zine and audio about their town) and rejects a reading club, but the section explaining why non-readers would come is empty and there is no week-by-week plan."
+              },
+              "recruitment": {
+                "score": 2,
+                "reason": "Names peer invitations and one partner organisation in places teens already gather, but gives no specific hook or mechanism."
+              },
+              "budget": {
+                "score": 1,
+                "reason": "Says the money goes mainly to food, a small audio kit and printing, with no amounts, no fallback and no in-kind items."
+              },
+              "outcomes": {
+                "score": 1,
+                "reason": "Lists targets (genuine non-users, return visits, card use, finishing something, changed sense of the library) but gives no collection method or threshold for repeating."
+              },
+              "feasibility": {
+                "score": 1,
+                "reason": "Asserts it runs on four librarian hours plus two or three volunteers and flags extra pre-launch recruitment hours, but does not scope the hours."
+              },
+              "correctness": {
+                "score": 2,
+                "reason": "The claims made (phone-based audio, free software, food as spend) are plausible, but the answer is cut off, so little is stated that could be checked."
+              }
+            },
+            "preferred": "swarm",
+            "note": "Answer A is a complete, specific plan covering all four requested parts, while Answer B is truncated after its summary and its main 'why teens would come' section is empty."
+          }
+        ],
+        "judgeSkipped": [
+          "order baseline/swarm: invalid_output"
+        ],
+        "scores": {
+          "swarm": 80.95238095238095,
+          "baseline": 42.857142857142854,
+          "delta": 38.095238095238095,
+          "winner": "swarm",
+          "consistency": null
+        },
+        "costUsd": 0.110985745
+      }
+    ],
+    "spentUsd": 0.2030478,
+    "stopped": null,
+    "aggregate": {
+      "problems": 3,
+      "judged": 1,
+      "swarmMean": 80.95238095238095,
+      "baselineMean": 42.857142857142854,
+      "meanDelta": 38.095238095238095,
+      "wins": 1,
+      "losses": 0,
+      "ties": 0,
+      "firstShownPreferred": {
+        "count": 1,
+        "of": 1
+      },
+      "consistency": null
+    }
+  }
+}
