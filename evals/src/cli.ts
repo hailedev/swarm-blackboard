@@ -68,7 +68,7 @@ export interface EvalIo {
 export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
 export const DEFAULT_DATABASE_URL = 'file:./data/team.db';
 export const DEFAULT_PASS_CAP_USD = 1;
-export const DEFAULT_RUN_CAP_USD = 0.08;
+export const DEFAULT_RUN_CAP_USD = 0.03;
 export const DEFAULT_PROBLEMS_DIR = 'evals/problems';
 export const DEFAULT_RESULTS_DIR = 'evals/results';
 
@@ -81,7 +81,7 @@ export const USAGE = [
   '                       baseline and judge come from its `evals` entry',
   '  --yes                skip the confirmation a paid pass asks for',
   `  --max-cost <usd>     cap on the whole pass (default ${String(DEFAULT_PASS_CAP_USD)})`,
-  `  --run-cap <usd>      cap on each swarm run (default ${String(DEFAULT_RUN_CAP_USD)})`,
+  `  --run-cap <usd>      cap on each swarm run and on the baseline call (default ${String(DEFAULT_RUN_CAP_USD)})`,
   '  --label <name>       names the results folder: <out>/<date>-<label>',
   '  --problems a,b       only these problem ids; --limit N takes the first N',
   '  --judge-orders 1|2   judge each pair once, or in both orders (default 2)',
@@ -494,7 +494,7 @@ export const main = async (
         judgeOrders,
         refreshBaselines: values['refresh-baselines'],
         baselineMaxOutputTokens: 4_096,
-        judgeMaxOutputTokens: 2_048,
+        judgeMaxOutputTokens: 4_096,
       },
       {
         runSwarm,

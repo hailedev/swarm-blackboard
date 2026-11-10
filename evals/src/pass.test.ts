@@ -93,7 +93,7 @@ describe('runPass', () => {
     expect(pass.stopped).toBeNull();
     for (const r of pass.results) {
       expect(r.swarm?.costUsd).toBe(0.02);
-      expect(r.baseline?.capUsd).toBe(0.02);
+      expect(r.baseline?.capUsd).toBe(0.08);
       expect(r.baselineCached).toBe(false);
       expect(r.judgements.length).toBe(2);
       expect(r.judgements[0]?.order.A).not.toBe(r.judgements[1]?.order.A);
@@ -161,10 +161,10 @@ describe('runPass', () => {
 
   it('skips the baseline and the judge with a reason when they do not fit or cannot run', async () => {
     const d = deps({
-      // A swarm run that cost nothing: a paid baseline has no money to be capped at.
+      // A run cap too small for a paid baseline call: both arms share the cap, so it is skipped.
       runSwarm: (p) => Promise.resolve(ok(swarmOutcome(p.id, 0))),
     });
-    const pass = await runPass(options({ problems: [problem('free')] }), d);
+    const pass = await runPass(options({ problems: [problem('free')], runCapUsd: 0.0001 }), d);
     const r = pass.results[0];
     expect(r?.baseline).toBeNull();
     expect(r?.baselineSkipped).toContain('does not cover');
@@ -289,7 +289,7 @@ describe('report', () => {
     const cache = memoryCache();
     await runPass(options({ problems: [problem('one')] }), deps({ cache }));
     const pass = await runPass(
-      options({ problems: [problem('one')] }),
+      options({ problems: [problem('one')], runCapUsd: 0.2 }),
       deps({ cache, runSwarm: (p) => Promise.resolve(ok(swarmOutcome(p.id, 0.05))) }),
     );
     const local = { alias: 'x', provider: 'ollama' as const, model: 'm' };
@@ -316,8 +316,8 @@ describe('report', () => {
       baselineModelId: 'fake-baseline',
       judgeModelId: 'fake-judge',
     });
-    expect(report).toContain('cached baseline was capped at $0.0200');
-    expect(report).toContain('cost $0.0500');
+    expect(report).toContain('cached baseline was capped at $0.0800');
+    expect(report).toContain("this pass's cap is $0.2000");
   });
 });
 

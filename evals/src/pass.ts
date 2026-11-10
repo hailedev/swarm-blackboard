@@ -1,6 +1,8 @@
 import {
+  addUsage,
   estimateInput,
   fitCall,
+  zeroUsage,
   type Model,
   type Result,
   type RunEndReason,
@@ -90,6 +92,8 @@ export interface ProblemResult {
   baselineSkipped: string | null;
   judgements: UnblindedJudgement[];
   judgeSkipped: string[];
+  /** What the judge calls of this problem used, thinking included. */
+  judgeUsage: Usage;
   scores: ProblemScores;
   /** What this problem cost the pass: the swarm run plus any uncached baseline and judge calls. */
   costUsd: number;
@@ -203,6 +207,7 @@ const runProblem = async (
     baselineSkipped: null,
     judgements: [],
     judgeSkipped: [],
+    judgeUsage: zeroUsage(),
     scores: scoreProblem(problem.rubric, []),
     costUsd: 0,
   };
@@ -237,7 +242,8 @@ const runProblem = async (
     result.baselineCached = true;
     deps.log(`   baseline: cached (${cached.at}, cap $${cached.capUsd.toFixed(4)})`);
   } else {
-    const capUsd = Math.min(swarm.value.costUsd, budget.remainingUsd);
+    // Equal budget means the same cap for both arms (ADR-0013): the run cap, not the swarm's spend.
+    const capUsd = Math.min(options.runCapUsd, budget.remainingUsd);
     const generated = await generateBaseline(
       {
         model: deps.baselineModel,
@@ -308,11 +314,15 @@ const runProblem = async (
       tags: tags('eval-judge'),
     });
     if (!response.ok) {
-      if (response.error.kind === 'invalid_output') budget.charge(response.error.usage.costUsd);
+      if (response.error.kind === 'invalid_output') {
+        budget.charge(response.error.usage.costUsd);
+        result.judgeUsage = addUsage(result.judgeUsage, response.error.usage);
+      }
       result.judgeSkipped.push(`order ${order.A}/${order.B}: ${response.error.kind}`);
       continue;
     }
     budget.charge(response.value.usage.costUsd);
+    result.judgeUsage = addUsage(result.judgeUsage, response.value.usage);
     result.judgements.push(unblind(response.value.object, order));
   }
   result.scores = scoreProblem(problem.rubric, result.judgements);

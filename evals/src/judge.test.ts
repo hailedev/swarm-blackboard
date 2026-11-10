@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
   blindOrder,
@@ -118,5 +119,16 @@ describe('blindText', () => {
       'Use paper for the E2E report in of the year.\n\nSecond paragraph with 2026 and v3.',
     );
     expect(blindText('No handles here.\n\nStill none.')).toBe('No handles here.\n\nStill none.');
+  });
+});
+
+describe('reason before score', () => {
+  it('puts each criterion’s reason before its score in the schema the judge answers against', () => {
+    const json = z.toJSONSchema(judgementSchema(problem)) as unknown as {
+      properties: { A: { properties: Record<string, { properties: Record<string, unknown> }> } };
+    };
+    for (const criterion of Object.values(json.properties.A.properties)) {
+      expect(Object.keys(criterion.properties)).toEqual(['reason', 'score']);
+    }
   });
 });

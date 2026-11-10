@@ -19,17 +19,18 @@ export interface BlindOrder {
 
 export const JUDGE_SYSTEM = [
   'You are grading two answers to the same problem against a rubric. You do not know who',
-  'or what wrote either answer, and you must not guess. For every rubric criterion, score',
-  'each answer independently on the 0 to 3 scale using the anchors given, and give a',
-  'one-sentence reason that points at something specific in that answer. Do not reward',
-  'length, confidence or formatting; reward correctness, specificity and respect for the',
-  "problem's constraints and success criteria. Finally say which answer is better overall,",
-  'or that they tie, in one sentence. Return only JSON matching the schema.',
+  'or what wrote either answer, and you must not guess. For every rubric criterion and',
+  'each answer independently, first write one sentence of reason that points at something',
+  'specific in that answer, then give the score on the 0 to 3 scale using the anchors given.',
+  'Do not reward length, confidence or formatting; reward correctness, specificity and',
+  "respect for the problem's constraints and success criteria. Finally say which answer is",
+  'better overall, or that they tie, in one sentence. Return only JSON matching the schema.',
 ].join(' ');
 
+/** The reason comes before the score in the schema, so the judge argues before it grades. */
 export interface CriterionScore {
-  score: number;
   reason: string;
+  score: number;
 }
 
 export interface Judgement {
@@ -41,7 +42,7 @@ export interface Judgement {
 
 /** The judge's per-call schema: one score object per rubric criterion, for each answer. */
 export const judgementSchema = (problem: Problem): z.ZodType<Judgement> => {
-  const score = z.object({ score: z.int().min(0).max(MAX_SCORE), reason: z.string().min(1) });
+  const score = z.object({ reason: z.string().min(1), score: z.int().min(0).max(MAX_SCORE) });
   const perAnswer = z.object(Object.fromEntries(problem.rubric.map((c) => [c.id, score])));
   return z.object({
     A: perAnswer,

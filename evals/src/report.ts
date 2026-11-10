@@ -43,7 +43,7 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
   lines.push(modelLine('Baseline', meta.evalModels.baseline) + ` → ${meta.baselineModelId}`);
   lines.push(modelLine('Judge', meta.evalModels.judge) + ` → ${meta.judgeModelId}`);
   lines.push(
-    `- Caps: pass ${usd(pass.options.capUsd)}, per swarm run ${usd(pass.options.runCapUsd)}; baseline capped at each swarm run's cost`,
+    `- Caps: pass ${usd(pass.options.capUsd)}; each swarm run and each baseline call capped at ${usd(pass.options.runCapUsd)}, the same budget for both arms`,
   );
   lines.push(
     `- Judging: ${pass.options.judgeOrders === 2 ? 'both orders per pair' : 'one random order per pair'}; blind to the arm`,
@@ -73,17 +73,18 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
   );
   lines.push('');
   lines.push(
-    `With ${String(a.judged)} judged pairs, a difference smaller than the judge's own consistency figure is not evidence of anything. The swarm's spend includes every traced call of its runs; the baseline's cap was each run's cost.`,
+    `With ${String(a.judged)} judged pairs, a difference smaller than the judge's own consistency figure is not evidence of anything. Both arms had the same cap; the swarm's spend includes every traced call of its runs.`,
     '',
   );
 
   lines.push('## Per problem', '');
   lines.push(
-    '| Problem | Run | Rounds | End | Swarm cost | Baseline cap → cost | Baseline tokens used/allowed (words asked) | Swarm | Baseline | Δ | Winner | Notes |',
-    '|---|---|---|---|---|---|---|---|---|---|---|---|',
+    '| Problem | Run | Rounds | End | Swarm cost | Baseline cap → cost | Baseline tokens used/allowed (words asked) | Thinking tokens swarm / baseline / judge | Swarm | Baseline | Δ | Winner | Notes |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
   );
   for (const r of pass.results) lines.push(problemRow(r));
   lines.push('');
+  lines.push(thinkingLine(pass), '');
 
   const notes = honestyNotes(pass);
   if (notes.length > 0) {
@@ -112,7 +113,35 @@ const problemRow = (r: ProblemResult): string => {
   const baselineCell =
     r.baseline === null ? '—' : `${usd(r.baseline.capUsd)} → ${usd(r.baseline.usage.costUsd)}`;
   const tokensCell = r.baseline === null ? '—' : baselineTokens(r.baseline);
-  return `| ${r.problem.id} | ${swarm === null ? '—' : `\`${swarm.runId}\``} | ${swarm === null ? '—' : String(swarm.rounds)} | ${swarm === null ? '—' : `${swarm.status}/${swarm.reason}`} | ${swarm === null ? '—' : usd(swarm.costUsd)} | ${baselineCell} | ${tokensCell} | ${pct(r.scores.swarm)} | ${pct(r.scores.baseline)} | ${signed(r.scores.delta)} | ${r.scores.winner ?? '—'} | ${cell(notes.join('; '))} |`;
+  const thinking = `${swarm === null ? '—' : thinkingOf(swarm.usage)} / ${r.baseline === null ? '—' : thinkingOf(r.baseline.usage)} / ${thinkingOf(r.judgeUsage)}`;
+  return `| ${r.problem.id} | ${swarm === null ? '—' : `\`${swarm.runId}\``} | ${swarm === null ? '—' : String(swarm.rounds)} | ${swarm === null ? '—' : `${swarm.status}/${swarm.reason}`} | ${swarm === null ? '—' : usd(swarm.costUsd)} | ${baselineCell} | ${tokensCell} | ${thinking} | ${pct(r.scores.swarm)} | ${pct(r.scores.baseline)} | ${signed(r.scores.delta)} | ${r.scores.winner ?? '—'} | ${cell(notes.join('; '))} |`;
+};
+
+/** "1,234 of 5,678": the thinking part of an arm's output tokens. */
+const thinkingOf = (usage: { reasoningTokens: number; outputTokens: number }): string =>
+  `${String(usage.reasoningTokens)} of ${String(usage.outputTokens)}`;
+
+/** The pass's thinking tokens per arm, so the cost of hidden reasoning is in the open (ADR-0013). */
+export const thinkingLine = (pass: PassResult): string => {
+  const sum = (
+    pick: (r: ProblemResult) => { reasoningTokens: number; outputTokens: number } | null,
+  ) =>
+    pass.results.reduce(
+      (total, r) => {
+        const u = pick(r);
+        return u === null
+          ? total
+          : {
+              reasoningTokens: total.reasoningTokens + u.reasoningTokens,
+              outputTokens: total.outputTokens + u.outputTokens,
+            };
+      },
+      { reasoningTokens: 0, outputTokens: 0 },
+    );
+  const swarm = sum((r) => r.swarm?.usage ?? null);
+  const baseline = sum((r) => (r.baselineCached ? null : (r.baseline?.usage ?? null)));
+  const judge = sum((r) => r.judgeUsage);
+  return `Thinking tokens, as a share of output tokens: swarm ${thinkingOf(swarm)}, baseline ${thinkingOf(baseline)} (uncached calls only), judge ${thinkingOf(judge)}.`;
 };
 
 /** "1,234/2,000 (≈1,300 words)", with a flag when the answer ran into its allowance. */
@@ -128,18 +157,18 @@ export const honestyNotes = (pass: PassResult): string[] => {
       `${String(truncated.length)} baseline answer${truncated.length === 1 ? '' : 's'} used the whole output allowance (${truncated.map((r) => r.problem.id).join(', ')}) and probably lost ${truncated.length === 1 ? 'its' : 'their'} ending; the judge scored what arrived.`,
     );
   }
+  const runCap = pass.options.runCapUsd;
   const drifted = pass.results.filter(
     (r) =>
       r.baselineCached &&
       r.baseline !== null &&
-      r.swarm !== null &&
-      r.swarm.costUsd > 0 &&
-      Math.abs(r.baseline.capUsd - r.swarm.costUsd) / r.swarm.costUsd > 0.25,
+      runCap > 0 &&
+      Math.abs(r.baseline.capUsd - runCap) / runCap > 0.25,
   );
   for (const r of drifted) {
-    if (r.baseline === null || r.swarm === null) continue;
+    if (r.baseline === null) continue;
     notes.push(
-      `\`${r.problem.id}\`: the cached baseline was capped at ${usd(r.baseline.capUsd)} (about ${String(r.baseline.wordBudget)} words) on an earlier pass; this pass's swarm run cost ${usd(r.swarm.costUsd)}, so the arms were not quite at equal cost. Pass \`--refresh-baselines\` to redo it.`,
+      `\`${r.problem.id}\`: the cached baseline was capped at ${usd(r.baseline.capUsd)} (about ${String(r.baseline.wordBudget)} words) on an earlier pass; this pass's cap is ${usd(runCap)}, so the arms did not share one budget. Pass \`--refresh-baselines\` to redo it.`,
     );
   }
   const noAnswer = pass.results.filter((r) => r.swarm !== null && r.swarm.answer === null);
