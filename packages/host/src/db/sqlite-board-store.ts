@@ -166,6 +166,7 @@ export class SqliteBoardStore implements BoardStore {
         break;
       }
       case 'round_completed':
+      case 'round_abandoned':
         tx.update(runs)
           .set({
             rounds: event.round,

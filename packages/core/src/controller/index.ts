@@ -16,6 +16,8 @@ export type {
   RunSummary,
 } from './controller';
 export { createController } from './controller';
+export type { OrphanedRound } from './orphaned-round';
+export { orphanedRound } from './orphaned-round';
 export type { PeriodError } from './period';
 export type { RehydratedState, RehydrateError, RunEndState } from './rehydrate';
 export { rehydrate } from './rehydrate';

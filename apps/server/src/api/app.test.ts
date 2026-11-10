@@ -4,6 +4,7 @@ import {
   buildBoardView,
   createController,
   createDefaultAgents,
+  InMemoryBoardStore,
   isoFromMs,
   nullLogger,
   resolveProfile,
@@ -604,5 +605,76 @@ describe('recovery', () => {
       'run_terminated',
     ]);
     expect(log.events.map((e) => e.seq)).toEqual(log.events.map((_, i) => i));
+  });
+
+  it('abandons a round the dead process left in flight, so the resumed run starts each round once', async () => {
+    const { app, manager, db, roster } = await setup(scriptedSource(), 1_000);
+    const profile = resolveProfile(roster, 'dev');
+    if (!profile.ok) throw new Error('no dev profile');
+    // The log of a whole scripted run, written by another process into its own memory…
+    const memory = new InMemoryBoardStore();
+    const ref: { controller: ReturnType<typeof createController> | undefined } = {
+      controller: undefined,
+    };
+    const models = createScriptedModels(() => {
+      if (ref.controller === undefined) throw new Error('not ready');
+      return ref.controller.currentView();
+    });
+    const controller = createController({
+      store: memory,
+      clock: new ManualClock(),
+      ids: new SequentialIdGenerator(),
+      logger: nullLogger,
+      agents: createDefaultAgents(models, testRolePrompts()),
+      profile: profile.value,
+    });
+    ref.controller = controller;
+    await controller.start({ content: 'P' });
+    await controller.run();
+    const whole = await memory.eventsFor(controller.runId);
+    // …of which only the part up to the selection of round 3 reached the shared database.
+    const cutAt = whole.findIndex((e) => e.type === 'agents_selected' && e.round === 3);
+    expect(cutAt).toBeGreaterThan(-1);
+    const store = new SqliteBoardStore(db);
+    for (const event of whole.slice(0, cutAt + 1)) {
+      expect((await store.append(event)).ok).toBe(true);
+    }
+    expect(manager.get(controller.runId)?.status).toBe('running');
+
+    expect(await manager.recover()).toBe(1);
+    const paused = await body<RunRecord>(await app.request(`/runs/${controller.runId}`));
+    expect(paused).toMatchObject({
+      status: 'paused',
+      reason: 'interrupted',
+      totals: { rounds: 3 },
+    });
+    const log = await body<{ events: BoardEvent[] }>(
+      await app.request(`/runs/${controller.runId}/log`),
+    );
+    expect(log.events.slice(cutAt - 1).map((e) => [e.type, 'round' in e ? e.round : null])).toEqual(
+      [
+        ['round_started', 3],
+        ['agents_selected', 3],
+        ['round_abandoned', 3],
+        ['run_paused', 3],
+      ],
+    );
+    expect(log.events.find((e) => e.type === 'round_abandoned')).toMatchObject({
+      newEntries: 0,
+      usage: { costUsd: 0 },
+    });
+
+    const resumed = await post(app, `/runs/${controller.runId}/resume`);
+    expect(resumed.status).toBe(200);
+    await manager.settled(controller.runId);
+    const done = await body<RunRecord>(await app.request(`/runs/${controller.runId}`));
+    expect(done).toMatchObject({ status: 'completed', reason: 'completed' });
+    const after = await body<{ events: BoardEvent[] }>(
+      await app.request(`/runs/${controller.runId}/log`),
+    );
+    const starts = after.events.flatMap((e) => (e.type === 'round_started' ? [e.round] : []));
+    expect(starts.slice(0, 4)).toEqual([1, 2, 3, 4]);
+    expect(new Set(starts).size).toBe(starts.length);
+    expect(after.events.map((e) => e.seq)).toEqual(after.events.map((_, i) => i));
   });
 });

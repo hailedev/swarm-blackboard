@@ -61,6 +61,30 @@ export const rehydrate = (
   let ended: RunEndState | null = null;
   let elapsedMs: number | null = null;
 
+  // The end of a round, as the controller saw it: the round's selection joins the diversity
+  // window, its usage the totals, and the conflict check runs on the board as it stood then.
+  // `synthesisForced` is on only while the round that serves a request is in flight; a
+  // request still owed is `synthesisPending`, below.
+  const closeRound = (round: number, roundUsage: Usage, index: number): void => {
+    completedRounds = round;
+    history.push(selectedByRound.get(round) ?? []);
+    usage = addUsage(usage, roundUsage);
+    const soFar = events.slice(0, index + 1);
+    const critiqueTargets = new Set(
+      soFar.flatMap((e) =>
+        e.type === 'entry_committed' && e.round === round && e.entry.type === 'critique'
+          ? [e.entry.payload.target]
+          : [],
+      ),
+    );
+    const assessment = conflicts.assess(buildBoardView(runId, soFar), critiqueTargets);
+    flags = {
+      ...noControlFlags(),
+      criticForced: assessment.criticForced,
+      decisionRequired: assessment.decisionRequired,
+    };
+  };
+
   // A plain loop, not forEach: the state below is reassigned here and TypeScript must see
   // that, or it narrows `ended` and `elapsedMs` to their initial values.
   for (const [index, event] of events.entries()) {
@@ -68,28 +92,13 @@ export const rehydrate = (
       case 'agents_selected':
         selectedByRound.set(event.round, event.selected);
         break;
+      case 'round_abandoned':
+        // The host died mid-round. The round counts as used; the stall rule is left alone,
+        // since nothing is known about what the round would have produced.
+        closeRound(event.round, event.usage, index);
+        break;
       case 'round_completed': {
-        // Exactly what the controller did at the end of this round, on the board as it
-        // stood then: history, totals, the conflict check and the stall rule.
-        completedRounds = event.round;
-        history.push(selectedByRound.get(event.round) ?? []);
-        usage = addUsage(usage, event.usage);
-        const soFar = events.slice(0, index + 1);
-        const critiqueTargets = new Set(
-          soFar.flatMap((e) =>
-            e.type === 'entry_committed' && e.round === event.round && e.entry.type === 'critique'
-              ? [e.entry.payload.target]
-              : [],
-          ),
-        );
-        const assessment = conflicts.assess(buildBoardView(runId, soFar), critiqueTargets);
-        // `synthesisForced` is on only while the round that serves a request is in
-        // flight; a request still owed is `synthesisPending`, below.
-        flags = {
-          ...noControlFlags(),
-          criticForced: assessment.criticForced,
-          decisionRequired: assessment.decisionRequired,
-        };
+        closeRound(event.round, event.usage, index);
         consecutiveEmptyRounds = event.newEntries === 0 ? consecutiveEmptyRounds + 1 : 0;
         if (consecutiveEmptyRounds >= config.stallRounds && !reframeUsed) {
           reframeUsed = true;

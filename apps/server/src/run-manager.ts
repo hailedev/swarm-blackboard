@@ -6,6 +6,7 @@ import {
   err,
   isoFromMs,
   ok,
+  orphanedRound,
   rehydrate,
   resolveProfile,
   type Agent,
@@ -204,42 +205,59 @@ export class RunManager {
     let count = 0;
     for (const record of this.runs.list()) {
       if (record.status !== 'running' || this.#handles.has(record.id)) continue;
-      const events = await this.store.eventsFor(record.id);
-      const state = rehydrate(events);
-      if (!state.ok) {
-        this.#deps.logger.error('cannot recover run', {
-          runId: record.id,
-          error: state.error.kind,
-        });
-        continue;
-      }
-      const paused: BoardEvent = {
-        id: this.#deps.ids.next(),
-        runId: record.id,
-        seq: events.length,
-        at: isoFromMs(this.#deps.clock.nowMs()),
-        type: 'run_paused',
-        round: state.value.completedRounds,
-        reason: 'interrupted',
-        totals: {
-          rounds: state.value.completedRounds,
-          entries: buildBoardView(record.id, events).entries.length,
-          usage: state.value.usage,
-          elapsedMs: state.value.elapsedMs,
-        },
-      };
-      const stored = await this.store.append(paused);
+      const stored = await this.#recoverOne(record.id);
       if (!stored.ok) {
-        this.#deps.logger.error('cannot pause interrupted run', {
-          runId: record.id,
-          error: stored.error.kind,
-        });
+        this.#deps.logger.error('cannot recover run', { runId: record.id, error: stored.error });
         continue;
       }
       this.#deps.logger.warn('run interrupted by the last shutdown; paused', { runId: record.id });
       count += 1;
     }
     return count;
+  }
+
+  // A round the dead process left in flight is abandoned first, so the run resumes at the
+  // next round number and the log keeps one `round_started` per round; then the run is
+  // paused as `interrupted` with the totals the abandoned round brings.
+  async #recoverOne(runId: string): Promise<Result<void, string>> {
+    const events = await this.store.eventsFor(runId);
+    const orphan = orphanedRound(events);
+    const log = [...events];
+    if (orphan !== null) {
+      const abandoned: BoardEvent = {
+        ...this.#envelope(runId, log.length),
+        type: 'round_abandoned',
+        ...orphan,
+      };
+      const stored = await this.store.append(abandoned);
+      if (!stored.ok) return err(`cannot abandon round: ${stored.error.kind}`);
+      log.push(abandoned);
+    }
+    const state = rehydrate(log);
+    if (!state.ok) return err(state.error.kind);
+    const paused: BoardEvent = {
+      ...this.#envelope(runId, log.length),
+      type: 'run_paused',
+      round: state.value.completedRounds,
+      reason: 'interrupted',
+      totals: {
+        rounds: state.value.completedRounds,
+        entries: buildBoardView(runId, log).entries.length,
+        usage: state.value.usage,
+        elapsedMs: state.value.elapsedMs,
+      },
+    };
+    const stored = await this.store.append(paused);
+    return stored.ok ? ok(undefined) : err(`cannot pause interrupted run: ${stored.error.kind}`);
+  }
+
+  #envelope(runId: string, seq: number): Pick<BoardEvent, 'id' | 'runId' | 'seq' | 'at'> {
+    return {
+      id: this.#deps.ids.next(),
+      runId,
+      seq,
+      at: isoFromMs(this.#deps.clock.nowMs()),
+    };
   }
 
   #record(runId: string): Result<RunRecord, RunManagerError> {

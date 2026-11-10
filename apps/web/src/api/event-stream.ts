@@ -17,6 +17,7 @@ const EVENT_TYPES = Object.keys({
   entry_committed: true,
   agent_failed: true,
   round_completed: true,
+  round_abandoned: true,
   synthesis_requested: true,
   budget_warning: true,
   run_paused: true,

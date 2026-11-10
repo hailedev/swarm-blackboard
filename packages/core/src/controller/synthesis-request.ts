@@ -5,8 +5,8 @@ import type { BoardEvent } from '../schemas/event';
  *
  * A `synthesis_requested` event is served by the first round that starts after it and
  * completes. A round already in flight when the request arrived does not serve it, and
- * neither does a round that started and never completed because its host died: that
- * round runs again after the restart, and its second `round_started` is the one that counts.
+ * neither does a round that started and never completed because its host died: recovery
+ * marks that round `round_abandoned`, and the request waits for the next round to start.
  *
  * The controller follows the same rule while it runs, so this fold is what a rehydrated
  * controller starts from and what the UI shows.

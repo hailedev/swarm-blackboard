@@ -208,7 +208,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 - [x] Drizzle schema: `runs`, `entries`, `events`, `model_calls`, `agent_configs` (in `packages/host`, shared with the CLI; ADR-0010).
 - [x] Hono API: the problem is posted with the run (`POST /runs`); runs (start / pause / resume / stop / inject a note); board (fold of the log, with handles); log; trace; profiles; monthly budget.
 - [x] SSE: `GET /runs/:id/events`, with replay from `from` / `Last-Event-ID`, a ping while quiet, closed after `run_terminated`.
-- [x] Run manager: one controller loop per run, in-process; a paused run is rebuilt from its event log when resumed, stopped or annotated after a restart; runs a dead process left running are paused as `interrupted` at start-up.
+- [x] Run manager: one controller loop per run, in-process; a paused run is rebuilt from its event log when resumed, stopped or annotated after a restart; runs a dead process left running are paused as `interrupted` at start-up, and a round left in flight is recorded as `round_abandoned` first (it counts as used; the resumed run continues at the next round, so every round has one start; Phase 5).
 - [x] Tests: API tests on in-memory SQLite; SSE integration tests (backlog, `Last-Event-ID`, live delivery); replaying `events` reproduces the board exactly (scripted run and the recorded fixture); recovery and resume from the log.
 - **DoD:** start a run over HTTP, watch it with `curl`, replay it from the database. ✔ 2026-11-09: `dev` profile over HTTP, three rounds, 19 entries, every event on the stream; a second run killed mid-way came back `paused/interrupted` after a restart and was resumed from the database.
 

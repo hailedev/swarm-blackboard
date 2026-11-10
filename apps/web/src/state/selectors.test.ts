@@ -1,4 +1,10 @@
-import { buildBoardView, latestSynthesis, synthesisPending, type BoardEvent } from '@team/core';
+import {
+  buildBoardView,
+  latestSynthesis,
+  synthesisPending,
+  zeroUsage,
+  type BoardEvent,
+} from '@team/core';
 import type { ModelCallSummary } from '@team/server/api';
 import { describe, expect, it } from 'vitest';
 
@@ -400,5 +406,61 @@ describe('feedOf', () => {
     expect(feed.length).toBe(134);
     expect(feed.at(-1)?.title).toBe('Completed — round limit reached');
     expect(feed.filter((line) => line.entryId !== null).length).toBe(96);
+  });
+});
+
+describe('a round the host left in flight', () => {
+  // The log a dying server left after selecting round 2's agents, then what recovery appends.
+  const interruptedLog = async () => {
+    const run = await scriptedRun();
+    await run.controller.run();
+    const cut = run.events.slice(
+      0,
+      run.events.findIndex((e) => e.type === 'agents_selected' && e.round === 2) + 1,
+    );
+    const usage = { ...zeroUsage(), inputTokens: 10, costUsd: 0.001 };
+    const abandoned: BoardEvent = {
+      ...nextEnvelope(cut),
+      type: 'round_abandoned',
+      round: 2,
+      newEntries: 1,
+      usage,
+    };
+    const withAbandoned = [...cut, abandoned];
+    const paused: BoardEvent = {
+      ...nextEnvelope(withAbandoned),
+      type: 'run_paused',
+      round: 2,
+      reason: 'interrupted',
+      totals: { rounds: 2, entries: 3, usage, elapsedMs: 0 },
+    };
+    return { runId: run.controller.runId, cut, events: [...withAbandoned, paused], usage };
+  };
+
+  it('counts as ended: the run is paused with nothing in flight and its usage is in the total', async () => {
+    const { cut, events, usage } = await interruptedLog();
+    expect(runStateOf(cut)).toMatchObject({ round: 2, completedRounds: 1, roundInFlight: true });
+    expect(runStateOf(events)).toMatchObject({
+      status: 'paused',
+      reason: 'interrupted',
+      round: 2,
+      completedRounds: 2,
+      roundInFlight: false,
+    });
+    expect(completedRounds(events)).toBe(2);
+    expect(usageOf(events).costUsd).toBeCloseTo(usageOf(cut).costUsd + usage.costUsd, 10);
+    expect(agentStatesOf(events).every((state) => state.activity !== 'running')).toBe(true);
+  });
+
+  it('is one warning line in the feed that says where the run goes on', async () => {
+    const { runId, events } = await interruptedLog();
+    const feed = feedOf(events, buildBoardView(runId, events));
+    expect(feed.map((line) => line.seq)).toEqual(events.map((e) => e.seq));
+    expect(feed.at(-2)).toMatchObject({
+      tone: 'warning',
+      title: 'Round 2 abandoned',
+      detail: 'The process running it stopped after 1 entry; the run continues at round 3.',
+    });
+    expect(feed.at(-1)?.title).toBe('Paused — interrupted by a server restart');
   });
 });

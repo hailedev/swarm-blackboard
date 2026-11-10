@@ -2,18 +2,21 @@ import { describe, expect, it } from 'vitest';
 
 import { eligible, type Agent } from '../agents/agent';
 import { createDefaultAgents } from '../agents/roster';
+import { buildBoardView } from '../board/board-view';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
 import { createFakeModel } from '../model/fake-model';
 import { nullLogger } from '../ports/logger';
 import type { Model } from '../ports/model';
 import { ok } from '../ports/result';
+import { addUsage, zeroUsage } from '../schemas/common';
 import type { BoardEvent } from '../schemas/event';
 import { BoardFixture } from '../testing/board-fixture';
 import { ManualClock } from '../testing/manual-clock';
 import { testRolePrompts } from '../testing/role-prompts';
 import { createScriptedModels } from '../testing/scripted-scenario';
-import { SequentialIdGenerator } from '../testing/sequential-id-generator';
+import { SequentialIdGenerator, sequentialId } from '../testing/sequential-id-generator';
 import { createController, type Controller, type ControllerDeps } from './controller';
+import { orphanedRound } from './orphaned-round';
 import { rehydrate } from './rehydrate';
 import { synthesisPending } from './synthesis-request';
 
@@ -634,5 +637,114 @@ describe('rehydrate: a log that paused, resumed and ended', () => {
     expect(tokens).toEqual(endTokens);
     expect(costUsd).toBeCloseTo(endCost, 10);
     expect(log.filter((e) => e.type === 'run_resumed').length).toBe(1);
+  });
+});
+
+describe('a round the host left in flight', () => {
+  // The whole scripted run, and the same log cut where a dying process would have left it.
+  const cutRun = async () => {
+    const whole = scripted();
+    await whole.controller.start({ content: 'P' });
+    await whole.controller.run();
+    const log = await whole.store.eventsFor(whole.controller.runId);
+    const selected = log.findIndex((e) => e.type === 'agents_selected' && e.round === 3);
+    const committed = log.findIndex((e) => e.type === 'entry_committed' && e.round === 3);
+    expect(selected).toBeGreaterThan(-1);
+    expect(committed).toBeGreaterThan(selected);
+    return { runId: whole.controller.runId, log, selected, committed };
+  };
+
+  it('is found by orphanedRound with what it committed, and only while it is open', async () => {
+    const { log, selected, committed } = await cutRun();
+    expect(orphanedRound(log)).toBeNull();
+    expect(orphanedRound(log.slice(0, selected + 1))).toEqual({
+      round: 3,
+      newEntries: 0,
+      usage: zeroUsage(),
+    });
+    const entry = log[committed];
+    expect(orphanedRound(log.slice(0, committed + 1))).toEqual({
+      round: 3,
+      newEntries: 1,
+      usage: entry?.type === 'entry_committed' ? entry.entry.usage : null,
+    });
+    // A round completed before the cut is not an orphan.
+    const completed = log.findIndex((e) => e.type === 'round_completed' && e.round === 3);
+    expect(orphanedRound(log.slice(0, completed + 1))).toBeNull();
+  });
+
+  it('is abandoned at recovery and the resumed run goes on from the next round', async () => {
+    const { runId, log, committed } = await cutRun();
+    const cut = log.slice(0, committed + 1);
+    const store = new InMemoryBoardStore();
+    for (const event of cut) expect((await store.append(event)).ok).toBe(true);
+
+    // What the run manager appends at start-up: the abandoned round, then the pause.
+    const orphan = orphanedRound(cut);
+    expect(orphan).not.toBeNull();
+    if (orphan === null) return;
+    const at = cut.at(-1)?.at ?? '';
+    const abandoned: BoardEvent = {
+      id: sequentialId(900),
+      runId,
+      seq: cut.length,
+      at,
+      type: 'round_abandoned',
+      ...orphan,
+    };
+    expect((await store.append(abandoned)).ok).toBe(true);
+    const interrupted = rehydrate([...cut, abandoned]);
+    expect(interrupted.ok).toBe(true);
+    if (!interrupted.ok) return;
+    const roundUsage = ofType(cut, 'round_completed').map((e) => e.usage);
+    expect(interrupted.value).toMatchObject({ completedRounds: 3, ended: null });
+    expect(interrupted.value.history.length).toBe(3);
+    expect(interrupted.value.usage).toEqual(
+      addUsage(
+        roundUsage.reduce((a, b) => addUsage(a, b), zeroUsage()),
+        orphan.usage,
+      ),
+    );
+    const paused: BoardEvent = {
+      id: sequentialId(901),
+      runId,
+      seq: cut.length + 1,
+      at,
+      type: 'run_paused',
+      round: 3,
+      reason: 'interrupted',
+      totals: {
+        rounds: 3,
+        entries: buildBoardView(runId, [...cut, abandoned]).entries.length,
+        usage: interrupted.value.usage,
+        elapsedMs: interrupted.value.elapsedMs,
+      },
+    };
+    expect((await store.append(paused)).ok).toBe(true);
+
+    const state = rehydrate(await store.eventsFor(runId));
+    expect(state.ok).toBe(true);
+    if (!state.ok) return;
+    const second = scripted({
+      store,
+      ids: new SequentialIdGenerator(1_000),
+      resume: { resume: state.value },
+    });
+    expect((await second.controller.resume()).ok).toBe(true);
+    const finished = await second.controller.run();
+    expect(finished.ok && finished.value.status).toBe('completed');
+
+    const whole = await store.eventsFor(runId);
+    const starts = ofType(whole, 'round_started').map((e) => e.round);
+    expect(starts.slice(0, 4)).toEqual([1, 2, 3, 4]);
+    expect(new Set(starts).size).toBe(starts.length);
+    expect(ofType(whole, 'round_abandoned').map((e) => e.round)).toEqual([3]);
+    expect(ofType(whole, 'round_completed').map((e) => e.round)).not.toContain(3);
+    expect(whole.map((e) => e.seq)).toEqual(whole.map((_, i) => i));
+    // The abandoned round's one entry is still on the board the resumed run built on.
+    const entry = cut[committed];
+    expect(
+      entry?.type === 'entry_committed' && second.controller.currentView().byId(entry.entry.id),
+    ).toBeTruthy();
   });
 });

@@ -22,9 +22,15 @@ import { FAILURE_LABEL, REASON_TEXT, STATUS_LABEL } from '../lib/reasons';
 // Everything the UI shows about a run is a pure function of its event log (ADR-0011): the
 // log is the source of truth, and replay is the same functions over a prefix of it.
 
-/** The number of the last round that completed; 0 before any has. */
+/** A round that ended, by finishing or by being abandoned when its host died. */
+const roundEnded = (
+  e: BoardEvent,
+): e is Extract<BoardEvent, { type: 'round_completed' | 'round_abandoned' }> =>
+  e.type === 'round_completed' || e.type === 'round_abandoned';
+
+/** The number of the last round that ended; 0 before any has. */
 export const completedRounds = (events: readonly BoardEvent[]): number =>
-  events.reduce((max, e) => (e.type === 'round_completed' ? Math.max(max, e.round) : max), 0);
+  events.reduce((max, e) => (roundEnded(e) ? Math.max(max, e.round) : max), 0);
 
 /**
  * The log as it stood once `round` had completed and before the next round started.
@@ -79,6 +85,7 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
         round = Math.max(round, event.round);
         break;
       case 'round_completed':
+      case 'round_abandoned':
         completed = Math.max(completed, event.round);
         break;
       case 'run_paused':
@@ -111,12 +118,9 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
   };
 };
 
-/** What the run has used: the sum of every completed round. */
+/** What the run has used: the sum of every round that ended. */
 export const usageOf = (events: readonly BoardEvent[]): Usage =>
-  events.reduce(
-    (total, e) => (e.type === 'round_completed' ? addUsage(total, e.usage) : total),
-    zeroUsage(),
-  );
+  events.reduce((total, e) => (roundEnded(e) ? addUsage(total, e.usage) : total), zeroUsage());
 
 /**
  * Wall-clock the run has consumed while active. A pause or an end states the figure the
@@ -196,6 +200,7 @@ export const agentStatesOf = (events: readonly BoardEvent[]): AgentState[] => {
         inFlight = event.round;
         break;
       case 'round_completed':
+      case 'round_abandoned':
         inFlight = null;
         break;
       case 'agents_selected':
@@ -338,6 +343,17 @@ export const feedOf = (events: readonly BoardEvent[], view: BoardView): FeedLine
           'neutral',
           `Round ${String(event.round)} completed`,
           `${String(event.newEntries)} new ${event.newEntries === 1 ? 'entry' : 'entries'} · ${usd(event.usage.costUsd)} · ${compact(totalTokens(event.usage))} tokens`,
+        );
+      case 'round_abandoned':
+        return feedLine(
+          event,
+          'warning',
+          `Round ${String(event.round)} abandoned`,
+          `The process running it stopped${
+            event.newEntries === 0
+              ? ''
+              : ` after ${String(event.newEntries)} ${event.newEntries === 1 ? 'entry' : 'entries'}`
+          }; the run continues at round ${String(event.round + 1)}.`,
         );
       case 'synthesis_requested':
         return feedLine(

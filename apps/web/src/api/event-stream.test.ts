@@ -59,6 +59,7 @@ describe('openEventStream', () => {
         'agents_selected',
         'budget_warning',
         'entry_committed',
+        'round_abandoned',
         'round_completed',
         'round_started',
         'run_paused',
