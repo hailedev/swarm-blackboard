@@ -110,6 +110,69 @@ describe('BudgetTracker', () => {
   });
 });
 
+describe('BudgetTracker: dollars held back for the final write-up', () => {
+  it('lowers what the rounds may reserve and where the cost cap fires, until released', () => {
+    const tracker = new BudgetTracker(
+      config({ maxCostUsd: 0.03 }),
+      new ManualClock(),
+      undefined,
+      0.005,
+    );
+    expect(tracker.heldUsd).toBe(0.005);
+    expect(tracker.remainingUsd()).toBeCloseTo(0.025, 10);
+
+    const reservation = tracker.reserve(0.02);
+    expect(tracker.remainingUsd()).toBeCloseTo(0.005, 10);
+    tracker.settle(reservation, usage({ costUsd: 0.024 }));
+    expect(tracker.remainingUsd()).toBeCloseTo(0.001, 10);
+    expect(tracker.exceeded()).toBeNull();
+
+    // The rounds reach the lowered cap: the run ends on cost with the held money intact.
+    tracker.recordUsage(usage({ costUsd: 0.001 }));
+    expect(tracker.remainingUsd()).toBe(0);
+    expect(tracker.exceeded()).toBe('budget_cost');
+
+    tracker.releaseHold();
+    expect(tracker.heldUsd).toBe(0);
+    expect(tracker.remainingUsd()).toBeCloseTo(0.005, 10);
+  });
+
+  it('holds nothing by default, and never more than the cap', () => {
+    const plain = new BudgetTracker(config({ maxCostUsd: 0.03 }), new ManualClock());
+    expect(plain.heldUsd).toBe(0);
+    expect(plain.remainingUsd()).toBeCloseTo(0.03, 10);
+
+    const clamped = new BudgetTracker(
+      config({ maxCostUsd: 0.03 }),
+      new ManualClock(),
+      undefined,
+      0.5,
+    );
+    expect(clamped.heldUsd).toBe(0.03);
+    expect(clamped.remainingUsd()).toBe(0);
+    expect(clamped.exceeded()).toBe('budget_cost');
+
+    const negative = new BudgetTracker(
+      config({ maxCostUsd: 0.03 }),
+      new ManualClock(),
+      undefined,
+      -1,
+    );
+    expect(negative.heldUsd).toBe(0);
+  });
+
+  it('keeps the hold through a snapshot: a resumed run still cannot spend it', () => {
+    const resumed = new BudgetTracker(
+      config({ maxCostUsd: 0.03 }),
+      new ManualClock(),
+      { usage: usage({ costUsd: 0.02 }), rounds: 9, elapsedMs: 0, running: false },
+      0.005,
+    );
+    expect(resumed.remainingUsd()).toBeCloseTo(0.005, 10);
+    expect(resumed.exceeded()).toBeNull();
+  });
+});
+
 describe('BudgetTracker: pause, resume and snapshots', () => {
   it('stops the wall clock while paused and starts it again on resume', () => {
     const clock = new ManualClock();
