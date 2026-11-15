@@ -16,6 +16,10 @@ pnpm eval --profile cheap --yes --label pass1     # a paid pass: Haiku-led swarm
 - Caps: `--max-cost` on the pass (default $1.00) and `--run-cap` on each swarm run and each baseline call (default $0.03): equal budget means the same cap for both arms (ADR-0013). See docs/budget-guardrails.md §9.
 - `--judge-orders 2` (the default) judges each pair in both orders; `--seed` fixes the first order.
 
+## Development set and held-out problems
+
+While Phase 5's Step 2 changes the controller, three problems are the development set: `api-rate-limiting`, `oidc-migration` and `teen-reading-programme`. Every pilot, rehearsal and per-change pass runs on those three (`--problems api-rate-limiting,oidc-migration,teen-reading-programme`), on `dev` as well as on a paid profile. The other seven are held out: nothing runs on them until one full pass at the end of Step 2, so that pass measures the swarm on problems no change was tuned against.
+
 ## Output
 
 `evals/results/<date>-<label>/`:
@@ -48,7 +52,7 @@ rubric:                       # 3–6 criteria
 The statement both arms receive, verbatim.
 ```
 
-The statement, constraints and success criteria go to the swarm as its `problem` entry and to the baseline as its prompt. The baseline answers as an array of paragraphs that the harness joins with a blank line, the shape the Synthesizer uses, because a local model under a JSON `format` may not be able to emit a line break inside a string (ADR-0008). Its prompt ends with the length it has, as a word count derived from the output allowance that fits the cap; an answer that still uses its whole allowance is reported as truncated. Before judging, every board handle (H16, E24, …) is removed from both answers so the judge cannot tell the arms apart; the report and the pair files keep the original text. The judge sees the statement, the constraints, the success criteria, each criterion with its scale (not its weight) and the two answers as "Answer A" and "Answer B". A problem should be answerable from general knowledge in text, since v1 agents have no tools.
+The statement, constraints and success criteria go to the swarm as its `problem` entry and to the baseline as its prompt. The baseline answers as an array of paragraphs that the harness joins with a blank line, the shape the Synthesizer uses, because a local model under a JSON `format` may not be able to emit a line break inside a string (ADR-0008). Its prompt ends with the length it has, as a word count derived from the output allowance that fits the cap (0.4 words per output token less 15 % for the JSON, `wordBudgetFor` in `packages/core/src/agents/word-budget.ts`: Sonnet spends about two output tokens on each word of a structured answer, so a $0.03 cap asks for about 900 words); an answer that still uses its whole allowance is reported as truncated. Before judging, every board handle (H16, E24, …) is removed from both answers so the judge cannot tell the arms apart; the report and the pair files keep the original text. The judge sees the statement, the constraints, the success criteria, each criterion with its scale (not its weight) and the two answers as "Answer A" and "Answer B". A problem should be answerable from general knowledge in text, since v1 agents have no tools.
 
 ## Reading a report
 

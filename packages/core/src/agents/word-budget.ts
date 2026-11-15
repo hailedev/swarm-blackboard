@@ -4,13 +4,16 @@
 // write-up (agents/write-up.ts). One function and one sentence, so two answers given the
 // same allowance are asked for the same length in the same words.
 
-// Deliberately conservative: English prose runs about three quarters of a word per token,
-// but a model told it has N words tends to write more, and markdown and JSON escapes cost
-// tokens too. The first paid pilot (evals/results/2026-11-10-pilot-attempt-1) set 0.75 and
-// lost all three Sonnet baselines to the allowance; at 0.6 a 40 % overshoot still fits. Then
-// headroom for the JSON around the paragraphs, rounded down to a round number, never below
-// a floor a useful answer needs.
-export const WORDS_PER_TOKEN = 0.6;
+// Measured, not assumed. English prose runs about three quarters of a word per token, but
+// an answer returned as JSON paragraphs of markdown costs far more tokens per word. The
+// first paid pilot (evals/results/2026-11-10-pilot-attempt-1) set 0.75 and lost all three
+// Sonnet baselines to the allowance. The third (evals/results/2026-11-15-pilot-3) set 0.6:
+// Sonnet wrote almost exactly the words it was asked for (1,277 to 1,397 for 1,350) and
+// spent 1.9 to 2.1 output tokens on each, so all three were cut off again. At 0.4 a model
+// that writes its whole budget at 2.1 tokens per word still ends inside the allowance.
+// Then headroom for the JSON around the paragraphs, rounded down to a round number, never
+// below a floor a useful answer needs.
+export const WORDS_PER_TOKEN = 0.4;
 export const JSON_HEADROOM = 0.85;
 export const WORD_BUDGET_STEP = 50;
 export const MIN_WORD_BUDGET = 100;

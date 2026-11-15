@@ -135,8 +135,8 @@ describe('sizeBaseline and generateBaseline', () => {
 
 describe('word budget and truncation', () => {
   it('derives a round word count from the allowance, never below the floor', () => {
-    expect(wordBudgetFor(4_096)).toBe(2_050);
-    expect(wordBudgetFor(1_700)).toBe(850);
+    expect(wordBudgetFor(4_096)).toBe(1_350);
+    expect(wordBudgetFor(1_700)).toBe(550);
     expect(wordBudgetFor(MIN_OUTPUT_TOKENS)).toBe(100);
     expect(wordBudgetFor(10)).toBe(100);
     expect(wordBudgetFor(1_000) % 50).toBe(0);

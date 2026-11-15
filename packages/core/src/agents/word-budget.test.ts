@@ -5,8 +5,11 @@ import { lengthInstruction, MIN_WORD_BUDGET, WORD_BUDGET_STEP, wordBudgetFor } f
 
 describe('wordBudgetFor', () => {
   it('derives a round word count from the allowance, never below the floor', () => {
-    expect(wordBudgetFor(4_096)).toBe(2_050);
-    expect(wordBudgetFor(1_700)).toBe(850);
+    expect(wordBudgetFor(4_096)).toBe(1_350);
+    expect(wordBudgetFor(1_700)).toBe(550);
+    // The allowance a $0.03 cap buys the Sonnet baseline, and the write-up's default.
+    expect(wordBudgetFor(2_690)).toBe(900);
+    expect(wordBudgetFor(2_700)).toBe(900);
     expect(wordBudgetFor(MIN_OUTPUT_TOKENS)).toBe(MIN_WORD_BUDGET);
     expect(wordBudgetFor(10)).toBe(MIN_WORD_BUDGET);
     expect(wordBudgetFor(1_000) % WORD_BUDGET_STEP).toBe(0);

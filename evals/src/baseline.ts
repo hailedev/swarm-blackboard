@@ -47,8 +47,12 @@ export const BASELINE_SYSTEM = [
   'rather than summarise while there is room; do not pad once the point is made.',
 ].join(' ');
 
-/** Bump when the system prompt, the answer shape or the prompt layout changes, so cached answers are redone. */
-export const BASELINE_PROMPT_VERSION = 4;
+/**
+ * Bump when the system prompt, the answer shape, the prompt layout or the words an
+ * allowance buys changes, so cached answers are redone. 5: `WORDS_PER_TOKEN` 0.6 → 0.4
+ * after every Sonnet baseline of the third pilot was cut off at its allowance.
+ */
+export const BASELINE_PROMPT_VERSION = 5;
 
 export const BaselineAnswerSchema = z.object({ paragraphs: z.array(z.string().min(1)).min(1) });
 
