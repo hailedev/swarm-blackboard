@@ -86,3 +86,7 @@ export const EntrySchema = z.discriminatedUnion('type', [
 
 export type Entry = z.infer<typeof EntrySchema>;
 export type EntryOf<T extends EntryType> = Extract<Entry, { type: T }>;
+
+/** An entry as it may be written before parsing: defaulted fields (a synthesis's stage) optional. */
+export type EntryInput = z.input<typeof EntrySchema>;
+export type EntryInputOf<T extends EntryType> = Extract<EntryInput, { type: T }>;

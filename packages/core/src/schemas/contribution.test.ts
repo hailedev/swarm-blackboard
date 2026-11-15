@@ -70,6 +70,20 @@ describe('contributionSchema over handle references', () => {
     paragraphs: true as const,
   });
 
+  it('gives no model, and no contribution, a way to set a synthesis stage', () => {
+    // The stage is the controller's to stamp (schemas/payloads.ts): the schema a model
+    // answers against does not name it, and a contribution that carries one loses it.
+    const modelFacing = contributionSchemas(refs({})).synthesis;
+    expect(JSON.stringify(z.toJSONSchema(modelFacing))).not.toContain('stage');
+    const stored = ContributionSchema.parse({
+      type: 'synthesis',
+      content: 'The answer.',
+      parents: [],
+      payload: { version: 1, confidence: 0.9, cites: [], stage: 'final' },
+    });
+    expect(stored.type === 'synthesis' && 'stage' in stored.payload).toBe(false);
+  });
+
   it('accepts only the handles in the enum', () => {
     const schema = contributionSchema(refs({ hypothesis: ['H1'] }));
     const ok = schema.safeParse({

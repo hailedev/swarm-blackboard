@@ -4,7 +4,7 @@ import type { Entry } from '../schemas/entry';
 import { defaultRunConfig, type ViewBounds } from '../schemas/run-config';
 import { BoardFixture } from '../testing/board-fixture';
 import { lateBoard, midRunBoard } from '../testing/sample-boards';
-import { buildAgentView, digestLine, type AgentView } from './agent-view';
+import { buildAgentView, digestLine, payloadDigest, type AgentView } from './agent-view';
 
 const bounds = (overrides: Partial<ViewBounds> = {}): ViewBounds => ({
   ...defaultRunConfig().view,
@@ -125,6 +125,25 @@ describe('buildAgentView', () => {
     expect(digestLine(view, answered)).toContain(`answeredBy=${h(answer)}`);
     expect(digestLine(view, board.problem)).toContain('constraints=2 criteria=2');
     expect(digestLine(view, synthesis)).toContain('version=1 confidence=0.6 cites=H2,E1,E2');
+  });
+
+  it('says a synthesis is the final write-up, and leaves a draft as it always printed', () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    fx.startRound(1);
+    const draft = fx.entry(
+      'synthesis',
+      { version: 1, confidence: 0.6, cites: [] },
+      { parents: [problem.id] },
+    );
+    const final = fx.entry(
+      'synthesis',
+      { version: 2, confidence: 0.7, cites: [], stage: 'final' },
+      { parents: [problem.id], supersedes: draft.id },
+    );
+    const view = fx.view();
+    expect(payloadDigest(view, draft)).toBe('version=1 confidence=0.6 cites=-');
+    expect(payloadDigest(view, final)).toBe('version=2 confidence=0.7 stage=final cites=-');
   });
 
   it('clips long content and stops admitting entries at the focus bounds', () => {

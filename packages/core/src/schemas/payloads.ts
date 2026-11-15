@@ -75,7 +75,16 @@ export const synthesisPayloadSchema = (ref: ReferenceSchema) =>
     confidence: ConfidenceSchema,
     cites: z.array(ref),
   });
-export const SynthesisPayloadSchema = synthesisPayloadSchema(IdSchema);
+// A synthesis written during the rounds is a draft; the one the controller has written
+// from the whole board when the run ends is final (docs/PLAN.md §2.3 step 8). The stage is
+// stamped by the controller and exists only on the stored payload: it is not in the factory
+// above, so no model's output schema has the field and no agent can claim it. An entry
+// recorded before the stage existed is a draft.
+export const SynthesisStageSchema = z.enum(['draft', 'final']);
+export type SynthesisStage = z.infer<typeof SynthesisStageSchema>;
+export const SynthesisPayloadSchema = synthesisPayloadSchema(IdSchema).extend({
+  stage: SynthesisStageSchema.default('draft'),
+});
 
 export const HumanNotePrioritySchema = z.enum(['low', 'normal', 'high']);
 export type HumanNotePriority = z.infer<typeof HumanNotePrioritySchema>;

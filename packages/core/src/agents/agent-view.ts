@@ -102,7 +102,8 @@ export const payloadDigest = (view: BoardView, entry: Entry): string => {
     case 'decision':
       return `chosen=${h(entry.payload.chosen)} rejected=${list(h, entry.payload.rejected)}`;
     case 'synthesis':
-      return `version=${String(entry.payload.version)} confidence=${String(entry.payload.confidence)} cites=${list(h, entry.payload.cites)}`;
+      // A draft prints as it always did; only the final write-up says what it is.
+      return `version=${String(entry.payload.version)} confidence=${String(entry.payload.confidence)}${entry.payload.stage === 'final' ? ' stage=final' : ''} cites=${list(h, entry.payload.cites)}`;
     case 'human_note':
       return `priority=${entry.payload.priority}`;
   }

@@ -53,6 +53,21 @@ describe('EntrySchema', () => {
     else expect.unreachable('expected a hypothesis');
   });
 
+  it('reads a synthesis recorded without a stage as a draft, and keeps a final one', () => {
+    const draft = EntrySchema.parse({ ...base, type: 'synthesis', payload: payloads.synthesis });
+    expect(draft.type === 'synthesis' && draft.payload.stage).toBe('draft');
+    const written = { version: 2, confidence: 0.8, cites: [id(4)], stage: 'final' };
+    const final = EntrySchema.parse({ ...base, type: 'synthesis', payload: written });
+    expect(final.type === 'synthesis' && final.payload.stage).toBe('final');
+    expect(
+      EntrySchema.safeParse({
+        ...base,
+        type: 'synthesis',
+        payload: { ...written, stage: 'published' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts an optional supersedes link and resolved critiques', () => {
     const superseding = EntrySchema.safeParse({
       ...base,

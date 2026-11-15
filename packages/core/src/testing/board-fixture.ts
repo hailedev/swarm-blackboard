@@ -2,7 +2,7 @@ import { isoFromMs } from '../ports/clock';
 import type { IdGenerator } from '../ports/ids';
 import { buildBoardView, type BoardView } from '../board/board-view';
 import { zeroUsage, type EntryStatus, type Usage } from '../schemas/common';
-import { EntrySchema, type EntryOf } from '../schemas/entry';
+import { EntrySchema, type EntryInputOf, type EntryOf } from '../schemas/entry';
 import type { BoardEvent } from '../schemas/event';
 import type { EntryType } from '../schemas/payloads';
 import { TEST_EPOCH_MS } from './manual-clock';
@@ -45,7 +45,8 @@ export class BoardFixture {
 
   entry<T extends EntryType>(
     type: T,
-    payload: EntryOf<T>['payload'],
+    // The input shape: a synthesis is a draft unless the test says otherwise.
+    payload: EntryInputOf<T>['payload'],
     overrides: EntryOverrides = {},
   ): EntryOf<T> {
     const id = this.ids.next();
