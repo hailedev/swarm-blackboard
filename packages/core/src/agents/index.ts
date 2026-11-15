@@ -12,6 +12,7 @@ export type {
   Trigger,
 } from './agent';
 export {
+  callWithRepair,
   createRoleAgent,
   eligible,
   mandatory,

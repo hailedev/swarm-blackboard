@@ -130,31 +130,54 @@ export interface RoleModels {
 
 const reject = (error: CallError): Result<AgentResult, AgentError> => err({ kind: 'model', error });
 
-// One call, with the model's handles mapped back to entry ids before anyone else sees the
-// contributions. The enum came from the same view, so an unknown handle means a bug rather
-// than a model error, but it takes the schema-failure path all the same.
-const callAndResolve = async (
-  ctx: AgentContext,
-  model: Model,
-  request: ModelRequest<AgentOutput>,
-  view: BoardView,
-): Promise<Result<AgentResult, CallError>> => {
-  const response = await ctx.models.call(model, request);
-  if (!response.ok) return err(response.error);
-  const resolved = resolveHandles(response.value.object.contributions, view);
-  if (resolved.ok) return ok({ contributions: resolved.value });
-  return err({
-    kind: 'invalid_output',
-    issues: resolved.error,
-    raw: JSON.stringify(response.value.object),
-    usage: response.value.usage,
+/**
+ * The malformed-output path (docs/PLAN.md §2.3 step 5), for any structured call: validate →
+ * one repair attempt on the same model → the profile's fallback model → give up. `resolve`
+ * turns the model's object into what the caller wants (handles into entry ids); what it
+ * rejects takes the schema-failure path like any other invalid output, with its issues in
+ * the repair prompt. Only schema failures take this path. Provider errors are classified by
+ * the provider layer and decided by the controller; retrying or falling back on them here
+ * would spend money blindly. Every attempt goes through the gateway, so each is fitted to
+ * the budget that is left and may be refused.
+ */
+export const callWithRepair = async <T, R>(
+  gateway: ModelGateway,
+  models: RoleModels,
+  request: ModelRequest<T>,
+  resolve: (object: T) => Result<R, string[]>,
+): Promise<Result<R, CallError>> => {
+  const attempt = async (
+    model: Model,
+    attempted: ModelRequest<T>,
+  ): Promise<Result<R, CallError>> => {
+    const response = await gateway.call(model, attempted);
+    if (!response.ok) return err(response.error);
+    const resolved = resolve(response.value.object);
+    if (resolved.ok) return ok(resolved.value);
+    return err({
+      kind: 'invalid_output',
+      issues: resolved.error,
+      raw: JSON.stringify(response.value.object),
+      usage: response.value.usage,
+    });
+  };
+
+  const first = await attempt(models.model, request);
+  if (first.ok || first.error.kind !== 'invalid_output') return first;
+
+  const repaired = await attempt(models.model, {
+    ...request,
+    prompt: renderRepairPrompt(request.prompt, first.error),
   });
+  if (repaired.ok) return repaired;
+  if (repaired.error.kind !== 'invalid_output' || models.fallback === undefined) return repaired;
+
+  return attempt(models.fallback, request);
 };
 
-// The malformed-output path (docs/PLAN.md §2.3 step 5): validate → one repair attempt
-// on the same model → the profile's fallback model → discard. Only schema failures take
-// this path. Provider errors are classified by the provider layer and decided by the
-// controller; retrying or falling back on them here would spend money blindly.
+// An agent's call: the model's handles are mapped back to entry ids before anyone else sees
+// the contributions. The enum came from the same view, so an unknown handle means a bug
+// rather than a model error, but it takes the schema-failure path all the same.
 export const createRoleAgent = (
   definition: RoleDefinition,
   models: RoleModels,
@@ -178,22 +201,9 @@ export const createRoleAgent = (
       maxOutputTokens: ctx.config.maxOutputTokens,
       tags: { role: definition.role, runId: ctx.runId, round: ctx.round },
     };
-    const first = await callAndResolve(ctx, models.model, request, view);
-    if (first.ok) return first;
-    if (first.error.kind !== 'invalid_output') return reject(first.error);
-
-    const repaired = await callAndResolve(
-      ctx,
-      models.model,
-      { ...request, prompt: renderRepairPrompt(request.prompt, first.error) },
-      view,
+    const result = await callWithRepair(ctx.models, models, request, (object) =>
+      resolveHandles(object.contributions, view),
     );
-    if (repaired.ok) return repaired;
-    if (repaired.error.kind !== 'invalid_output' || models.fallback === undefined) {
-      return reject(repaired.error);
-    }
-
-    const fallback = await callAndResolve(ctx, models.fallback, request, view);
-    return fallback.ok ? fallback : reject(fallback.error);
+    return result.ok ? ok({ contributions: result.value }) : reject(result.error);
   },
 });
