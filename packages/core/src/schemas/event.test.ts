@@ -65,6 +65,16 @@ describe('BoardEventSchema', () => {
     ['run_paused', { round: 2, reason: 'rate_limit', totals }],
     ['run_paused', { round: 2, reason: 'interrupted', totals }],
     ['run_resumed', { round: 2, from: 'user_paused' }],
+    [
+      'write_up_started',
+      { round: 5, reason: 'budget_rounds', maxOutputTokens: 2_700, wordBudget: 900 },
+    ],
+    [
+      'write_up_started',
+      { round: 5, reason: 'user_stopped', maxOutputTokens: 256, wordBudget: 100 },
+    ],
+    ['write_up_completed', { round: 5, newEntries: 1, usage }],
+    ['write_up_completed', { round: 5, newEntries: 0, usage }],
     ['run_terminated', { round: 5, status: 'completed', reason: 'completed', totals }],
     ['run_terminated', { round: 5, status: 'completed', reason: 'budget_cost', totals }],
     ['run_terminated', { round: 1, status: 'failed', reason: 'billing', totals }],
@@ -98,6 +108,21 @@ describe('BoardEventSchema', () => {
     [
       'a terminal reason on run_paused',
       { type: 'run_paused', round: 1, reason: 'completed', totals },
+    ],
+    [
+      'a write-up for a pause, which is not an end',
+      {
+        type: 'write_up_started',
+        round: 1,
+        reason: 'user_paused',
+        maxOutputTokens: 2_700,
+        wordBudget: 900,
+      },
+    ],
+    ['a write-up with no allowance', { type: 'write_up_started', round: 1, reason: 'completed' }],
+    [
+      'a write-up that ended without usage',
+      { type: 'write_up_completed', round: 1, newEntries: 1 },
     ],
     ['a negative seq', { seq: -1, type: 'round_started', round: 1 }],
     [

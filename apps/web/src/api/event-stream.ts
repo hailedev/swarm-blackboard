@@ -22,6 +22,8 @@ const EVENT_TYPES = Object.keys({
   budget_warning: true,
   run_paused: true,
   run_resumed: true,
+  write_up_started: true,
+  write_up_completed: true,
   run_terminated: true,
 } satisfies Record<BoardEventType, true>);
 

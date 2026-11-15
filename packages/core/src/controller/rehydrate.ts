@@ -37,6 +37,19 @@ export interface RehydratedState {
   /** Wall-clock the run had consumed while active. */
   elapsedMs: number;
   ended: RunEndState | null;
+  /**
+   * A terminal end the log shows begun and not finished: a `write_up_started` with no
+   * `run_terminated` after it, left by a host that died during the final write-up. The
+   * resumed run ends for that reason at once instead of running further rounds, and
+   * writes up again only if the first call never completed.
+   */
+  ending: PendingEnd | null;
+}
+
+export interface PendingEnd {
+  reason: TerminalReason;
+  /** The write-up call returned (`write_up_completed` is on the log), whatever it produced. */
+  writtenUp: boolean;
 }
 
 export type RehydrateError = { kind: 'empty_log' } | { kind: 'no_run_started' };
@@ -59,6 +72,9 @@ export const rehydrate = (
   let reframeUsed = false;
   let monthlyWarningSent = false;
   let ended: RunEndState | null = null;
+  // The reason of a terminal end that has begun (`write_up_started`) and not finished.
+  let endingFor: TerminalReason | null = null;
+  let writtenUp = false;
   let elapsedMs: number | null = null;
 
   // The end of a round, as the controller saw it: the round's selection joins the diversity
@@ -117,8 +133,18 @@ export const rehydrate = (
       case 'run_resumed':
         ended = null;
         break;
+      case 'write_up_started':
+        endingFor = event.reason;
+        writtenUp = false;
+        break;
+      case 'write_up_completed':
+        // Outside any round, so its usage is added here rather than by `closeRound`.
+        usage = addUsage(usage, event.usage);
+        writtenUp = true;
+        break;
       case 'run_terminated':
         ended = { status: event.status, reason: event.reason };
+        endingFor = null;
         elapsedMs = event.totals.elapsedMs;
         break;
       case 'run_started':
@@ -149,5 +175,6 @@ export const rehydrate = (
     usage,
     elapsedMs: elapsedMs ?? Math.max(0, Date.parse(last.at) - Date.parse(first.at)),
     ended,
+    ending: endingFor === null ? null : { reason: endingFor, writtenUp },
   });
 };

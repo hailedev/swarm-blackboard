@@ -67,6 +67,8 @@ describe('openEventStream', () => {
         'run_started',
         'run_terminated',
         'synthesis_requested',
+        'write_up_completed',
+        'write_up_started',
       ].sort(),
     );
     source.onopen?.();

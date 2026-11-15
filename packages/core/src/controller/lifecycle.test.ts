@@ -546,6 +546,84 @@ describe('rehydrate', () => {
     expect(state.value.elapsedMs).toBe(0);
   });
 
+  it('adds the write-up to the usage and remembers an end that began and did not finish', () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    const runId = fx.runId;
+    const at = (seq: number) => ({
+      id: `00000000-0000-7000-8000-${seq.toString(16).padStart(12, '0')}`,
+      runId,
+      seq,
+      at: '2026-01-01T00:00:00.000Z',
+    });
+    const spent = (costUsd: number) => ({
+      inputTokens: 100,
+      outputTokens: 10,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      reasoningTokens: 0,
+      costUsd,
+    });
+    const rounds: BoardEvent[] = [
+      {
+        ...at(0),
+        type: 'run_started',
+        problemEntry: problem,
+        config: rehydrateConfig(),
+        profile: null,
+      },
+      { ...at(1), type: 'entry_committed', round: 0, entry: problem },
+      { ...at(2), type: 'round_started', round: 1 },
+      { ...at(3), type: 'agents_selected', round: 1, selected: ['planner'], eligible: [] },
+      { ...at(4), type: 'round_completed', round: 1, newEntries: 0, usage: spent(0.002) },
+    ];
+    const started: BoardEvent = {
+      ...at(5),
+      type: 'write_up_started',
+      round: 1,
+      reason: 'budget_rounds',
+      maxOutputTokens: 2_700,
+      wordBudget: 900,
+    };
+    const completed: BoardEvent = {
+      ...at(6),
+      type: 'write_up_completed',
+      round: 1,
+      newEntries: 0,
+      usage: spent(0.003),
+    };
+    const terminated: BoardEvent = {
+      ...at(7),
+      type: 'run_terminated',
+      round: 1,
+      status: 'completed',
+      reason: 'budget_rounds',
+      totals: { rounds: 1, entries: 1, usage: spent(0.005), elapsedMs: 10 },
+    };
+    const stateOf = (events: readonly BoardEvent[]) => {
+      const state = rehydrate(events);
+      if (!state.ok) throw new Error(state.error.kind);
+      return state.value;
+    };
+
+    expect(stateOf(rounds).ending).toBeNull();
+    // The host died during the call: the end is owed, and so is the write-up.
+    const midCall = stateOf([...rounds, started]);
+    expect(midCall.ending).toEqual({ reason: 'budget_rounds', writtenUp: false });
+    expect(midCall.usage.costUsd).toBeCloseTo(0.002, 10);
+    expect(midCall.ended).toBeNull();
+    // It died after the call returned: only `run_terminated` is owed.
+    const afterCall = stateOf([...rounds, started, completed]);
+    expect(afterCall.ending).toEqual({ reason: 'budget_rounds', writtenUp: true });
+    expect(afterCall.usage.costUsd).toBeCloseTo(0.005, 10);
+    expect(afterCall.completedRounds).toBe(1);
+    // The whole end: nothing is owed.
+    const whole = stateOf([...rounds, started, completed, terminated]);
+    expect(whole.ending).toBeNull();
+    expect(whole.ended).toEqual({ status: 'completed', reason: 'budget_rounds' });
+    expect(whole.usage.costUsd).toBeCloseTo(0.005, 10);
+  });
+
   it('rejects an empty log and one that does not start with run_started', () => {
     expect(rehydrate([])).toEqual({ ok: false, error: { kind: 'empty_log' } });
     const fx = new BoardFixture();

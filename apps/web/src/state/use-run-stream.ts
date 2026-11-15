@@ -15,6 +15,7 @@ const REFRESH_AFTER: ReadonlySet<BoardEventType> = new Set([
   'agent_failed',
   'run_paused',
   'run_resumed',
+  'write_up_completed',
   'run_terminated',
 ]);
 

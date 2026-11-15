@@ -416,6 +416,100 @@ describe('feedOf', () => {
   });
 });
 
+describe('the final write-up', () => {
+  // A scripted run's rounds, then the pair of events that brackets the write-up call.
+  const endingLog = async (newEntries: number) => {
+    const run = await scriptedRun();
+    await run.controller.run();
+    const rounds = run.events.slice(
+      0,
+      run.events.map((e) => e.type).lastIndexOf('round_completed') + 1,
+    );
+    const started: BoardEvent = {
+      ...nextEnvelope(rounds),
+      type: 'write_up_started',
+      round: completedRounds(rounds),
+      reason: 'budget_rounds',
+      maxOutputTokens: 2_700,
+      wordBudget: 900,
+    };
+    const usage = { ...zeroUsage(), inputTokens: 9_000, outputTokens: 1_800, costUsd: 0.004 };
+    const completed: BoardEvent = {
+      ...nextEnvelope([...rounds, started]),
+      type: 'write_up_completed',
+      round: completedRounds(rounds),
+      newEntries,
+      usage,
+    };
+    return { runId: run.controller.runId, rounds, started, completed, usage };
+  };
+
+  it('shows the Synthesizer at work while the call is in flight, and counts what it used', async () => {
+    const { rounds, started, completed, usage } = await endingLog(1);
+    expect(runStateOf(rounds)).toMatchObject({ status: 'running', writingUp: false });
+
+    const inFlight = [...rounds, started];
+    expect(runStateOf(inFlight)).toMatchObject({
+      status: 'running',
+      roundInFlight: false,
+      writingUp: true,
+    });
+    expect(
+      agentStatesOf(inFlight)
+        .filter((state) => state.activity === 'running')
+        .map((state) => state.role),
+    ).toEqual(['synthesizer']);
+    // Nothing is billed to the meter until the call has returned.
+    expect(usageOf(inFlight)).toEqual(usageOf(rounds));
+
+    const done = [...inFlight, completed];
+    expect(runStateOf(done)).toMatchObject({ status: 'running', writingUp: false });
+    expect(agentStatesOf(done).every((state) => state.activity !== 'running')).toBe(true);
+    expect(usageOf(done).costUsd).toBeCloseTo(usageOf(rounds).costUsd + usage.costUsd, 10);
+    expect(usageOf(done).outputTokens).toBe(usageOf(rounds).outputTokens + usage.outputTokens);
+    // It is not a round: the count of rounds does not move.
+    expect(completedRounds(done)).toBe(completedRounds(rounds));
+  });
+
+  it('is two lines in the feed: what is being written and why, then how it went', async () => {
+    const { runId, rounds, started, completed } = await endingLog(1);
+    const events = [...rounds, started, completed];
+    const feed = feedOf(events, buildBoardView(runId, events));
+    expect(feed.map((line) => line.seq)).toEqual(events.map((e) => e.seq));
+    expect(feed.at(-2)).toMatchObject({
+      tone: 'accent',
+      title: 'Writing the final answer',
+      detail:
+        'The run is ending (round limit reached). The Synthesizer writes the answer once more from the whole board, in about 900 words.',
+    });
+    expect(feed.at(-1)).toMatchObject({ tone: 'good', title: 'Final answer written' });
+    expect(feed.at(-1)?.detail).toBe('$0.0040 · 10.8K tokens');
+  });
+
+  it('says so when the call produced nothing', async () => {
+    const { runId, rounds, started, completed } = await endingLog(0);
+    const events = [...rounds, started, completed];
+    const last = feedOf(events, buildBoardView(runId, events)).at(-1);
+    expect(last).toMatchObject({ tone: 'warning', title: 'Final answer not written' });
+    expect(last?.detail).toContain('the last draft, if there is one, stays the answer');
+  });
+
+  it('is over when a restart pauses the run: the call died with the host', async () => {
+    const { rounds, started } = await endingLog(1);
+    const cut = [...rounds, started];
+    const paused: BoardEvent = {
+      ...nextEnvelope(cut),
+      type: 'run_paused',
+      round: completedRounds(rounds),
+      reason: 'interrupted',
+      totals: { rounds: completedRounds(rounds), entries: 1, usage: zeroUsage(), elapsedMs: 0 },
+    };
+    const events = [...cut, paused];
+    expect(runStateOf(events)).toMatchObject({ status: 'paused', writingUp: false });
+    expect(agentStatesOf(events).every((state) => state.activity !== 'running')).toBe(true);
+  });
+});
+
 describe('a round the host left in flight', () => {
   // The log a dying server left after selecting round 2's agents, then what recovery appends.
   const interruptedLog = async () => {

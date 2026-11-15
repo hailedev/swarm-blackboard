@@ -70,6 +70,8 @@ export interface RunState {
   completedRounds: number;
   /** A round has started and not completed, and the run is running. */
   roundInFlight: boolean;
+  /** The run is ending and the final write-up is in flight: the last call before it ends. */
+  writingUp: boolean;
 }
 
 export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined => {
@@ -79,6 +81,7 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
   let reason: RunEndReason | null = null;
   let round = 0;
   let completed = 0;
+  let writingUp = false;
   for (const event of events) {
     switch (event.type) {
       case 'round_started':
@@ -88,7 +91,15 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
       case 'round_abandoned':
         completed = Math.max(completed, event.round);
         break;
+      case 'write_up_started':
+        writingUp = true;
+        break;
+      case 'write_up_completed':
+        writingUp = false;
+        break;
       case 'run_paused':
+        // A host that died during the write-up: the call is gone with it.
+        writingUp = false;
         status = 'paused';
         reason = event.reason;
         break;
@@ -115,12 +126,17 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
     round,
     completedRounds: completed,
     roundInFlight: status === 'running' && round > completed,
+    writingUp: status === 'running' && writingUp,
   };
 };
 
-/** What the run has used: the sum of every round that ended. */
+/** What the run has used: every round that ended, and the final write-up after them. */
 export const usageOf = (events: readonly BoardEvent[]): Usage =>
-  events.reduce((total, e) => (roundEnded(e) ? addUsage(total, e.usage) : total), zeroUsage());
+  events.reduce(
+    (total, e) =>
+      roundEnded(e) || e.type === 'write_up_completed' ? addUsage(total, e.usage) : total,
+    zeroUsage(),
+  );
 
 /**
  * Wall-clock the run has consumed while active. A pause or an end states the figure the
@@ -185,6 +201,7 @@ export const agentStatesOf = (events: readonly BoardEvent[]): AgentState[] => {
   );
   let inFlight: number | null = null;
   let running = false;
+  let writingUp = false;
   for (const event of events) {
     switch (event.type) {
       case 'run_started':
@@ -195,6 +212,13 @@ export const agentStatesOf = (events: readonly BoardEvent[]): AgentState[] => {
       case 'run_terminated':
         running = false;
         inFlight = null;
+        writingUp = false;
+        break;
+      case 'write_up_started':
+        writingUp = true;
+        break;
+      case 'write_up_completed':
+        writingUp = false;
         break;
       case 'round_started':
         inFlight = event.round;
@@ -233,7 +257,10 @@ export const agentStatesOf = (events: readonly BoardEvent[]): AgentState[] => {
   return [...states.values()].map((state) => ({
     ...state,
     activity:
-      running && inFlight !== null && state.lastSelectedRound === inFlight
+      // In a round, the agents selected for it; after the last one, the Synthesizer's
+      // model while it writes the final answer.
+      (running && inFlight !== null && state.lastSelectedRound === inFlight) ||
+      (running && writingUp && state.role === 'synthesizer')
         ? 'running'
         : state.failure !== null && state.failure.round === state.lastSelectedRound
           ? 'failed'
@@ -391,6 +418,22 @@ export const feedOf = (events: readonly BoardEvent[], view: BoardView): FeedLine
           'accent',
           'Resumed',
           `It had been paused: ${REASON_TEXT[event.from].label}.`,
+        );
+      case 'write_up_started':
+        return feedLine(
+          event,
+          'accent',
+          'Writing the final answer',
+          `The run is ending (${REASON_TEXT[event.reason].label}). The Synthesizer writes the answer once more from the whole board, in about ${String(event.wordBudget)} words.`,
+        );
+      case 'write_up_completed':
+        return feedLine(
+          event,
+          event.newEntries === 0 ? 'warning' : 'good',
+          event.newEntries === 0 ? 'Final answer not written' : 'Final answer written',
+          `${usd(event.usage.costUsd)} · ${compact(totalTokens(event.usage))} tokens${
+            event.newEntries === 0 ? ' · the last draft, if there is one, stays the answer' : ''
+          }`,
         );
       case 'run_terminated':
         return feedLine(

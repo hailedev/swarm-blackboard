@@ -4,7 +4,12 @@ import { IdSchema, IsoDateSchema, RoundSchema, UsageSchema } from './common';
 import { EntrySchema, ProblemEntrySchema } from './entry';
 import { RunProfileSchema } from './roster';
 import { RunConfigSchema } from './run-config';
-import { PauseReasonSchema, RunEndReasonSchema, RunStatusSchema } from './run-end';
+import {
+  PauseReasonSchema,
+  RunEndReasonSchema,
+  RunStatusSchema,
+  TerminalReasonSchema,
+} from './run-end';
 
 // The event log is the source of truth (ADR-0004). The board view is a fold over it.
 const EventBaseSchema = z.object({
@@ -119,6 +124,27 @@ export const RunResumedEventSchema = EventBaseSchema.extend({
   round: RoundSchema,
   from: PauseReasonSchema,
 });
+// The final write-up (docs/PLAN.md §2.3 step 8): once a run is ending for good, the
+// Synthesizer's model writes the answer one more time from the whole live board. The pair
+// brackets that call, between the last round and `run_terminated`. `write_up_started`
+// names why the run is ending, so a host that dies during the call leaves a log from which
+// the run can finish that same end, and states the room the call was given (the allowance
+// that fitted the budget, and the words asked for). `write_up_completed` mirrors
+// `round_completed`: what the call committed (one synthesis, or none when it failed and the
+// last draft stays the answer) and what it used, for every fold that sums a run's usage.
+export const WriteUpStartedEventSchema = EventBaseSchema.extend({
+  type: z.literal('write_up_started'),
+  round: RoundSchema,
+  reason: TerminalReasonSchema,
+  maxOutputTokens: z.int().positive(),
+  wordBudget: z.int().positive(),
+});
+export const WriteUpCompletedEventSchema = EventBaseSchema.extend({
+  type: z.literal('write_up_completed'),
+  round: RoundSchema,
+  newEntries: z.int().nonnegative(),
+  usage: UsageSchema,
+});
 export const RunTerminatedEventSchema = EventBaseSchema.extend({
   type: z.literal('run_terminated'),
   round: RoundSchema,
@@ -139,6 +165,8 @@ export const BoardEventSchema = z.discriminatedUnion('type', [
   BudgetWarningEventSchema,
   RunPausedEventSchema,
   RunResumedEventSchema,
+  WriteUpStartedEventSchema,
+  WriteUpCompletedEventSchema,
   RunTerminatedEventSchema,
 ]);
 

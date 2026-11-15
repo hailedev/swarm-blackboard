@@ -133,6 +133,62 @@ describe('SqliteBoardStore', () => {
     expect(await store.eventsFor('nope')).toEqual([]);
   });
 
+  it('adds the final write-up to the run row without counting a round', async () => {
+    // A scripted run's rounds, replayed into a second database, then the write-up pair.
+    const ids = new SequentialIdGenerator();
+    const { events } = await scriptedRun(new SqliteBoardStore(memory().db), ids);
+    const rounds = events.slice(0, events.map((e) => e.type).lastIndexOf('round_completed') + 1);
+    const runId = rounds[0]?.runId ?? '';
+    const { db } = memory();
+    const store = new SqliteBoardStore(db);
+    for (const event of rounds) expect((await store.append(event)).ok).toBe(true);
+    const row = () => db.select().from(runs).where(eq(runs.id, runId)).get();
+    const before = row();
+
+    const at = rounds.at(-1)?.at ?? '';
+    const usage = {
+      inputTokens: 9_000,
+      outputTokens: 1_800,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      reasoningTokens: 0,
+      costUsd: 0.004,
+    };
+    const tail: BoardEvent[] = [
+      {
+        id: ids.next(),
+        runId,
+        seq: rounds.length,
+        at,
+        type: 'write_up_started',
+        round: 4,
+        reason: 'completed',
+        maxOutputTokens: 2_700,
+        wordBudget: 900,
+      },
+      {
+        id: ids.next(),
+        runId,
+        seq: rounds.length + 1,
+        at,
+        type: 'write_up_completed',
+        round: 4,
+        newEntries: 0,
+        usage,
+      },
+    ];
+    for (const event of tail) expect((await store.append(event)).ok).toBe(true);
+
+    const after = row();
+    expect(after?.rounds).toBe(4);
+    expect(after?.rounds).toBe(before?.rounds);
+    expect(after?.status).toBe('running');
+    expect(after?.costUsd).toBeCloseTo((before?.costUsd ?? 0) + usage.costUsd, 10);
+    expect(after?.inputTokens).toBe((before?.inputTokens ?? 0) + usage.inputTokens);
+    expect(after?.outputTokens).toBe((before?.outputTokens ?? 0) + usage.outputTokens);
+    expect(await store.eventsFor(runId)).toEqual([...rounds, ...tail]);
+  });
+
   it('round-trips the recorded first real run and stores its profile', async () => {
     const { db } = memory();
     const store = new SqliteBoardStore(db);

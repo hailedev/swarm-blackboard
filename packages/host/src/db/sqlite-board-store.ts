@@ -182,6 +182,21 @@ export class SqliteBoardStore implements BoardStore {
           .where(eq(runs.id, event.runId))
           .run();
         break;
+      case 'write_up_completed':
+        // The final write-up is outside any round: its usage joins the totals, the round
+        // count stays. `run_terminated` then states the same totals once more.
+        tx.update(runs)
+          .set({
+            inputTokens: sql`${runs.inputTokens} + ${event.usage.inputTokens}`,
+            outputTokens: sql`${runs.outputTokens} + ${event.usage.outputTokens}`,
+            cacheReadTokens: sql`${runs.cacheReadTokens} + ${event.usage.cacheReadTokens}`,
+            cacheWriteTokens: sql`${runs.cacheWriteTokens} + ${event.usage.cacheWriteTokens}`,
+            reasoningTokens: sql`${runs.reasoningTokens} + ${event.usage.reasoningTokens}`,
+            costUsd: sql`${runs.costUsd} + ${event.usage.costUsd}`,
+          })
+          .where(eq(runs.id, event.runId))
+          .run();
+        break;
       case 'run_resumed':
         tx.update(runs)
           .set({ status: 'running', reason: null })
@@ -211,6 +226,7 @@ export class SqliteBoardStore implements BoardStore {
       case 'agent_failed':
       case 'synthesis_requested':
       case 'budget_warning':
+      case 'write_up_started':
         break;
     }
     return ok(undefined);
