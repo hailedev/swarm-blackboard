@@ -20,6 +20,19 @@ describe('RunConfigSchema', () => {
         maxEntryChars: 1_000,
         maxSummaryChars: 4_000,
       },
+      writeUp: { maxOutputTokens: 2_700, maxBoardChars: 48_000 },
+    });
+  });
+
+  it('reads a config recorded before the write-up existed as the write-up defaults', () => {
+    const recorded = { maxRounds: 12, maxCostUsd: 0.03, view: { maxFocusEntries: 20 } };
+    expect(RunConfigSchema.parse(recorded).writeUp).toEqual({
+      maxOutputTokens: 2_700,
+      maxBoardChars: 48_000,
+    });
+    expect(RunConfigSchema.parse({ writeUp: { maxOutputTokens: 1_200 } }).writeUp).toEqual({
+      maxOutputTokens: 1_200,
+      maxBoardChars: 48_000,
     });
   });
 
@@ -51,6 +64,8 @@ describe('RunConfigSchema', () => {
     ['threshold above 1', { synthesisThreshold: 1.2 }],
     ['fractional rounds', { maxRounds: 2.5 }],
     ['zero focus entries', { view: { maxFocusEntries: 0 } }],
+    ['zero write-up allowance', { writeUp: { maxOutputTokens: 0 } }],
+    ['zero write-up board', { writeUp: { maxBoardChars: 0 } }],
   ])('rejects %s', (_label, input) => {
     expect(RunConfigSchema.safeParse(input).success).toBe(false);
   });

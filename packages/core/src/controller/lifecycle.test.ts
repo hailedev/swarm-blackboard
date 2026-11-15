@@ -571,6 +571,7 @@ const rehydrateConfig = () =>
       maxEntryChars: 1_000,
       maxSummaryChars: 4_000,
     },
+    writeUp: { maxOutputTokens: 2_700, maxBoardChars: 48_000 },
   }) as const;
 
 describe('stop()', () => {

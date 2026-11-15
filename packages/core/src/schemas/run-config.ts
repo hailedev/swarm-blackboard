@@ -16,6 +16,22 @@ export const ViewBoundsSchema = z.object({
 });
 export type ViewBounds = z.output<typeof ViewBoundsSchema>;
 
+// The final write-up (docs/PLAN.md §2.3 step 8): when a run ends, the Synthesizer's model
+// writes the answer once more from the whole live board. Its worst-case cost is held back
+// from `maxCostUsd` from the first round on, so both figures bound that cost: the output
+// allowance (the words asked for are `wordBudgetFor` of the allowance the call gets,
+// agents/word-budget.ts) and the characters of board the prompt may hold.
+export const WriteUpConfigSchema = z.object({
+  /** Output allowance of the write-up call; 2,700 tokens ask for about 900 words. */
+  maxOutputTokens: z.int().min(1).default(2_700),
+  /**
+   * Characters of board the write-up prompt may hold, after the problem and the human
+   * notes, which are always shown in full. Entries past it are named in one line each.
+   */
+  maxBoardChars: z.int().min(1).default(48_000),
+});
+export type WriteUpConfig = z.output<typeof WriteUpConfigSchema>;
+
 // Hard limits and controller knobs. Budgets are enforced in the controller, in code
 // (CLAUDE.md architecture rule 4). Defaults are docs/budget-guardrails.md §2 and §6.
 export const RunConfigSchema = z.object({
@@ -37,6 +53,8 @@ export const RunConfigSchema = z.object({
   stallRounds: z.int().min(1).default(2),
   // Zod 4's .default() returns its value unparsed; .prefault() fills the nested defaults.
   view: ViewBoundsSchema.prefault({}),
+  // A log recorded before the write-up existed has no such key and reads as the defaults.
+  writeUp: WriteUpConfigSchema.prefault({}),
 });
 
 export type RunConfig = z.output<typeof RunConfigSchema>;
