@@ -44,3 +44,11 @@ export { researcher, researcherOutputSchema } from './roles/researcher';
 export { solver, solverOutputSchema } from './roles/solver';
 export { synthesizer, synthesizerOutputSchema } from './roles/synthesizer';
 export { createDefaultAgents, roleDefinitions } from './roster';
+export {
+  JSON_HEADROOM,
+  lengthInstruction,
+  MIN_WORD_BUDGET,
+  WORD_BUDGET_STEP,
+  wordBudgetFor,
+  WORDS_PER_TOKEN,
+} from './word-budget';
