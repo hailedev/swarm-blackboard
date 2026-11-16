@@ -61,7 +61,7 @@ export const buildAgentRequest = (
     system: rendered.system,
     prompt: rendered.prompt,
     handles: rendered.handles,
-    schema: definition.outputSchema(referenceSchemasFor(view, rendered.handles)),
+    schema: definition.outputSchema(referenceSchemasFor(view, rendered.handles), ctx.flags),
   });
 };
 

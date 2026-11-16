@@ -174,7 +174,11 @@ export interface RoleDefinition {
   readonly role: AgentRole;
   /** Absent for a role whose schema already fixes the count (the Synthesizer's one synthesis). */
   readonly limit?: RoleLimit;
-  outputSchema(refs: ModelReferenceSchemas): ZodType<AgentOutput>;
+  /**
+   * The schema for one call. `flags` are the controller's for the round: a role may admit
+   * something only while a flag is on (the Synthesizer's decisions, while one is owed).
+   */
+  outputSchema(refs: ModelReferenceSchemas, flags?: ControlFlags): ZodType<AgentOutput>;
   trigger(view: BoardView, ctx: AgentContext): Trigger;
 }
 

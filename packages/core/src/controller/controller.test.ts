@@ -11,7 +11,12 @@ import {
   type AgentResult,
 } from '../agents/agent';
 import { planner } from '../agents/roles/planner';
-import { subproblemStatus } from '../agents/eligibility';
+import {
+  contestedHypotheses,
+  latestSynthesis,
+  subproblemStatus,
+  synthesisCandidates,
+} from '../agents/eligibility';
 import { WRITE_UP_ROLE } from '../agents/write-up';
 import { createDefaultAgents } from '../agents/roster';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
@@ -1058,5 +1063,183 @@ describe('a run with nothing left to change', () => {
       reason: 'no_eligible_agents',
     });
     expect(h.events.at(-1)?.type).toBe('run_terminated');
+  });
+});
+
+describe('a contradiction between hypotheses, from evidence to decision', () => {
+  it('forces the Critic onto the pair, then has the Synthesizer decide, and the run completes', async () => {
+    const ref: { controller: Controller | undefined } = { controller: undefined };
+    const board = () => {
+      if (ref.controller === undefined) throw new Error('controller not ready');
+      return ref.controller.currentView();
+    };
+    const handles = (type: 'hypothesis' | 'subproblem' | 'synthesis' | 'evidence') => {
+      const view = board();
+      return view.liveOfType(type).map((entry) => view.handleOf(entry.id) ?? '?');
+    };
+    const none: FakeResponse = { object: { contributions: [] } };
+    const models = {
+      planner: createFakeModel({
+        script: () => ({
+          object: {
+            contributions: [
+              {
+                type: 'subproblem',
+                content: 'Which way?',
+                parents: ['P1'],
+                payload: { status: 'open' },
+              },
+            ],
+          },
+        }),
+      }),
+      // Two rival answers to the one subproblem, then nothing more.
+      solver: createFakeModel({
+        script: () =>
+          handles('hypothesis').length > 0
+            ? none
+            : {
+                object: {
+                  contributions: ['Go left.', 'Go right.'].map((content) => ({
+                    type: 'hypothesis',
+                    content,
+                    parents: handles('subproblem'),
+                    payload: { confidence: 0.6, supportedBy: [], contradictedBy: [] },
+                  })),
+                },
+              },
+      }),
+      // Evidence that supports the first and contradicts the second: the contradiction.
+      researcher: createFakeModel({
+        script: () => {
+          const [left, right] = handles('hypothesis');
+          return left === undefined || right === undefined || handles('evidence').length > 0
+            ? none
+            : {
+                object: {
+                  contributions: [
+                    {
+                      type: 'evidence',
+                      content: 'The left road is open; the right one is closed.',
+                      parents: [left],
+                      payload: { source: 'survey', supports: [left], contradicts: [right] },
+                    },
+                  ],
+                },
+              };
+        },
+      }),
+      // Speaks only when forced, and then about the hypothesis the evidence contradicts.
+      critic: createFakeModel({
+        script: (request) => {
+          const right = handles('hypothesis')[1];
+          return !request.prompt.includes('criticForced') || right === undefined
+            ? none
+            : {
+                object: {
+                  contributions: [
+                    {
+                      type: 'critique',
+                      content: 'The right road is closed, so this cannot be the way.',
+                      parents: [right],
+                      payload: { target: right, severity: 'major' },
+                    },
+                  ],
+                },
+              };
+        },
+      }),
+      // A hesitant draft, until it is asked to decide.
+      synthesizer: createFakeModel({
+        script: (request) => {
+          const [left, right] = handles('hypothesis');
+          const [draft] = handles('synthesis');
+          const synthesis = (confidence: number) => ({
+            type: 'synthesis',
+            content: [confidence > 0.8 ? 'Go left.' : 'Left or right, undecided.'],
+            parents: left === undefined ? [] : [left],
+            ...(draft === undefined ? {} : { supersedes: draft }),
+            payload: {
+              version: draft === undefined ? 1 : 2,
+              confidence,
+              cites: left === undefined ? [] : [left],
+            },
+          });
+          if (
+            !request.prompt.includes('decisionRequired') ||
+            left === undefined ||
+            right === undefined
+          ) {
+            return { object: { contributions: [synthesis(0.4)] } };
+          }
+          return {
+            object: {
+              contributions: [
+                {
+                  type: 'decision',
+                  content: 'Left over right.',
+                  parents: [left, right],
+                  payload: {
+                    chosen: left,
+                    rejected: [right],
+                    rationale: 'The right road is closed.',
+                  },
+                },
+                synthesis(0.9),
+              ],
+            },
+          };
+        },
+      }),
+    };
+    const h = harness(createDefaultAgents(models, testRolePrompts()));
+    ref.controller = h.controller;
+    await h.controller.start({ content: 'Which road?' });
+    const result = await h.controller.run();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect([result.value.reason, result.value.rounds]).toEqual(['completed', 5]);
+    const selections = ofType(h.events, 'agents_selected');
+    expect(selections.map((e) => e.selected)).toEqual([
+      ['planner'],
+      ['solver', 'researcher'],
+      ['critic', 'researcher'],
+      // The evidence of round 3 set the two against each other: the Critic is certain to run.
+      ['critic', 'synthesizer'],
+      // The Critic has spoken: a decision is owed, and the Synthesizer outranks everyone.
+      ['synthesizer', 'solver'],
+    ]);
+    expect(selections[3]?.eligible.find((e) => e.agentId === 'critic')).toEqual({
+      agentId: 'critic',
+      priority: 100,
+      reason: 'forced: live hypotheses contradict each other',
+    });
+    expect(selections[4]?.eligible.find((e) => e.agentId === 'synthesizer')).toEqual({
+      agentId: 'synthesizer',
+      priority: 90,
+      reason: 'contradicting hypotheses critiqued: decide, then synthesise',
+    });
+
+    // Both were told which hypotheses contradict, and why.
+    const named = '- H1 and H2 contradict each other (E1 supports one and contradicts the other)';
+    expect(models.critic.calls.at(-1)?.request.prompt).toContain(named);
+    expect(models.synthesizer.calls.at(-1)?.request.prompt).toContain(named);
+    expect(models.synthesizer.calls.at(-1)?.request.prompt).toContain('# Your targets\nH1, H2');
+
+    // The decision is on the board before the synthesis it came with, and it settles things.
+    const view = result.value.view;
+    const [left, right] = view.entries.filter((e) => e.type === 'hypothesis');
+    const committed = ofType(h.events, 'entry_committed').filter((e) => e.round === 5);
+    expect(committed.map((e) => e.entry.type)).toEqual(['decision', 'synthesis']);
+    expect(view.liveOfType('decision')[0]?.payload).toMatchObject({
+      chosen: left?.id,
+      rejected: [right?.id],
+    });
+    expect(h.controller.flags).toMatchObject({ criticForced: false, decisionRequired: false });
+    expect(synthesisCandidates(view).map((c) => c.id)).toEqual([left?.id]);
+    // The rejected hypothesis is not sent back to the Solver, critique or no critique.
+    expect(contestedHypotheses(view)).toEqual([]);
+    expect(latestSynthesis(view)).toMatchObject({ content: 'Go left.', payload: { version: 2 } });
   });
 });

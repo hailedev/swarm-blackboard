@@ -10,11 +10,12 @@ import { agentContext } from '../../testing/agent-context';
 import { BoardFixture } from '../../testing/board-fixture';
 import { createRoleAgent } from '../agent';
 import { boardChangedSinceLastSynthesis } from '../eligibility';
+import { renderAgentPrompt } from '../prompt';
 import { critic } from './critic';
 import { planner } from './planner';
 import { researcher } from './researcher';
 import { MAX_CONTESTED_PER_CALL, solver } from './solver';
-import { synthesizer } from './synthesizer';
+import { MAX_DECISIONS_PER_CALL, synthesizer } from './synthesizer';
 
 const hypothesisPayload = { confidence: 0.5, supportedBy: [], contradictedBy: [] };
 const roles = { planner, researcher, solver, critic, synthesizer };
@@ -101,7 +102,7 @@ describe('role triggers', () => {
     expect(critic.trigger(fx.view(), forced).priority).toBe(100);
   });
 
-  it('synthesizer is gated by decisionRequired until synthesisFromRound, which overrides it', () => {
+  it('synthesizer waits for an unblocked hypothesis or synthesisFromRound, and decides when a decision is owed', () => {
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
@@ -118,16 +119,20 @@ describe('role triggers', () => {
       fx.view(),
       agentContext({ round: 3, flags: { decisionRequired: true } }),
     );
-    expect(early.eligible).toBe(false);
-    expect(early.reason).toContain('decision');
-    // Until Phase 5 nothing posts decisions, so the round rule must still produce an answer.
+    // A decision is owed: the Synthesizer is the one who posts it, in any round.
+    expect(early).toMatchObject({
+      eligible: true,
+      priority: 90,
+      mandatory: false,
+      targetIds: [gated.id],
+      reason: 'contradicting hypotheses critiqued: decide, then synthesise',
+    });
     const late = synthesizer.trigger(
       fx.view(),
       agentContext({ round: 8, flags: { decisionRequired: true } }),
     );
-    expect(late.eligible).toBe(true);
-    expect(late.targetIds).toEqual([gated.id]);
-    expect(late.reason).toContain('decision still pending');
+    expect(late).toMatchObject({ eligible: true, priority: 95, targetIds: [gated.id] });
+    expect(late.reason).toContain('decide');
   });
 
   it('a synthesis the user forced overrides every gate, on any board', () => {
@@ -144,7 +149,8 @@ describe('role triggers', () => {
       mandatory: true,
     });
 
-    // A blocked hypothesis and a pending decision: early in the run the trigger says no.
+    // A blocked hypothesis and a decision owed: early in the run the trigger makes the
+    // Synthesizer eligible to decide, but not certain to run.
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
@@ -152,7 +158,11 @@ describe('role triggers', () => {
     fx.entry('critique', { target: blocked.id, severity: 'blocking' });
     const open = fx.entry('hypothesis', hypothesisPayload);
     const gated = agentContext({ round: 2, flags: { decisionRequired: true } });
-    expect(synthesizer.trigger(fx.view(), gated).eligible).toBe(false);
+    expect(synthesizer.trigger(fx.view(), gated)).toMatchObject({
+      eligible: true,
+      priority: 90,
+      mandatory: false,
+    });
     const overridden = synthesizer.trigger(
       fx.view(),
       agentContext({ round: 2, flags: { decisionRequired: true, synthesisForced: true } }),
@@ -420,5 +430,110 @@ describe('the Synthesizer runs only when the board has changed since it last wro
     const fx = new BoardFixture();
     fx.problem();
     expect(boardChangedSinceLastSynthesis(fx.view())).toBe(true);
+  });
+});
+
+describe('the decision flow in the roles', () => {
+  // Three hypotheses; evidence supports the first and contradicts the second.
+  const contradiction = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const a = fx.entry('hypothesis', hypothesisPayload);
+    const b = fx.entry('hypothesis', hypothesisPayload);
+    const bystander = fx.entry('hypothesis', hypothesisPayload);
+    const evidence = fx.entry('evidence', { source: 's', supports: [a.id], contradicts: [b.id] });
+    return { fx, a, b, bystander, evidence };
+  };
+
+  it('aims the forced Critic at the contradicting hypotheses only, and makes it certain to run', () => {
+    const { fx, a, b, bystander } = contradiction();
+    const forced = critic.trigger(fx.view(), agentContext({ flags: { criticForced: true } }));
+    expect(forced).toEqual({
+      eligible: true,
+      priority: 100,
+      targetIds: [a.id, b.id],
+      reason: 'forced: live hypotheses contradict each other',
+      mandatory: true,
+    });
+    expect(forced.targetIds).not.toContain(bystander.id);
+    // Unforced, it is the ordinary Critic again.
+    expect(critic.trigger(fx.view(), agentContext()).mandatory).toBe(false);
+  });
+
+  it('names the contradiction in the prompt of whoever has to deal with it', () => {
+    const { fx, a, b } = contradiction();
+    const ctx = agentContext({
+      runId: fx.runId,
+      round: 2,
+      targetIds: [a.id, b.id],
+      flags: { criticForced: true },
+    });
+    const forced = renderAgentPrompt('critic', fx.view(), ctx, PROMPTS.critic).prompt;
+    expect(forced).toContain(
+      '# Contradictions to settle\n- H1 and H2 contradict each other (E1 supports one and contradicts the other)',
+    );
+    const quiet = renderAgentPrompt(
+      'critic',
+      fx.view(),
+      { ...ctx, flags: { ...ctx.flags, criticForced: false } },
+      PROMPTS.critic,
+    ).prompt;
+    expect(quiet).not.toContain('Contradictions to settle');
+    // Once a decision settles it there is nothing to name.
+    fx.entry('decision', { chosen: a.id, rejected: [b.id], rationale: 'r' });
+    expect(renderAgentPrompt('critic', fx.view(), ctx, PROMPTS.critic).prompt).not.toContain(
+      'Contradictions to settle',
+    );
+  });
+
+  it('lets the Synthesizer post decisions only while one is owed, with exactly one synthesis', () => {
+    const synthesis = {
+      type: 'synthesis',
+      content: ['S'],
+      parents: [],
+      payload: { version: 1, confidence: 0.9, cites: [] },
+    };
+    const decision = (rationale: string) => ({
+      type: 'decision',
+      content: 'D',
+      parents: [],
+      payload: {
+        chosen: '00000000-0000-7000-8000-000000000001',
+        rejected: ['00000000-0000-7000-8000-000000000002'],
+        rationale,
+      },
+    });
+    const flags = { ...agentContext().flags, decisionRequired: true };
+    const quiet = synthesizer.outputSchema(UUID_MODEL_REFERENCES);
+    const deciding = synthesizer.outputSchema(UUID_MODEL_REFERENCES, flags);
+    const accepts = (schema: typeof quiet, contributions: unknown[]) =>
+      schema.safeParse({ contributions }).success;
+
+    expect(accepts(quiet, [synthesis])).toBe(true);
+    expect(accepts(quiet, [decision('r'), synthesis])).toBe(false);
+
+    expect(accepts(deciding, [synthesis])).toBe(true);
+    expect(accepts(deciding, [decision('r'), synthesis])).toBe(true);
+    expect(accepts(deciding, [decision('a'), decision('b'), decision('c'), synthesis])).toBe(true);
+    // Never a decision without the synthesis, two syntheses, or more than three decisions.
+    expect(accepts(deciding, [decision('r')])).toBe(false);
+    expect(accepts(deciding, [synthesis, synthesis])).toBe(false);
+    expect(
+      accepts(deciding, [decision('a'), decision('b'), decision('c'), decision('d'), synthesis]),
+    ).toBe(false);
+    expect(MAX_DECISIONS_PER_CALL).toBe(3);
+  });
+
+  it('takes a rejected hypothesis out of the running, and puts the contradicting ones first when deciding', () => {
+    const { fx, a, b, bystander } = contradiction();
+    const deciding = synthesizer.trigger(
+      fx.view(),
+      agentContext({ round: 3, flags: { decisionRequired: true } }),
+    );
+    expect(deciding.targetIds).toEqual([a.id, b.id, bystander.id]);
+    fx.entry('decision', { chosen: a.id, rejected: [b.id], rationale: 'r' });
+    const after = synthesizer.trigger(fx.view(), agentContext({ round: 3 }));
+    expect(after.targetIds).toEqual([a.id, bystander.id]);
   });
 });

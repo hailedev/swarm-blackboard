@@ -2,7 +2,14 @@ import { z } from 'zod';
 
 import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import type { Contribution } from '../../schemas/contribution';
-import { CONTRIBUTIONS_SCHEMA_MAX, eligible, notEligible, type RoleDefinition } from '../agent';
+import {
+  CONTRIBUTIONS_SCHEMA_MAX,
+  eligible,
+  mandatory,
+  notEligible,
+  type RoleDefinition,
+} from '../agent';
+import { contradictingHypothesisIds } from '../conflicts';
 import {
   hypothesesWithNewEvidence,
   hypothesesWithoutCritique,
@@ -30,9 +37,19 @@ export const critic: RoleDefinition = {
   outputSchema: criticOutputSchema,
   limit: { max: 6, rank: (a, b) => importance(a) - importance(b) },
   trigger(view, ctx) {
+    // Forced by a contradiction: certain to run, and aimed at the hypotheses that
+    // contradict each other. Aimed at every live hypothesis, as it was, a forced Critic
+    // wrote more critiques than it may post; its reply was rejected, the contradiction
+    // never counted as critiqued, and it was forced again the next round, to the end of
+    // one step2a run. The fallback to all live hypotheses is for a flag set without a
+    // contradiction on the board.
     const hypotheses = view.liveOfType('hypothesis').map((h) => h.id);
     if (ctx.flags.criticForced && hypotheses.length > 0) {
-      return eligible(100, hypotheses, 'forced: live hypotheses contradict each other');
+      const contradicting = contradictingHypothesisIds(view);
+      return mandatory(
+        contradicting.length > 0 ? contradicting : hypotheses,
+        'forced: live hypotheses contradict each other',
+      );
     }
     const uncritiqued = hypothesesWithoutCritique(view).map((h) => h.id);
     if (uncritiqued.length > 0) return eligible(80, uncritiqued, 'hypotheses without critique');

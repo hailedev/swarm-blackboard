@@ -2,8 +2,8 @@ export type { BudgetSnapshot, ReservationId } from './budgets';
 export { BudgetTracker } from './budgets';
 export type { PrepareInput, PreparedBatch } from './commit';
 export { linkProblems, prepareEntries } from './commit';
-export type { Conflict, ConflictAssessment } from './conflict';
-export { ConflictTracker, conflictKey, detectConflicts, isDecided } from './conflict';
+export type { ConflictAssessment } from './conflict';
+export { ConflictTracker } from './conflict';
 export type {
   AgentFailure,
   ControllerOptions,

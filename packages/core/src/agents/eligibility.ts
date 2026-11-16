@@ -127,16 +127,14 @@ export const hypothesesWithNewEvidence = (
       ),
     );
 
-/** Live hypotheses with no open blocking critique against them. */
+/** Standing hypotheses (not rejected by a decision) with no open blocking critique against them. */
 export const synthesisCandidates = (view: BoardView): readonly EntryOf<'hypothesis'>[] =>
-  view
-    .liveOfType('hypothesis')
-    .filter(
-      (h) =>
-        !view
-          .critiquesOf(h.id)
-          .some((c) => c.payload.severity === 'blocking' && c.payload.resolvedBy === undefined),
-    );
+  standingHypotheses(view).filter(
+    (h) =>
+      !view
+        .critiquesOf(h.id)
+        .some((c) => c.payload.severity === 'blocking' && c.payload.resolvedBy === undefined),
+  );
 
 /**
  * Whether the board has moved since the Synthesizer last wrote: something other than a
@@ -145,12 +143,16 @@ export const synthesisCandidates = (view: BoardView): readonly EntryOf<'hypothes
  * started: what the others posted in that same round is new to the Synthesizer. The most
  * recently committed synthesis, not the highest version: a model that forgets to supersede
  * leaves two drafts with one version number, and the newer is the one that saw more.
- * True when there is no synthesis yet.
+ * A decision is not a change either: only the Synthesizer posts them, in the same call as a
+ * synthesis, so a decision that failed to settle a contradiction does not call it back to
+ * try again on the same board. True when there is no synthesis yet.
  */
 export const boardChangedSinceLastSynthesis = (view: BoardView): boolean => {
   const last = view.entries.findLast((entry) => entry.type === 'synthesis');
   if (last === undefined) return true;
-  return view.entries.some((entry) => entry.type !== 'synthesis' && entry.round >= last.round);
+  return view.entries.some(
+    (entry) => entry.type !== 'synthesis' && entry.type !== 'decision' && entry.round >= last.round,
+  );
 };
 
 /** The live synthesis with the highest version, if any. */

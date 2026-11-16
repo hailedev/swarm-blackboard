@@ -33,6 +33,14 @@ export {
   payloadReferences,
   referencedIds,
 } from './agent-view';
+export type { Conflict } from './conflicts';
+export {
+  conflictKey,
+  contradictingHypothesisIds,
+  detectConflicts,
+  isDecided,
+  openConflicts,
+} from './conflicts';
 export * from './eligibility';
 export type { AgentRequest, AgentRequestError } from './handles';
 export {

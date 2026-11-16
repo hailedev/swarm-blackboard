@@ -3,6 +3,7 @@ import { HANDLE_LEGEND, type Handle } from '../schemas/handle';
 import type { AgentRole } from '../schemas/role';
 import type { AgentContext } from './agent';
 import { buildAgentView, handleOf, payloadDigest, type FocusEntry } from './agent-view';
+import { openConflicts } from './conflicts';
 
 // What an agent reads. The role's instructions come from prompts/<role>.md through the
 // host and are the system prompt verbatim; this module only lays the board out, so the
@@ -81,6 +82,24 @@ export const renderAgentPrompt = (
     '# Your targets',
     targets.length === 0 ? '(none: act on the board as a whole)' : targets.join(', '),
   );
+
+  // The contradictions the forced Critic is to critique and the Synthesizer to decide: which
+  // hypotheses, and the evidence that sets them against each other when the view names it.
+  if (ctx.flags.criticForced || ctx.flags.decisionRequired) {
+    const shown = new Set<string>(agentView.handles);
+    const pairs = openConflicts(view).flatMap((conflict) => {
+      const a = view.handleOf(conflict.a);
+      const b = view.handleOf(conflict.b);
+      if (a === undefined || b === undefined || !shown.has(a) || !shown.has(b)) return [];
+      const evidence = conflict.via === 'evidence' ? view.handleOf(conflict.evidenceId) : undefined;
+      const why =
+        evidence !== undefined && shown.has(evidence)
+          ? ` (${evidence} supports one and contradicts the other)`
+          : '';
+      return [`- ${a} and ${b} contradict each other${why}`];
+    });
+    if (pairs.length > 0) lines.push('', '# Contradictions to settle', ...pairs);
+  }
 
   const flags = Object.entries(ctx.flags)
     .filter(([, on]) => on)

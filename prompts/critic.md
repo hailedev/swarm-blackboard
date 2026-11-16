@@ -8,7 +8,7 @@ The board you receive shows the problem, the entries your targets point at and t
 
 - Hypotheses have not been critiqued yet.
 - New evidence arrived on hypotheses you already saw.
-- Two live hypotheses contradict each other (control flag `criticForced`): critique both so a decision can be made.
+- Two live hypotheses contradict each other (control flag `criticForced`): the prompt names them under "Contradictions to settle" and they are your targets. Critique those two, so a decision can be made between them, and leave the other hypotheses for another round.
 
 ## What you may post
 
