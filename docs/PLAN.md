@@ -47,7 +47,7 @@ An append-only log of typed **entries**, plus a materialised "current view". Not
 | `critique` | An attack on a specific entry | `target`, `severity: blocking \| major \| minor`, `resolvedBy?` |
 | `question` | Something the board can't yet answer | `answeredBy?` |
 | `decision` | A resolved conflict between hypotheses | `chosen`, `rejected[]`, `rationale` |
-| `synthesis` | Draft final answer | `version`, `confidence`, `cites[]` |
+| `synthesis` | The answer: drafts during the run, the final write-up when it ends (§2.3 step 9) | `version`, `confidence`, `cites[]`, `stage: draft \| final` (stamped by the controller, never by a model) |
 | `human_note` | User intervention | `priority` |
 
 **Common fields:** `id`, `runId`, `type`, `round`, `author` (agent id or `"human"`), `createdAt`, `parents[]`, `supersedes?`, `status`, `content` (markdown; the Synthesizer returns it as an array of paragraphs that core joins with a blank line, since a local model under a JSON `format` may never emit a line break, ADR-0008), `payload` (type-specific, Zod-validated), `usage { inputTokens, outputTokens, costUsd }`.
@@ -89,10 +89,15 @@ One cycle = one round:
    - `synthesis.confidence ≥ threshold` **and** no open blocking critiques;
    - stall (no new entries for 2 rounds) → one Planner reframe, then stop;
    - any budget hit: rounds, tokens, dollars, wall-clock.
+9. **Final write-up** (Phase 5, Step 2a) — once the run is ending for good, for whatever reason of step 8 or because the user stopped it, the Synthesizer's model writes the answer one more time, and this time from the **whole live board** instead of an agent's bounded view: every live entry in full, up to `writeUp.maxBoardChars`, with critiques of entries that have since been replaced left out. It writes for a reader who has never seen the board (`prompts/write-up.md`): no board, agents or handles in the text, every success criterion answered with the specifics the board holds, and every point the board left open decided and marked "Assumption:" rather than listed as unresolved. It is asked for the words its output allowance buys (`writeUp.maxOutputTokens`, 2,700 tokens ≈ 900 words by default; `wordBudgetFor` in core, the function and the sentence the eval baseline is given). The model returns paragraphs, a confidence and the handles it cites; the controller commits them as a `synthesis` one version past the latest draft, superseding it, with `stage: final`, so the run's answer (`latestSynthesis`) is the write-up everywhere. The rounds' syntheses stay what they were: short drafts that steer the run.
+   - It is not a round: `write_up_started` and `write_up_completed` bracket it on the log, between the last round and `run_terminated`; the run's reason and status are unchanged.
+   - Its worst-case cost is **held back from `maxCostUsd` from the first round on**, so no round can spend the answer's money, and a cap that cannot cover it is refused at start (`docs/budget-guardrails.md` §2).
+   - No write-up for a run ended by `billing` or `auth`, for a board that holds nothing but the problem, or when the month's budget is already spent. When the call fails, the last draft stays the answer and the reason is on the log.
+   - A host that dies during the call leaves `write_up_started` on the log; the resumed run finishes that same end instead of running more rounds.
 
-**Budgets are hard limits enforced in the controller, not requests in prompts.** Default run config: `maxRounds: 12`, `maxCostUsd: 0.25`, `maxTokens: 400_000`, `maxWallClockMs: 15 min`, `parallelism: 2`, `synthesisThreshold: 0.8`. Every model call reserves its worst-case cost before dispatch, a paid profile is checked against the monthly ledger, and provider errors are classified rather than retried blindly — see `docs/budget-guardrails.md`.
+**Budgets are hard limits enforced in the controller, not requests in prompts.** Default run config: `maxRounds: 12`, `maxCostUsd: 0.25`, `maxTokens: 400_000`, `maxWallClockMs: 15 min`, `parallelism: 2`, `synthesisThreshold: 0.8`, `writeUp: { maxOutputTokens: 2_700, maxBoardChars: 48_000 }`. Every model call reserves its worst-case cost before dispatch, a paid profile is checked against the monthly ledger, and provider errors are classified rather than retried blindly — see `docs/budget-guardrails.md`.
 
-**Human-in-the-loop:** pause / resume; inject a `human_note` (highest priority next round); pin or dismiss entries; force synthesis; stop. Force synthesis is a recorded request (`synthesis_requested` event, Phase 4, ADR-0011): the Synthesizer runs in the first round that starts after it, whatever its trigger says and exempt from the diversity rule, and the run ends on that synthesis only if the termination rules of step 8 say so. Pinning and dismissing are not built yet (backlog, §6).
+**Human-in-the-loop:** pause / resume; inject a `human_note` (highest priority next round); pin or dismiss entries; force synthesis; stop. Force synthesis is a recorded request (`synthesis_requested` event, Phase 4, ADR-0011): the Synthesizer runs in the first round that starts after it, whatever its trigger says and exempt from the diversity rule, and the run ends on that synthesis only if the termination rules of step 8 say so. A stop ends the run with the final write-up of step 9, so stopping early still leaves an answer written from everything on the board; until that call has returned the run accepts no further command. Pinning and dismissing are not built yet (backlog, §6).
 
 ---
 
@@ -160,7 +165,7 @@ swarm-blackboard/
 │   ├── problems/             # benchmark problems (markdown + rubric)
 │   ├── results/              # committed eval reports
 │   └── src/                  # pnpm eval: swarm vs baseline, blind judge, report (ADR-0012)
-├── prompts/                  # role prompts, one file per agent
+├── prompts/                  # role prompts, one file per agent, and write-up.md for the final answer
 ├── fixtures/
 │   └── runs/                 # recorded runs used as replay and UI test fixtures
 ├── agents.yaml               # roster: role → provider/model, prompt, fallback
@@ -220,7 +225,7 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 ### Phase 5 — Smarter control + evals (~2–3 days)
 
-- [ ] LLM bidding with a small model; conflict detection → forced critique / decision; stall escalation; critic gating of synthesis; thinking on for the Critic and Synthesizer (`haiku-think`, `sonnet-think`) measured against thinking off (ADR-0013). Each change is adopted or rejected on a paid eval pass.
+- [ ] Controller changes, one per paid eval pass, each adopted or rejected on it, in the order set after the third pilot (2026-11-16): **2a** the final write-up at run end (§2.3 step 9; built 2026-11-16, its pass pending); **2b** closing the loop, i.e. the conflict → decision flow and whatever gets critiques answered instead of piling up; then LLM bidding with a small model, stall escalation and critic gating of synthesis, and thinking on for the Critic and Synthesizer (`haiku-think`, `sonnet-think`) measured against thinking off (ADR-0013). The three pilot problems are the development set; the other seven are held out until one full pass at the end (`evals/README.md`).
 - [ ] Eval harness: ≥10 problems with rubrics; swarm vs single-Claude baseline at equal cost; LLM judge plus human spot-check; report committed to `evals/results/`.
 - **DoD:** an eval report exists; at least one controller change has been adopted or rejected on eval evidence.
 

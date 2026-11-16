@@ -1,6 +1,6 @@
 # Budget guardrails
 
-**Status:** Phases 2–4 implemented, 2026-11-09 to 2026-11-10 (§8 says what landed when: profiles, per-run cap with per-model calibrated estimates, pricing, error classification, the `model_calls` ledger shared by CLI and server, the CLI banner and the web cost meter). Phase 5 adds the bidder's calls to the per-run cap and an eval pass cap (§9). Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
+**Status:** Phases 2–4 implemented, 2026-11-09 to 2026-11-10 (§8 says what landed when: profiles, per-run cap with per-model calibrated estimates, pricing, error classification, the `model_calls` ledger shared by CLI and server, the CLI banner and the web cost meter). Phase 5 adds the bidder's calls to the per-run cap and an eval pass cap (§9), and its Step 2a (2026-11-16) holds the cost of the final write-up back from the per-run cap (§2). Where the implementation deviates from the original spec, this document describes what was built. Referenced from `docs/PLAN.md`.
 
 ## Goal
 
@@ -110,6 +110,17 @@ Enforcement points, all inside the controller:
 
 Only cost is reserved per call. The token budget (`maxTokens`) is checked before each round, like rounds and wall-clock, so a run can overshoot it by at most one round of calls.
 
+### The final write-up's share of the cap
+
+When a run ends, the Synthesizer's model writes the answer once more from the whole live board (`docs/PLAN.md` §2.3 step 9). That call is made when the run is over, which for a budget end is exactly when nothing is left, so its cost is set aside before the first round.
+
+- **The hold.** At start the controller computes the worst case of one write-up call on the Synthesizer's model: ⌈(system prompt + 6,000 characters for the problem, the notes and the instructions + `writeUp.maxBoardChars` + 3,000 for the schema) ÷ `charsPerToken`⌉ prompt tokens at the dearer of the input and cache-write rates, plus `writeUp.maxOutputTokens` of output. The defaults are 48,000 characters of board and 2,700 output tokens (about 900 words). That is about $0.005 on `cheap` (Haiku), about $0.085 on `quality` (Sonnet), and nothing for a free model.
+- **What the rounds see.** While the hold stands, every reservation of point 2 is fitted to `maxCostUsd − hold − spent − reserved`, and point 1's `budget_cost` fires at `spent ≥ maxCostUsd − hold`. The rounds cannot spend it.
+- **A cap that cannot cover it is refused.** `start` returns `invalid_config`, naming the cap and the hold, when the hold is positive and not below `maxCostUsd`: such a run would end with no answer. Raise the cap, or lower either bound in `writeUp`.
+- **At the end** the hold is released and the write-up goes through the same gateway as any other call: fitted to what is left (if the output allowance shrinks, the prompt asks for the fewer words the smaller allowance buys), reserved, settled, and traced under the role `write-up`. Only that first call is held for. A repair or the fallback after a malformed answer runs on what is left and is refused when nothing is; the last draft then stays the answer.
+- **Limits it does not get past.** A run ended by `billing` or `auth` makes no further call (§4). A paid write-up is skipped, with the reason on the log as an `agent_failed` of the Synthesizer, when the month's limit is already reached, as on a stop of a run paused for `monthly_budget`: the monthly limit is the harder one. `maxTokens` and `maxWallClockMs` may be overshot by this one call, as they may by one round.
+- **A resumed run** recomputes the hold from its recorded config, clamped to the cap, and is never refused. A run recorded before the write-up existed reads the default `writeUp` bounds.
+
 ### Local context guard
 
 A local model costs nothing, so what its estimate protects is the context window: Ollama silently drops the start of a prompt longer than `num_ctx`, which is where the role instructions and the problem are. The Ollama adapter therefore refuses a call before it is sent when
@@ -118,7 +129,7 @@ A local model costs nothing, so what its estimate protects is the context window
 
 with the estimate of point 2 at the model's `charsPerToken` (3.0 by default, deliberately conservative), a thinking allowance of 8 192 tokens for an alias with `think: true` and none otherwise, and `num_ctx` 32 768 unless the alias sets `numCtx`. This covers every call that reaches Ollama through the adapter, repair attempts and a local fallback included.
 
-A refusal is an `invalid_request` (§4) whose message names each term of the sum. It is traced, not retried and not sent to the fallback; the agent contributes nothing that round and the run goes on, with the reason on the event log as `agent_failed`. The board view is **not** trimmed to make a prompt fit: its bounds (`RunConfig.view`) are fixed per run, and at their defaults the largest prompt of the recorded twelve-round run (`fixtures/runs/2026-11-09-cheap-release-process`) was about 25 000 characters, some 8–9 thousand estimated tokens with its schema, so the guard is reached only by an oversized problem statement or human note (both always shown in full), raised bounds, or a small `numCtx`. An agent refused for that reason is refused again each round, and the run then ends as `stalled`.
+A refusal is an `invalid_request` (§4) whose message names each term of the sum. It is traced, not retried and not sent to the fallback; the agent contributes nothing that round and the run goes on, with the reason on the event log as `agent_failed`. The board view is **not** trimmed to make a prompt fit: its bounds (`RunConfig.view`) are fixed per run, and at their defaults the largest prompt of the recorded twelve-round run (`fixtures/runs/2026-11-09-cheap-release-process`) was about 25 000 characters, some 8–9 thousand estimated tokens with its schema, so the guard is reached only by an oversized problem statement or human note (both always shown in full), raised bounds, or a small `numCtx`. An agent refused for that reason is refused again each round, and the run then ends as `stalled`. The final write-up sends the largest prompt of a run: at the default bounds up to about 57,000 characters, some 19,000 estimated tokens, plus 2,700 of output, which fits the default `num_ctx` (the ceiling is a board of about 78,000 characters, 53,000 on a thinking alias). An alias with `numCtx: 16384` has the write-up refused the same way, and the run ends on its last draft with the reason on the log.
 
 Why reservation and not just a post-hoc check: a post-hoc check lets the last call overshoot by a whole call's cost, which on Sonnet with a large board view can be several cents — a meaningful fraction of a $0.25 cap.
 
@@ -207,6 +218,7 @@ The provider layer maps every failure to a typed `ProviderError`:
 - Error classification: `billing` → `failed`, zero retries, no fallback call recorded; `rate_limit` → three attempts then `paused`; `schema` → fallback per profile.
 - Snapshot the CLI confirmation banner.
 - Estimate undershoot: a model reporting more than 1.2 × the estimated prompt tokens makes the controller log a warning; a smaller overshoot does not.
+- The final write-up: the hold lowers what the rounds may reserve and where `budget_cost` fires, and is intact when they stop; a cap below the hold is refused with both figures; the call runs at its whole allowance on the released money and asks for fewer words when it has to shrink; no call after `billing` or `auth` or in a spent month; a resumed run does not pay for a write-up twice.
 
 ---
 
@@ -216,6 +228,8 @@ The provider layer maps every failure to a typed `ProviderError`:
 - **Phase 2 hardening (2026-11-09):** per-model `charsPerToken` with the schema counted; calibration arithmetic in core; agents link by handle so prompts carry no UUIDs.
 - **Phase 3 (done 2026-11-09):** `SpendLedger` backed by `model_calls` in the shared database, which the CLI and the contract tests write too (ADR-0010); calibration samples read from `model_calls`; `profile` on `POST /runs`, refused with the fits-cap figure when the month cannot absorb the run; `monthly_budget` and the other pauses resumed through `POST /runs/:id/resume`, from the event log if the process that paused the run is gone.
 - **Phase 4 (done 2026-11-10):** cost meter with both gauges; start-run dialog; the reason shown on every run that is not running, in the run list and the run header (labels exhaustive over the reason enum, so a new reason does not compile without one); the local context guard written down (§2) and its refusal naming the thinking allowance. In the server's `--fake` mode a stand-in carries the price of the model it stands in for, so a paid profile moves the run gauge, while its calls are traced as `fake` and never reach the month's ledger.
+
+- **Phase 5, Step 2a (built 2026-11-16):** the final write-up's worst case held back from the per-run cap (§2), the refused start, the month check before the call, and the eval's shared word budget (§9).
 
 Suggested line for the Phase 2 kick-off prompt:
 
@@ -228,8 +242,9 @@ Suggested line for the Phase 2 kick-off prompt:
 An eval pass (`pnpm eval`, ADR-0012) spends on three kinds of call: the swarm runs, one baseline call per problem, and one judge call per problem per order. All three go through the same traced models and the same `model_calls` ledger as everything else; the baseline and judge calls carry `runId` `eval:<pass id>` and the roles `eval-baseline` and `eval-judge`.
 
 - **The pass cap** (`--max-cost`, default $1.00) is a hard limit over the whole pass, kept in code by a sequential ledger (`PassBudget`): each call is charged its actual cost when it returns, and before each call the harness checks the worst case fits what is left.
-- **Each swarm run** gets `maxCostUsd = min(--run-cap, remaining)` (default run cap $0.03, ADR-0013), and the controller enforces it as in §2.
-- **The baseline call** is capped at the same run cap, less what the pass has left if that is smaller (equal budget means the same cap for both arms, ADR-0013), and sized with the §2 arithmetic: the output allowance shrinks to fit, the prompt states the words that allowance buys, and below the 256-token floor the call is skipped and the report says so. An answer that still uses its whole allowance is kept and reported as truncated.
+- **The baseline call** comes first for each problem. It is capped at the run cap (default $0.03, ADR-0013), less what the pass has left if that is smaller, and sized with the §2 arithmetic: the output allowance shrinks to fit, the prompt states the words that allowance buys (0.4 words per output token less 15 %, about 900 for a Sonnet call under $0.03), and below the 256-token floor the call is skipped and the report says so. An answer that still uses its whole allowance is kept and reported as truncated.
+- **Each swarm run** then gets `maxCostUsd = min(--run-cap, remaining)`: equal budget means the same cap for both arms (ADR-0013). The controller enforces it as in §2, final write-up included: the write-up's hold comes out of that same cap (about $0.005 of $0.03 on `cheap`), not on top of it. The run's `writeUp.maxOutputTokens` is the baseline's own allowance, so both arms are asked for the same number of words in the same sentence; the report says when they were not, and when the swarm's answer is a draft because the write-up failed.
+- **`--fake` passes** default to a run cap of $0.10: the scripted models are priced at $1 in and $5 out per million tokens, at which the write-up's hold alone is about 4 cents.
 - **A judge call** is sized the same way against the pass's remainder; a call that does not fit is skipped with a reason and the pair goes unjudged.
 - **The month** is re-read from the ledger before each problem; a spent month stops the pass before the next problem, with a partial report. A paid pass is refused up front when `spentThisMonth + passCap > limitUsd`, with the cap that would fit, and needs `--yes` or a yes at the prompt. `--fake` passes bill nothing and never touch the month.
 - **Cached baselines** are not charged; the report says when a cached baseline's cap no longer matches the swarm's current cost.

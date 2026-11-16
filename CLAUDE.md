@@ -21,7 +21,7 @@ A local, single-user app in which a swarm of LLM agents collaborates on open-end
 | `apps/server` | Hono API, SSE event stream, run manager, on the host store; `--fake` runs the scripted swarm on an in-memory database. Its Zod contract is exported as `@team/server/api` |
 | `apps/web` | Vite + React, TanStack Query, Zustand, Tailwind. Everything it shows about a run is folded from the run's event stream with core's own functions (ADR-0011); it imports only `@team/core` and `@team/server/api` |
 | `evals/` | Benchmark problems and the swarm-vs-single-agent harness |
-| `prompts/` | One markdown file per agent role — prompts are never inline in code |
+| `prompts/` | One markdown file per agent role, plus `write-up.md` for the final answer the Synthesizer's model writes when a run ends — prompts are never inline in code |
 | `agents.yaml` | Roster: role → provider/model/fallback |
 
 TypeScript strict, Node 22 LTS, pnpm workspaces. Zod at every boundary; schemas are the source of truth for types.

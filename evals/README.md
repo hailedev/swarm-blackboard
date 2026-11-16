@@ -13,7 +13,8 @@ pnpm eval --profile cheap --yes --label pass1     # a paid pass: Haiku-led swarm
 - The swarm runs on the profile (`agents.yaml`); the baseline and the judge are the profile's `evals` entry there. A free profile evaluates with free models.
 - Every call is traced into `model_calls` in the usual database, tagged `eval-baseline` or `eval-judge` with `runId` `eval:<pass id>`; API-billed calls count in the month's ledger like any other.
 - A paid pass prints the banner and needs `--yes` (or a yes at the prompt). It is refused when the month cannot absorb its cap.
-- Caps: `--max-cost` on the pass (default $1.00) and `--run-cap` on each swarm run and each baseline call (default $0.03): equal budget means the same cap for both arms (ADR-0013). See docs/budget-guardrails.md §9.
+- Caps: `--max-cost` on the pass (default $1.00) and `--run-cap` on each swarm run and each baseline call (default $0.03; $0.10 under `--fake`, whose scripted prices are far higher): equal budget means the same cap for both arms (ADR-0013). See docs/budget-guardrails.md §9.
+- Per problem the baseline comes first, then the swarm run, then the judge. The swarm's answer is its **final write-up**: when the run ends, the Synthesizer's model writes the answer once more from the whole board (docs/PLAN.md §2.3 step 9), with the output allowance the baseline got and so the same word budget. Its cost is part of the run's cap, held back from the first round.
 - `--judge-orders 2` (the default) judges each pair in both orders; `--seed` fixes the first order.
 
 ## Development set and held-out problems
@@ -24,7 +25,11 @@ While Phase 5's Step 2 changes the controller, three problems are the developmen
 
 `evals/results/<date>-<label>/`:
 
-- `report.md` — header (commit, profile, models, caps, spend), the result table, per-problem rows, honesty notes, and which pairs were written out.
+- `report.md` — header (commit, profile, models, caps, spend), the result table, per-problem rows, then:
+  - **Answers**: per problem, the words each arm wrote against the words it was asked for, whether the swarm's answer is its final write-up or a draft (and why), what the write-up cost, and whether the baseline was truncated;
+  - honesty notes, including a draft judged in place of a write-up and arms asked for different lengths;
+  - **Where the swarm scored 0 or 1**: every criterion on which a judgement gave the swarm 0 or 1 of 3, with the judge's reason and the baseline's score on the same criterion;
+  - which pairs were written out.
 - `report.json` — everything the report was rendered from.
 - `pairs/<problem>.md` — three pairs in full for the human spot-check: the swarm's widest win, the baseline's, and the closest call.
 
