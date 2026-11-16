@@ -42,7 +42,7 @@ Consolidate into one pnpm workspace, migrating one service per sprint, but keep 
 ### A1 (synthesis, round 4): version=1 confidence=0.6 cites=H2,E1,E2
 Recommendation: move to a single pnpm workspace one service per sprint, keeping the deploy pipelines independent and adding remote caching. Main risk: the effort estimate is unverified. Open: release cadence per service.
 
-Not shown: 1 critique is left out because it was resolved or what it attacks has been replaced.
+Not shown: 1 critique is left out because it was resolved, or what it attacks has been replaced or rejected.
 
 # What to return
 Length: you have about 900 words for the whole answer, all paragraphs together. Use most of them: a thorough answer that fills the room beats a terse one, and anything past the limit is cut off.

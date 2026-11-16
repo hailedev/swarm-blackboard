@@ -8,7 +8,7 @@ import type { Entry, EntryOf } from '../schemas/entry';
 import { compareHandles, HANDLE_LEGEND, type Handle } from '../schemas/handle';
 import type { WriteUpConfig } from '../schemas/run-config';
 import { digestLine, handleOf, payloadDigest, payloadReferences } from './agent-view';
-import { latestSynthesis, SEVERITY_RANK } from './eligibility';
+import { latestSynthesis, rejectedHypothesisIds, SEVERITY_RANK } from './eligibility';
 import { PARAGRAPH_SEPARATOR } from './handles';
 import { lengthInstruction } from './word-budget';
 
@@ -59,8 +59,14 @@ export interface RenderedWriteUp {
 }
 
 /** A critique that still stands: unresolved, against an entry that is still live. */
-const stands = (view: BoardView, critique: EntryOf<'critique'>): boolean =>
-  critique.payload.resolvedBy === undefined && view.isLive(critique.payload.target);
+const stands = (
+  view: BoardView,
+  critique: EntryOf<'critique'>,
+  rejected: ReadonlySet<string>,
+): boolean =>
+  critique.payload.resolvedBy === undefined &&
+  view.isLive(critique.payload.target) &&
+  !rejected.has(critique.payload.target);
 
 const bySeverity = (a: EntryOf<'critique'>, b: EntryOf<'critique'>): number =>
   SEVERITY_RANK[a.payload.severity] - SEVERITY_RANK[b.payload.severity];
@@ -109,8 +115,12 @@ const sectionsOf = (view: BoardView): { sections: Section[]; staleCritiques: num
   for (const decision of view.liveOfType('decision')) place(decisions, decision, 'block', null);
 
   // Most confident first; among equals the newer one, which usually refines the older.
+  // A hypothesis a decision rejected is not a candidate: it is listed after them, marked,
+  // without its evidence and critiques, so the writer knows what was ruled out and by what.
+  const rejectedIds = rejectedHypothesisIds(view);
   const candidates = section('Candidate answers, most confident first');
   const hypotheses = [...view.liveOfType('hypothesis')]
+    .filter((hypothesis) => !rejectedIds.has(hypothesis.id))
     .map((hypothesis, index) => ({ hypothesis, index }))
     .sort(
       (a, b) =>
@@ -131,11 +141,25 @@ const sectionsOf = (view: BoardView): { sections: Section[]; staleCritiques: num
     attach(view.evidenceContradicting(hypothesis.id), 'contradicts it');
     const critiques = view
       .critiquesOf(hypothesis.id)
-      .filter((c) => stands(view, c))
+      .filter((c) => stands(view, c, rejectedIds))
       .sort(bySeverity);
     for (const critique of critiques) place(candidates, critique, 'bullet', 'critique that stands');
     const last = candidates.items.at(-1);
     if (trailer.length > 0 && last !== undefined) candidates.trailers.set(last.entry.id, trailer);
+  }
+
+  const ruledOut = section('Candidate answers a decision rejected');
+  for (const hypothesis of view.liveOfType('hypothesis')) {
+    if (!rejectedIds.has(hypothesis.id)) continue;
+    const decision = view
+      .liveOfType('decision')
+      .find((d) => d.payload.rejected.includes(hypothesis.id));
+    place(
+      ruledOut,
+      hypothesis,
+      'block',
+      decision === undefined ? 'rejected' : `rejected by ${h(decision.id)}`,
+    );
   }
 
   const evidence = section('Other evidence');
@@ -148,7 +172,7 @@ const sectionsOf = (view: BoardView): { sections: Section[]; staleCritiques: num
   let staleCritiques = 0;
   for (const critique of [...view.liveOfType('critique')].sort(bySeverity)) {
     if (placed.has(critique.id)) continue;
-    if (stands(view, critique)) place(critiques, critique, 'bullet', null);
+    if (stands(view, critique, rejectedIds)) place(critiques, critique, 'bullet', null);
     else staleCritiques += 1;
   }
 
@@ -167,7 +191,7 @@ const sectionsOf = (view: BoardView): { sections: Section[]; staleCritiques: num
   if (latest !== undefined) place(draft, latest, 'block', null);
 
   return {
-    sections: [decisions, candidates, evidence, critiques, questions, subproblems, draft],
+    sections: [decisions, candidates, ruledOut, evidence, critiques, questions, subproblems, draft],
     staleCritiques,
   };
 };
@@ -262,7 +286,7 @@ export const renderWriteUpPrompt = (
   }
   if (staleCritiques > 0) {
     left.push(
-      `${String(staleCritiques)} ${staleCritiques === 1 ? 'critique is' : 'critiques are'} left out because ${staleCritiques === 1 ? 'it was' : 'they were'} resolved or what ${staleCritiques === 1 ? 'it attacks' : 'they attack'} has been replaced`,
+      `${String(staleCritiques)} ${staleCritiques === 1 ? 'critique is' : 'critiques are'} left out because ${staleCritiques === 1 ? 'it was' : 'they were'} resolved, or what ${staleCritiques === 1 ? 'it attacks' : 'they attack'} has been replaced or rejected`,
     );
   }
   if (left.length > 0) lines.push('', `Not shown: ${left.join('; ')}.`);

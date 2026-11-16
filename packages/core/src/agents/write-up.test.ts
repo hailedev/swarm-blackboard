@@ -66,7 +66,7 @@ describe('renderWriteUpPrompt', () => {
     expect(rendered.prompt).toContain(standing?.content ?? 'missing');
     expect(rendered.staleCritiques).toBe(1);
     expect(rendered.prompt).toContain(
-      'Not shown: 1 critique is left out because it was resolved or what it attacks has been replaced.',
+      'Not shown: 1 critique is left out because it was resolved, or what it attacks has been replaced or rejected.',
     );
     expect(rendered.handles).not.toContain('C1');
   });
@@ -207,5 +207,88 @@ describe('resolveWriteUp and writeUpContribution', () => {
     expect(contribution.payload.version).toBe(1);
     expect('supersedes' in contribution).toBe(false);
     expect(contribution.content).toBe('Only this.');
+  });
+});
+
+describe('what the write-up is shown of answered critiques and decided contradictions', () => {
+  it('shows what a version says it resolved, and only the critiques that still stand', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const first = fx.entry('hypothesis', { confidence: 0.5, supportedBy: [], contradictedBy: [] });
+    const answered = fx.entry(
+      'critique',
+      { target: first.id, severity: 'blocking' },
+      { content: 'No rollback path.' },
+    );
+    fx.startRound(2);
+    const second = fx.entry(
+      'hypothesis',
+      { confidence: 0.7, supportedBy: [], contradictedBy: [], resolves: [answered.id] },
+      { supersedes: first.id, content: 'With a rollback at every step.' },
+    );
+    fx.entry(
+      'critique',
+      { target: second.id, severity: 'major' },
+      { content: 'The rollback is untested.' },
+    );
+    const rendered = renderWriteUpPrompt(fx.view(), WHOLE_BOARD, 900);
+    expect(rendered.prompt).toContain(
+      '### H2 (hypothesis, round 2): confidence=0.7 supportedBy=- contradictedBy=- resolves=C1',
+    );
+    // The critique that was answered is gone; the one against the new version stands.
+    expect(rendered.prompt).not.toContain('No rollback path.');
+    expect(rendered.prompt).toContain(
+      '- C2 (critique, round 2; critique that stands): target=H2 severity=major\n  The rollback is untested.',
+    );
+    expect(rendered.staleCritiques).toBe(1);
+    // It may cite the critique the hypothesis names, though the critique itself is not shown.
+    expect(rendered.citeable).toContain('C1');
+  });
+
+  it('lists a rejected hypothesis after the candidates, marked with the decision, without its critiques', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const kept = fx.entry(
+      'hypothesis',
+      { confidence: 0.6, supportedBy: [], contradictedBy: [] },
+      { content: 'Go left.' },
+    );
+    const dropped = fx.entry(
+      'hypothesis',
+      { confidence: 0.9, supportedBy: [], contradictedBy: [] },
+      { content: 'Go right.' },
+    );
+    fx.entry(
+      'critique',
+      { target: dropped.id, severity: 'major' },
+      { content: 'The right road is closed.' },
+    );
+    fx.entry(
+      'decision',
+      { chosen: kept.id, rejected: [dropped.id], rationale: 'The right road is closed.' },
+      { content: 'Left over right.' },
+    );
+    const rendered = renderWriteUpPrompt(fx.view(), WHOLE_BOARD, 900);
+    const at = (text: string) => rendered.prompt.indexOf(text);
+    expect(at('## Decisions')).toBeGreaterThan(-1);
+    expect(at('### D1 (decision, round 1): chosen=H1 rejected=H2')).toBeGreaterThan(
+      at('## Decisions'),
+    );
+    // The more confident hypothesis was rejected: it is not a candidate any more.
+    expect(at('## Candidate answers, most confident first\n### H1 (hypothesis')).toBeGreaterThan(
+      -1,
+    );
+    expect(
+      at('## Candidate answers a decision rejected\n### H2 (hypothesis, round 1; rejected by D1)'),
+    ).toBeGreaterThan(at('### H1 (hypothesis'));
+    expect(rendered.prompt).toContain('Go right.');
+    // Critiques of what was ruled out are not the writer's problem.
+    expect(rendered.prompt).not.toContain('critique that stands');
+    expect(rendered.staleCritiques).toBe(1);
+    expect(rendered.prompt).toContain(
+      'Not shown: 1 critique is left out because it was resolved, or what it attacks has been replaced or rejected.',
+    );
   });
 });
