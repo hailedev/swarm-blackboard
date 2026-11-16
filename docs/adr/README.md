@@ -17,4 +17,5 @@ One file per decision. Accepted ADRs are never edited; a change is a new ADR tha
 | [0011](0011-web-ui-stack-and-phase-4-dependencies.md) | Web UI on Vite and React; the browser folds the event log; force synthesis as a recorded request; Phase 4 dependencies | accepted |
 | [0012](0012-eval-harness-equal-cost-baseline-blind-judge.md) | Eval harness: swarm vs a single-call baseline at equal cost, judged blind in both orders; eval models in `agents.yaml`; pass cap; cached baselines | accepted |
 | [0013](0013-claude-thinking-off-by-default-and-one-cap-for-both-eval-arms.md) | Claude aliases run without thinking by default (`think: false`), reasoning tokens recorded everywhere; the eval arms share one cap ($0.03); the judge argues before it grades | accepted |
+| [0014](0014-final-write-up-at-run-end.md) | Every run ends with a final write-up from the whole board, written for a reader who never saw it and asked for the baseline's word budget; its worst-case cost is held back from the cap from the first round (Phase 5, Step 2a, adopted on the step2a pass) | accepted |
 

@@ -225,7 +225,13 @@ Each phase is sized for one or a few Claude Code sessions in Plan Mode, with the
 
 ### Phase 5 — Smarter control + evals (~2–3 days)
 
-- [ ] Controller changes, one per paid eval pass, each adopted or rejected on it, in the order set after the third pilot (2026-11-16): **2a** the final write-up at run end (§2.3 step 9; built 2026-11-16, its pass pending); **2b** closing the loop, i.e. the conflict → decision flow and whatever gets critiques answered instead of piling up; then LLM bidding with a small model, stall escalation and critic gating of synthesis, and thinking on for the Critic and Synthesizer (`haiku-think`, `sonnet-think`) measured against thinking off (ADR-0013). The three pilot problems are the development set; the other seven are held out until one full pass at the end (`evals/README.md`).
+Controller changes, one per paid eval pass, each adopted or rejected on it, in the order set after the third pilot (2026-11-16). The three pilot problems are the development set; the other seven are held out until one full pass at the end (`evals/README.md`).
+
+- [x] **2a** The final write-up at run end (§2.3 step 9). Adopted on the step2a pass, 2026-11-16: swarm 55.9 → 69.2 %, baseline 85.4 → 94.4 % (ADR-0014).
+- [ ] **2b** Closing the loop: the Solver answers open critiques and names the ones it resolves; a reply over its limit keeps its first contributions instead of being rejected; the Synthesizer runs only when the board has changed; subproblems reach done; the contradiction → decision flow.
+- [ ] LLM bidding with a small model.
+- [ ] Stall escalation and critic gating of synthesis.
+- [ ] Thinking on for the Critic and Synthesizer (`haiku-think`, `sonnet-think`) measured against thinking off (ADR-0013).
 - [ ] Eval harness: ≥10 problems with rubrics; swarm vs single-Claude baseline at equal cost; LLM judge plus human spot-check; report committed to `evals/results/`.
 - **DoD:** an eval report exists; at least one controller change has been adopted or rejected on eval evidence.
 
