@@ -12,7 +12,7 @@ import { createRoleAgent } from '../agent';
 import { critic } from './critic';
 import { planner } from './planner';
 import { researcher } from './researcher';
-import { solver } from './solver';
+import { MAX_CONTESTED_PER_CALL, solver } from './solver';
 import { synthesizer } from './synthesizer';
 
 const hypothesisPayload = { confidence: 0.5, supportedBy: [], contradictedBy: [] };
@@ -301,5 +301,71 @@ describe('createRoleAgent', () => {
     );
     expect(!result.ok && result.error.error.kind).toBe('invalid_output');
     expect(model.calls.map((c) => c.outcome)).toEqual(['invalid_output', 'invalid_output']);
+  });
+});
+
+describe('the Solver is sent back to a hypothesis with critiques that stand', () => {
+  const contested = () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    fx.startRound(1);
+    const open = fx.entry('subproblem', { status: 'open' }, { parents: [problem.id] });
+    const sound = fx.entry('hypothesis', hypothesisPayload);
+    const major = fx.entry('hypothesis', hypothesisPayload);
+    const blocked = fx.entry('hypothesis', hypothesisPayload);
+    fx.entry('critique', { target: sound.id, severity: 'minor' });
+    fx.entry('critique', { target: major.id, severity: 'major' });
+    fx.entry('critique', { target: blocked.id, severity: 'blocking' });
+    return { fx, open, sound, major, blocked };
+  };
+
+  it('ahead of new work, the worst contested first, then its usual targets', () => {
+    const { fx, open, sound, major, blocked } = contested();
+    const trigger = solver.trigger(fx.view(), agentContext({ round: 3 }));
+    expect(trigger).toMatchObject({
+      eligible: true,
+      priority: 85,
+      mandatory: false,
+      reason: 'critiques to answer on live hypotheses',
+    });
+    // The blocking critique's hypothesis, then the major one; a minor critique sends nobody
+    // back; the open subproblem comes after them.
+    expect(trigger.targetIds).toEqual([blocked.id, major.id, open.id]);
+    expect(trigger.targetIds).not.toContain(sound.id);
+    // Above the Critic's 80, so the answer is not queued behind more critiques.
+    expect(critic.trigger(fx.view(), agentContext({ round: 3 })).priority).toBeLessThan(85);
+  });
+
+  it('at most four per call, and not once the critique is answered, resolved or the hypothesis rejected', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const many = Array.from({ length: 6 }, () => fx.entry('hypothesis', hypothesisPayload));
+    const critiques = many.map((h) => fx.entry('critique', { target: h.id, severity: 'major' }));
+    const first = () => solver.trigger(fx.view(), agentContext({ round: 3 }));
+    expect(first().targetIds).toEqual(many.slice(0, MAX_CONTESTED_PER_CALL).map((h) => h.id));
+
+    // Superseding the first answers its critique: it leaves the list, the fifth joins it.
+    const [h1, h2, h3, h4, h5, h6] = many;
+    const [c1] = critiques;
+    if (!h1 || !h2 || !h3 || !h4 || !h5 || !h6 || !c1) throw new Error('fixture');
+    fx.entry('hypothesis', { ...hypothesisPayload, resolves: [c1.id] }, { supersedes: h1.id });
+    expect(first().targetIds).toEqual([h2.id, h3.id, h4.id, h5.id]);
+    // A decision that rejects one takes it out of the running, critiques and all.
+    fx.entry('decision', { chosen: h6.id, rejected: [h2.id], rationale: 'r' });
+    expect(first().targetIds).toEqual([h3.id, h4.id, h5.id, h6.id]);
+  });
+
+  it('is as before when nothing is contested', () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    fx.startRound(1);
+    const open = fx.entry('subproblem', { status: 'open' }, { parents: [problem.id] });
+    expect(solver.trigger(fx.view(), agentContext({ round: 2 }))).toMatchObject({
+      eligible: true,
+      priority: 70,
+      targetIds: [open.id],
+      reason: 'open subproblems or unexplained evidence',
+    });
   });
 });

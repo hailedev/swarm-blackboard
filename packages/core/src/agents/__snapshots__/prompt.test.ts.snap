@@ -255,19 +255,47 @@ Success criteria:
 - N1 (priority high): Prefer any option that keeps the three deploy pipelines independent.
 
 # Entries in focus
-(none)
+## [hypothesis] H1 (target)
+round 2, by solver
+parents: S1, S2
+confidence=0.55 supportedBy=- contradictedBy=-
+Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. Shared tooling removes the drift, and the migration fits in two weeks if the deploy pipelines stay as they are.
+
+## [evidence] E2
+round 3, by researcher
+parents: S2, H1
+source=general knowledge supports=H1 contradicts=-
+pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+
+## [critique] C1
+round 3, by critic
+parents: H1
+target=H1 severity=major
+No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and the hypothesis does not say how it avoids that.
+
+## [subproblem] S3
+round 2, by solver, supersedes S1
+parents: P1
+status=claimed
+Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.
+
+## [evidence] E1
+round 2, by researcher
+parents: S1
+source=repository audit, October 2026 supports=H1 contradicts=-
+Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on separate dates in each of the last four months.
+
+## [subproblem] S2
+round 1, by planner
+parents: P1
+status=claimed
+Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
 
 # Rest of the board
-[evidence] E2 r3 by researcher: pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged pac…; source=general knowledge supports=H1 contradicts=-
-[critique] C1 r3 by critic: No CI-time estimate: a single workspace that builds and tests all three services on every push may exceed the ten-minute constraint, and th…; target=H1 severity=major
-[subproblem] S3 r2 by solver: Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.; status=claimed
-[evidence] E1 r2 by researcher: Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on s…; source=repository audit, October 2026 supports=H1 contradicts=-
-[hypothesis] H1 r2 by solver: Consolidate the three services into one pnpm workspace with shared ESLint and TypeScript configuration, migrating one service per sprint. S…; confidence=0.55 supportedBy=- contradictedBy=-
 [question] Q1 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
-[subproblem] S2 r1 by planner: Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.; status=claimed
 
 # Your targets
-(none: act on the board as a whole)
+H1
 
 Return JSON matching the schema. Reference entries only by the handles shown above (P problem, S subproblem, H hypothesis, E evidence, C critique, Q question, D decision, A synthesis, N human note), copied exactly."
 `;

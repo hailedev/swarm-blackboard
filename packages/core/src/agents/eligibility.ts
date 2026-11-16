@@ -39,6 +39,24 @@ export const standingHypotheses = (view: BoardView): readonly EntryOf<'hypothesi
 };
 
 /**
+ * Standing hypotheses that cannot be relied on yet: a blocking or major critique is open
+ * against them. Worst first (a blocking critique before a major one), then in commit
+ * order. These are what the Solver is sent back to (docs/PLAN.md §2.3 step 7).
+ */
+export const contestedHypotheses = (view: BoardView): readonly EntryOf<'hypothesis'>[] =>
+  standingHypotheses(view)
+    .map((hypothesis, index) => ({
+      hypothesis,
+      index,
+      worst: Math.min(
+        ...openCritiquesOf(view, hypothesis.id).map((c) => SEVERITY_RANK[c.payload.severity]),
+      ),
+    }))
+    .filter(({ worst }) => Number.isFinite(worst))
+    .sort((a, b) => a.worst - b.worst || a.index - b.index)
+    .map(({ hypothesis }) => hypothesis);
+
+/**
  * Where a subproblem stands, read off the board instead of posted by an agent (docs/PLAN.md
  * §2.1). The runs of 2026-11-16 showed that no model keeps these books: the Solver posted
  * `claimed` copies that superseded nothing, never marked a claimed subproblem `done`, and

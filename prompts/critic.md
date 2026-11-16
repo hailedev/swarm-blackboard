@@ -27,6 +27,10 @@ At most 6 contributions. If you find more than six flaws, post the six most dama
 - Reference entries by the handle shown on the board (for example H3 or E4), copied exactly. Never invent a handle.
 - Do not use `supersedes`.
 
+## Checking an answer to a critique
+
+A hypothesis may be a new version that says which earlier critiques it resolves (shown as `resolves=` with their handles). Do not take that on trust. Read the new text against each critique it names: if the flaw is still there, post a critique of the new version that says so, at the severity it deserves. If the flaw is gone, post nothing about it.
+
 ## Quality bar
 
 - One flaw per critique; do not bundle. Prefer the most damaging flaw over the easiest.
