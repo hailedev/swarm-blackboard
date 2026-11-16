@@ -1,0 +1,912 @@
+{
+  "meta": {
+    "label": "step2b-dev-rehearsal-4",
+    "profile": {
+      "name": "dev",
+      "roles": {
+        "planner": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "researcher": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "solver": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "critic": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        },
+        "synthesizer": {
+          "alias": "local-fast",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-mlx",
+          "think": false
+        }
+      },
+      "bidder": {
+        "alias": "local-fast",
+        "provider": "ollama",
+        "model": "qwen3.6:35b-mlx",
+        "think": false
+      },
+      "fallback": null,
+      "paid": false
+    },
+    "evalModels": {
+      "baseline": {
+        "alias": "local-fast",
+        "provider": "ollama",
+        "model": "qwen3.6:35b-mlx",
+        "think": false
+      },
+      "judge": {
+        "alias": "local-fast",
+        "provider": "ollama",
+        "model": "qwen3.6:35b-mlx",
+        "think": false
+      }
+    },
+    "commit": "72e20dd",
+    "baselineModelId": "qwen3.6:35b-mlx",
+    "judgeModelId": "qwen3.6:35b-mlx"
+  },
+  "pass": {
+    "passId": "01a1e2e0-08ef-7538-82c4-d9c4f396a826",
+    "startedAt": "2026-11-16T05:41:35.599Z",
+    "endedAt": "2026-11-16T05:51:29.404Z",
+    "options": {
+      "passId": "01a1e2e0-08ef-7538-82c4-d9c4f396a826",
+      "capUsd": 1,
+      "runCapUsd": 0.03,
+      "judgeOrders": 2,
+      "refreshBaselines": false,
+      "baselineMaxOutputTokens": 4096,
+      "judgeMaxOutputTokens": 4096,
+      "problemIds": [
+        "api-rate-limiting",
+        "oidc-migration",
+        "teen-reading-programme"
+      ]
+    },
+    "results": [
+      {
+        "problem": {
+          "id": "api-rate-limiting",
+          "title": "Rate limiting a public API for bursty clients across three regions",
+          "domain": "system-design",
+          "constraints": [
+            "The API runs in three regions behind one global DNS name; a client's requests may land in any region.",
+            "Paying customers are limited by plan (for example 600 requests per minute); free clients to 60 per minute.",
+            "Legitimate clients are bursty: a client may send its whole minute's quota in two seconds, then nothing.",
+            "The limiter must not add more than about five milliseconds to a request, and the API must keep serving if the limiter's storage is unavailable."
+          ],
+          "successCriteria": [
+            "A named limiting algorithm and why it suits bursty clients better than the alternatives.",
+            "Where the limiter's state lives, how three regions see one customer's quota, and what inaccuracy that implies.",
+            "What happens when the state store is slow or down, and what the client sees.",
+            "How a client learns its limit and when to retry."
+          ],
+          "rubric": [
+            {
+              "id": "algorithm",
+              "weight": 3,
+              "criterion": "Names an algorithm (token bucket, sliding window log or counter, leaky bucket) and argues it against alternatives for bursty traffic.",
+              "scale": "0 = no algorithm; 1 = an algorithm with no comparison; 2 = compared with one alternative on burstiness; 3 = compared on burstiness and on memory or accuracy, with the parameters (bucket size, refill rate) stated."
+            },
+            {
+              "id": "state",
+              "weight": 3,
+              "criterion": "Says where the counters live and how three regions share a customer's quota, with the inaccuracy named.",
+              "scale": "0 = state placement not addressed; 1 = 'use Redis' with no regional story; 2 = a regional design (central store, per-region share, or async sync) with its latency; 3 = plus a quantified or clearly described over- or under-admission."
+            },
+            {
+              "id": "failure",
+              "weight": 3,
+              "criterion": "Specifies the behaviour when the state store is slow or unavailable, within the latency budget.",
+              "scale": "0 = failure not addressed; 1 = 'fail open' or 'fail closed' with no reasoning; 2 = a choice with reasoning and a timeout that meets the budget; 3 = plus a local fallback (in-memory bucket) and how it recovers."
+            },
+            {
+              "id": "client",
+              "weight": 1,
+              "criterion": "Describes the response headers or body that tell a client its limit, remaining quota and retry time.",
+              "scale": "0 = not addressed; 1 = 'return 429'; 2 = 429 plus retry timing; 3 = 429, remaining-quota and reset headers, and advice for burst clients."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Technical claims hold up; numbers are consistent with the constraints.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and explicit about the guarantees it does and does not make."
+            }
+          ],
+          "statement": "A company runs a public HTTP API in three regions behind a single global hostname; a client's consecutive requests can land in different regions. Paying plans allow between 600 and 6,000 requests per minute, free accounts 60. Many legitimate clients are bursty: a scheduled job may send its whole minute's allowance in two seconds and then go quiet. The team has been asked to add rate limiting that adds no more than about five milliseconds to a request and that never takes the API down when the limiter's own storage is slow or unavailable.\n\nDesign the rate limiter: the algorithm and why it fits bursty clients, where its state lives and how the three regions share a customer's quota, what happens when that state is slow or unreachable, and how clients learn their limits and when to retry. Be explicit about what the design gets wrong and by how much."
+        },
+        "swarm": {
+          "runId": "01a1e2e0-08f8-790d-a911-17c72a7cdb87",
+          "answer": "Recommendation: Implement a Local-First Leaky Bucket architecture with asynchronous global reconciliation to meet the sub-5ms latency constraint, support bursty traffic, and maintain availability during storage failures.\n\nAlgorithm Selection and Burst Support: The recommended algorithm is the Leaky Bucket. Unlike the Sliding Window Log, which requires storing and scanning timestamps for every request in an O(N) operation that threatens the 5ms budget, the Leaky Bucket uses constant-time (O(1)) operations to track the number of tokens in a queue and the last leak time. This design natively supports bursty clients by allowing a scheduled job to send its entire minute’s allowance in two seconds, effectively filling the bucket instantly. Once full, subsequent requests are queued or rejected based on the leak rate (refill speed), which corresponds to the sustained rate limit. This smoothing property prevents the API from being overwhelmed by sudden spikes while allowing legitimate bursty workloads to consume their quota efficiently. The Token Bucket is an alternative, but the Leaky Bucket provides stricter control over the output rate, preventing backend overload more effectively during sustained high-volume bursts.\n\nState Architecture and Distributed Inaccuracy: State lives in two places. Each region maintains a Local Leaky Bucket in memory for immediate decision-making. A Central Redis Cluster acts as the source of truth for global aggregation and auditing. When a request occurs, the local bucket is checked first. If allowed, an event is pushed to an asynchronous message queue that updates the central state. The central store does not block the request path. This architecture implies bounded inaccuracy: because local checks are independent, simultaneous bursts across regions can lead to over-commitment of up to 2x the burst limit per region during extreme concurrency. However, global drift is kept below 10% due to the central audit’s ability to detect and throttle excess consumption in subsequent windows. This trade-off accepts minor per-region drift to ensure high availability and low latency.\n\nFailure Mode Behavior: If the central state store (Redis) is slow or unavailable, the system fails closed with a generous but bounded local bucket, sized at 120% of the customer’s plan limit. This prevents API downtime while limiting over-consumption. Requests are processed against this local cache, which has no network latency. Upon recovery, the system syncs and penalizes: it recalculates the global state from the audit log and immediately throttles the client if they have consumed too much during the outage, recovering lost enforcement without blocking live traffic.\n\nClient Limits and Retry Logic: Clients learn their limits via standard HTTP headers: X-RateLimit-Limit indicates the plan’s maximum rate, X-RateLimit-Remaining shows local remaining tokens, and Retry-After specifies seconds to wait on 429 responses. To resolve distributed race conditions where one region rejects a request while another allows it, the Retry-After header is calculated based on the Global Refill Rate rather than just local state. All regions use shared UTC minute boundaries for window resets, ensuring consistent headers across the global hostname. Clients should respect these headers and back off exponentially to avoid contributing to the load during rate-limiting events.",
+          "confidence": 0.85,
+          "stage": "final",
+          "writeUp": {
+            "maxOutputTokens": 4096,
+            "wordBudget": 1350,
+            "written": true,
+            "costUsd": 0
+          },
+          "writeUpFailure": null,
+          "loop": {
+            "critiques": {
+              "raised": 15,
+              "resolved": 10,
+              "replaced": 5,
+              "open": {
+                "blocking": 0,
+                "major": 0,
+                "minor": 0
+              },
+              "namedStillOpen": 0
+            },
+            "calls": {
+              "made": 19,
+              "rejected": 0
+            },
+            "trimmedReplies": 1,
+            "decisions": 0,
+            "drafts": 5,
+            "subproblems": {
+              "open": 0,
+              "claimed": 0,
+              "done": 5
+            },
+            "rejectedHypotheses": 0,
+            "rivals": 0,
+            "claimsWithoutSuperseding": 0,
+            "subproblemsWithSecondAnswer": 0
+          },
+          "rounds": 10,
+          "status": "completed",
+          "reason": "completed",
+          "entries": 59,
+          "usage": {
+            "inputTokens": 72686,
+            "outputTokens": 13077,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0
+          },
+          "costUsd": 0,
+          "elapsedMs": 245843
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "f46671966935c6ddc783f1698a504197ffc2a728dcb530a153eadfc744f0abcb",
+          "problemId": "api-rate-limiting",
+          "modelId": "qwen3.6:35b-mlx",
+          "capUsd": 0.03,
+          "maxOutputTokens": 4096,
+          "wordBudget": 1350,
+          "truncated": false,
+          "answer": "The recommended solution employs a hybrid approach combining an in-memory local counter with an asynchronous, eventually consistent distributed reconciliation layer, governed by the Token Bucket algorithm. The Token Bucket is explicitly chosen over alternatives like Fixed Window or Sliding Log because it natively supports burstiness without penalty. In a Fixed Window scheme, a client sending their entire quota in the first second of a window could be blocked from sending again until the next minute starts, which contradicts the requirement to allow bursts followed by quiet periods. A Sliding Log would require storing every individual timestamp, consuming excessive memory and adding significant latency for log sorting and pruning, violating the five-millisecond constraint. The Token Bucket allows a client to accumulate tokens up to their plan limit (e.g., 600) and consume them in rapid succession, while naturally rate-limiting future bursts by depleting the bucket. This fits bursty workloads perfectly because the 'bucket size' equals the total monthly/minute allowance, allowing immediate exhaustion followed by a slow refill based on the average rate.\n\nFor state management, each region runs an independent local instance of the Token Bucket for every customer ID. This ensures the absolute lowest latency, as the check against local memory is O(1) and typically takes microseconds, well within the five-millisecond budget. To handle the global nature of the API, a background reconciliation process runs in each region. This process periodically (e.g., every 10-30 seconds) communicates with a distributed, eventually consistent key-value store, such as Redis Cluster or DynamoDB, which holds the authoritative 'global balance' for each customer. When a request occurs, the local counter is checked and decremented immediately. The state is not read from the remote store during the critical path to avoid network latency. Instead, the local bucket acts as a speculative pre-approval. If the client has remaining tokens locally, the request proceeds. This decouples the high-frequency check from the slower, potentially unreliable network round-trip required for global consistency.\n\nBecause the three regions operate independently with local state, there is an inherent inaccuracy in quota enforcement known as 'over-subscription risk.' If a client sends requests to Region A and Region B simultaneously, both regions may allow the burst if their local tokens are available. This can result in the total usage exceeding the 600-request limit within a single minute window. To mitigate this, the system must implement a safety margin or a strict hard-cap at the global store level during reconciliation. For example, the local bucket might be sized to only 80% of the actual limit, reserving 20% for the reconciliation safety buffer. Alternatively, a 'leaky' mechanism can be used where excess tokens are simply discarded and flagged for review if they breach the global hard limit. The inaccuracy is predictable: in the worst case, a bursty client could exceed their limit by approximately the size of the synchronization window multiplied by the max burst rate across regions. However, given the 60-second window and typical reconciliation intervals, this over-subscription is usually minor and acceptable for most business logic, provided the backend services can handle occasional overages.\n\nThe critical constraint of keeping the API up when the state store is slow or unavailable is addressed through a 'fail-open' design pattern combined with aggressive local caching. If the distributed store (Redis/DynamoDB) is unreachable or responds slowly, the local regions continue to operate based solely on their last known good state or a static default limit. The local counter does not depend on remote validation for every request; it only reports its delta to the remote store in the background. If the store is down, the reconciliation fails silently. The API assumes the client has quota and allows requests to proceed. This ensures availability (AP in CAP terms) at the cost of consistency (CP). For paying customers, this might lead to temporary overages that are billed later or capped in the next billing cycle. For free accounts, hard limits can be enforced locally via a simple static counter reset every minute, which is immune to remote store failures. The five-millisecond latency budget is preserved because no network call is made during the request handling phase; the 'slow' store is only contacted asynchronously by the reconciliation thread.\n\nHowever, this design has explicit flaws. The primary weakness is the potential for significant over-granting of tokens due to the lack of real-time global synchronization. A malicious or buggy client could exploit the independence of regions to consume double their quota. Additionally, the 'fail-open' approach means that if a client exceeds their hard limit, they are not blocked until the next reconciliation cycle, potentially causing downstream service degradation. To counter this, one might argue for a more aggressive local limit reduction, but this hurts legitimate bursty users who might hit the lower local cap while the global store is unavailable. The trade-off is that we sacrifice precision for availability and low latency. Another flaw is the 'thundering herd' effect during recovery: when the store comes back online, all regions attempt to sync simultaneously, potentially overwhelming the store again. This can be mitigated by adding jitter to the synchronization intervals, but it remains an operational risk.\n\nClient learning of limits and retry behavior must be handled via HTTP headers and standard status codes, independent of the internal state mechanism. The API should return a `Retry-After` header in milliseconds or seconds when a rate limit is hit, alongside a `429 Too Many Requests` status code. For the global hostname, the client cannot know which region served the request unless the response includes region metadata (which should be avoided for simplicity). Instead, the client implements exponential backoff with jitter, as recommended by best practices. The client should inspect the `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers in every successful response to understand their current standing. Since the local counter is speculative, these headers may be inaccurate if the global store rejects excess later. Therefore, clients must treat the `429` response as the ground truth for blocking. If a client receives a `503 Service Unavailable` from the API (indicating the limiter or backend is fully down), they should implement immediate retry with backoff, as this is a transient failure. The design ensures that clients can distinguish between 'rate limited' (429) and 'system down' (503/timeout), allowing them to adapt their burst behavior dynamically.\n\nIn summary, the Token Bucket algorithm running locally with asynchronous distributed reconciliation provides the best balance of burst support, low latency, and fault tolerance. It avoids the rigidity of fixed windows and the complexity of sliding logs. The state lives in local memory per region, sharing a customer's quota through eventual consistency via a background sync to a central store. This introduces a risk of over-quota usage during concurrent bursts across regions, which is mitigated by sizing local buckets slightly below the hard limit or accepting minor overages as a business trade-off. When the state store fails, the system fails open, allowing requests to proceed based on local state, ensuring the API remains available. Clients learn their limits through standard HTTP headers and handle retries via exponential backoff, treating 429 responses as signals to pause and 503s as signals of systemic failure. While not perfect due to potential over-subscription and reconciliation lag, this design robustly meets the five-millisecond latency and high-availability constraints.",
+          "usage": {
+            "inputTokens": 574,
+            "outputTokens": 1532,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0
+          },
+          "latencyMs": 22841,
+          "at": "2026-11-16T00:24:47.154Z",
+          "passId": "eval:01a1e1bd-fd31-76e7-86b9-e1c3fe24d138"
+        },
+        "baselineCached": true,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "algorithm": {
+                "reason": "Answer B names the Leaky Bucket and compares it to Sliding Window, arguing based on output smoothing, but fails to explicitly state the algorithm parameters (refill rate/bucket size) in relation to the plan limits.",
+                "score": 2
+              },
+              "state": {
+                "reason": "Answer B describes local state with central reconciliation and quantifies the inaccuracy as 'up to 2x' per region, which is a specific and reasonable estimate for over-admission under high concurrency.",
+                "score": 3
+              },
+              "failure": {
+                "reason": "Answer B specifies 'fail closed' with a generous local bucket, meeting the latency budget, but fails to describe a recovery mechanism for the local state itself other than syncing from an audit log, which is operationally weak for immediate consistency.",
+                "score": 2
+              },
+              "client": {
+                "reason": "Answer B describes headers (Limit, Remaining, Retry-After) and provides advice on backoff, but does not clearly explain how a client learns its *remaining* quota across regions or handles the 'ground truth' updates effectively.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "The answer makes the technical claim that Leaky Bucket is better for bursty traffic than Token Bucket, which is generally incorrect as Token Buckets are preferred for allowing bursts while smoothing output, whereas Leaky Buckets smooth input/output more aggressively; this is a questionable claim regarding algorithm suitability.",
+                "score": 1
+              }
+            },
+            "baseline": {
+              "algorithm": {
+                "reason": "Answer A names the Token Bucket algorithm, compares it against Fixed Window and Sliding Log regarding burstiness and memory/latency, and explicitly states the parameters (bucket size equals plan limit).",
+                "score": 3
+              },
+              "state": {
+                "reason": "Answer A describes state living in local memory per region with asynchronous reconciliation to a central store, but fails to quantify the over-admission accurately, instead proposing a confusing 'safety margin' mitigation that contradicts the standard interpretation of burst allowance.",
+                "score": 2
+              },
+              "failure": {
+                "reason": "Answer A specifies a 'fail-open' design with reasoning and meets the latency budget by removing network calls from the critical path, but fails to describe a local fallback mechanism for rate enforcement itself (only state sync is mentioned), risking uncontrolled usage.",
+                "score": 2
+              },
+              "client": {
+                "reason": "Answer A describes standard headers (Limit, Remaining, Reset) and Retry-After, but misses the specific advice for burst clients to handle the discrepancy between local allowance and global limits effectively in the header explanation.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "The answer correctly identifies that Token Bucket fits bursty traffic and that local storage meets latency constraints, but the claim that fixed windows block bursts contradicts the problem statement's allowance of bursts (fixed windows allow bursting within the window), showing a slight misunderstanding of the algorithm's behavior relative to the constraint.",
+                "score": 2
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer A is better because it correctly identifies Token Bucket as the superior algorithm for bursty clients (allowing full bucket consumption), whereas B incorrectly claims Leaky Bucket is better. A's state and failure descriptions are slightly less precise on the quantification of over-admission but more sound in their fail-open strategy which aligns with 'availability' constraints, while B's fail-closed approach risks availability if local storage is also slow/unavailable (though it claims O(1) local). However, B's fundamental algorithmic selection error and low correctness score on technical claims make A the stronger answer overall."
+          },
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "algorithm": {
+                "reason": "Answer A names the Leaky Bucket algorithm and compares it to Sliding Window Log and Token Bucket, but fails to explicitly state the parameters (bucket size, refill rate) as required for a score of 3.",
+                "score": 2
+              },
+              "state": {
+                "reason": "Answer A describes a regional design with a central store and async sync, but incorrectly identifies the inaccuracy as 'over-commitment' rather than over-admission, and provides an ambiguous quantification ('below 10%').",
+                "score": 2
+              },
+              "failure": {
+                "reason": "Answer A specifies a 'fail closed' behavior with a local bucket and reasoning, but lacks the specific requirement for a 'local fallback (in-memory bucket)' mechanism details that clearly distinguishes score 3 from 2 in terms of recovery logic (it mentions sync/penalize which is good, but the fail closed choice makes it risky against the 'never take API down' constraint if not handled perfectly, though it argues for bounded local bucket). However, compared to B's failure open which is safer for availability, A's choice is debatable. Crucially, it misses the explicit 'local fallback' description structure often expected for score 3 (e.g., how it recovers specifically via memory). Let's look closer: it says 'local leaky bucket in memory'. This is a local fallback. It explains recovery ('syncs and penalizes'). This fits Score 3.",
+                "score": 3
+              },
+              "client": {
+                "reason": "Answer A lists the standard headers (X-RateLimit-Limit, X-RateLimit-Remaining) but fails to provide advice for burst clients or handle the distributed race condition explicitly in the client learning section as required for Score 3.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Answer A claims Leaky Bucket allows a scheduled job to send its whole minute's allowance in two seconds. This is technically incorrect for a standard Leaky Bucket, which smooths output rate; a burst into the bucket is limited by the leak rate (output). A Token Bucket is what allows instant depletion. This is a material error in algorithm mechanics.",
+                "score": 0
+              }
+            },
+            "baseline": {
+              "algorithm": {
+                "reason": "Answer B names the Token Bucket algorithm, compares it to Fixed Window and Sliding Log on burstiness, memory, and accuracy, and explicitly states parameters (bucket size equals allowance, refill based on average rate).",
+                "score": 3
+              },
+              "state": {
+                "reason": "Answer B describes a regional design with independent local instances and async reconciliation, but the quantification of inaccuracy is vague ('approximately the size of the synchronization window...') and doesn't clearly quantify the over-admission amount in a simple metric.",
+                "score": 2
+              },
+              "failure": {
+                "reason": "Answer B specifies a 'fail-open' design with reasoning (availability priority) and local cache, fitting the score 3 criteria for handling slow/unavailable state with a fallback.",
+                "score": 3
+              },
+              "client": {
+                "reason": "Answer B describes headers (Limit, Remaining, Reset) and 429 status, but fails to explicitly provide advice for burst clients or detailed retry logic beyond basic backoff, missing the 'advice for burst clients' nuance.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Answer B correctly identifies Token Bucket as suitable for bursts and accurately describes the mechanics of local vs global state, maintaining consistency with constraints.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "B is better because it correctly identifies the algorithm (Token Bucket) that supports bursts, whereas A makes a material error claiming Leaky Bucket allows instant full-burst consumption. Although both have minor weaknesses in 'client' advice and precise quantification of state inaccuracy, B's technical correctness on the core algorithm and failure mode (fail-open for availability) is superior to A's flawed logic."
+          }
+        ],
+        "judgeSkipped": [],
+        "judgeUsage": {
+          "inputTokens": 6160,
+          "outputTokens": 1774,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "reasoningTokens": 0,
+          "costUsd": 0
+        },
+        "scores": {
+          "swarm": 66.66666666666666,
+          "baseline": 81.94444444444444,
+          "delta": -15.277777777777786,
+          "winner": "baseline",
+          "consistency": 9.722222222222221
+        },
+        "costUsd": 0
+      },
+      {
+        "problem": {
+          "id": "oidc-migration",
+          "title": "Moving a monolith from home-grown sessions to OIDC without downtime",
+          "domain": "planning",
+          "constraints": [
+            "One quarter, three engineers part-time alongside product work.",
+            "About 40,000 active users with passwords stored as bcrypt hashes in the monolith's database; users must not be forced to reset passwords.",
+            "The company has chosen a hosted identity provider that supports OIDC and can import or migrate credentials through a hook.",
+            "No planned downtime and no \"big bang\" switch: a failed step must be reversible within an hour."
+          ],
+          "successCriteria": [
+            "An ordered plan of steps across the quarter, each reversible, with what is true at the end of each.",
+            "How existing users move without a forced password reset, and what happens to users who do not log in during the migration.",
+            "How sessions behave during the transition when both systems are live.",
+            "The point of no return, how it is reached safely, and what is cleaned up afterwards."
+          ],
+          "rubric": [
+            {
+              "id": "sequencing",
+              "weight": 3,
+              "criterion": "Gives an ordered sequence of steps, each with a reversal path, that ends with OIDC in control.",
+              "scale": "0 = no sequence; 1 = steps with no reversal story; 2 = steps each reversible; 3 = steps each reversible, with the state after each and the order justified."
+            },
+            {
+              "id": "credentials",
+              "weight": 3,
+              "criterion": "Explains how bcrypt users migrate without a forced reset, and handles users who never log in during the window.",
+              "scale": "0 = not addressed or forces a reset; 1 = 'import the hashes' with no detail; 2 = a lazy migration at login (verify against the old hash, create in the IdP) with the dormant-user case; 3 = plus how the old hashes are retired and the security implications of the window."
+            },
+            {
+              "id": "dual-run",
+              "weight": 2,
+              "criterion": "Describes how sessions, logout and token validation behave while both systems are live.",
+              "scale": "0 = not addressed; 1 = 'run both'; 2 = a clear rule for which system a session belongs to and how logout works; 3 = plus the edge cases (session expiry mid-switch, API clients, admin accounts)."
+            },
+            {
+              "id": "constraints",
+              "weight": 2,
+              "criterion": "Fits three part-time engineers in one quarter, no downtime, one-hour reversibility.",
+              "scale": "0 = ignores the constraints; 1 = plausibly fits with no estimate; 2 = fits with rough effort per step; 3 = fits, with the step most likely to slip named and buffered."
+            },
+            {
+              "id": "cutover",
+              "weight": 2,
+              "criterion": "Identifies the point of no return and what is decommissioned after it.",
+              "scale": "0 = not addressed; 1 = 'turn off the old system'; 2 = a defined cutover with a criterion for reaching it; 3 = cutover criterion, monitoring for a week after, and the cleanup list."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Claims about OIDC, bcrypt, sessions and what the identity provider can do hold up, and the steps fit together.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
+            }
+          ],
+          "statement": "A product company runs a monolith with its own login: usernames, bcrypt password hashes and server-side sessions, about 40,000 active users. It has bought a hosted identity provider that speaks OIDC and can migrate credentials through a hook at login time. Three engineers have one quarter, alongside their product work, to move authentication to the provider. There may be no planned downtime, no forced password reset, and no step that cannot be undone within an hour if it goes wrong.\n\nPlan the migration: the ordered steps across the quarter and what is true after each, how existing users move over (including users who do not log in during the quarter), how sessions behave while both systems are live, and where the point of no return is and what gets cleaned up after it."
+        },
+        "swarm": {
+          "runId": "01a1e2e4-429f-7ceb-8c3b-76f7da2e9961",
+          "answer": "The migration to the hosted Identity Provider (IdP) spans twelve weeks, structured into three distinct phases designed for three part-time engineers working alongside product development. The plan ensures no planned downtime, avoids forced password resets, and maintains reversibility within one hour at every major step. The strategy relies on a 'bridge' architecture where the monolith temporarily acts as an authenticator for the new IdP, allowing credentials to migrate passively without user intervention.",
+          "confidence": 0.85,
+          "stage": "final",
+          "writeUp": {
+            "maxOutputTokens": 4096,
+            "wordBudget": 1350,
+            "written": true,
+            "costUsd": 0
+          },
+          "writeUpFailure": null,
+          "loop": {
+            "critiques": {
+              "raised": 11,
+              "resolved": 0,
+              "replaced": 5,
+              "open": {
+                "blocking": 0,
+                "major": 6,
+                "minor": 0
+              },
+              "namedStillOpen": 0
+            },
+            "calls": {
+              "made": 8,
+              "rejected": 0
+            },
+            "trimmedReplies": 0,
+            "decisions": 0,
+            "drafts": 1,
+            "subproblems": {
+              "open": 0,
+              "claimed": 6,
+              "done": 0
+            },
+            "rejectedHypotheses": 0,
+            "rivals": 0,
+            "claimsWithoutSuperseding": 0,
+            "subproblemsWithSecondAnswer": 0
+          },
+          "rounds": 4,
+          "status": "completed",
+          "reason": "completed",
+          "entries": 39,
+          "usage": {
+            "inputTokens": 23776,
+            "outputTokens": 7590,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0
+          },
+          "costUsd": 0,
+          "elapsedMs": 121302
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "94c598876def9a00c04dbd2210728dc0c30640e2a7b9bc8d9847427bcdf3da8b",
+          "problemId": "oidc-migration",
+          "modelId": "qwen3.6:35b-mlx",
+          "capUsd": 0.03,
+          "maxOutputTokens": 4096,
+          "wordBudget": 1350,
+          "truncated": false,
+          "answer": "To begin the migration with three part-time engineers over a single quarter, we must prioritize low-risk, high-leverage steps that allow for immediate rollback. The strategy relies on parallel identity stores rather than an atomic switch, ensuring that any failure reverts to the monolith’s native login within an hour. The first step is establishing the foundational infrastructure: provisioning the hosted Identity Provider (IdP) instance and configuring the OIDC application metadata in the monolith. Crucially, we integrate the IdP’s credential migration hook into the monolith’s existing login endpoint as a secondary path. At this stage, nothing changes for the end user. The monolith still validates passwords via bcrypt locally. However, the codebase now contains the logic to attempt authentication against the IdP if the local lookup fails or if a specific flag is set. This step is trivially reversible by removing the integration code and redeploying the previous binary, which guarantees session consistency with the old state.\n\nThe second phase addresses the data migration for existing users without forcing password resets. We utilize the 'hook at login time' capability by writing a background worker that scans the monolith’s user database for bcrypt hashes. This worker exports the username and hashed password to a secure staging area, then triggers the IdP’s bulk import API to store these credentials in the hosted provider’s directory. Since we are importing the hash, not the plaintext password, users can continue logging in with their existing passwords. The critical safety mechanism here is that the monolith remains the source of truth for authentication. We verify the import by comparing counts and sample hashes. If this step fails or causes latency issues in the IdP during import, we simply stop the worker; the monolith continues to function exactly as before, serving all 40,000 active users with their known bcrypt hashes intact.\n\nThe third step introduces the dual-authentication capability for live traffic without changing user behavior. We modify the monolith’s login flow to attempt authentication against the IdP *after* attempting local bcrypt verification fails, or more safely, we implement a 'lazy migration' pattern. In this pattern, when a user successfully logs in via the monolith’s native bcrypt check, the system silently pushes the username and password hash to the IdP via the migration hook for future reference. This ensures that as users actively log in, their credentials are replicated to the hosted provider. Users who do not log in during this phase remain fully authenticated via the monolith. Sessions generated here are still stored in the monolith’s session store. This step is reversible because if the IdP becomes unstable, the monolith’s local bcrypt check still succeeds, and the silent background push can be paused or halted without affecting the successful login outcome for users.\n\nThe fourth phase shifts the 'source of truth' for authentication from the monolith to the IdP for new sessions. We update the monolith to redirect unauthenticated requests to the hosted IdP’s OIDC authorize endpoint while keeping a fallback to local bcrypt for emergency access. However, to maintain session continuity, we implement a bridge where the monolith accepts OIDC tokens issued by the IdP as valid session initiators. When a user logs in via the IdP, the token is validated, and a new local session record is created linked to that external identity ID. This allows us to start redirecting traffic to the IdP. If this fails, we simply disable the OIDC redirect flag, and all traffic falls back to the monolith’s native login. The point of no return is not reached here; we are merely adding a new pathway alongside the old one.\n\nThe fifth step focuses on handling the 40,000 active users who may have varying levels of engagement. We implement a 'silent redirect' for users whose accounts have been migrated to the IdP during the previous steps. When a user with a migrated credential attempts to log in, the system automatically redirects them to the IdP, bypassing the local password field. For users who have never logged in or whose credentials were not successfully migrated, the monolith’s local login remains the default. This ensures no user is forced to reset their password; they simply authenticate against where their hash exists. Sessions behavior during this dual-live state is critical: we must ensure that a session created via OIDC is indistinguishable from one created via bcrypt in terms of expiration and revocation. We achieve this by storing the 'issuer' (monolith vs IdP) in the session metadata but treating both as valid for accessing protected resources.\n\nThe sixth phase executes the cutover, ensuring no planned downtime. We roll out a configuration flag that makes the IdP the primary authentication method for all new login attempts. Existing sessions remain valid until they expire or are revoked, allowing for a graceful fade-out of the old monolith-based sessions. If a user’s existing session expires, they will authenticate via the IdP. If the IdP is down, we have a circuit breaker that redirects back to the monolith. This reversibility is key: if the IdP proves unstable under load, we flip the flag back, and all users return to the monolith login immediately. The 'point of no return' is defined as the moment we decommission the bcrypt validation logic in the monolith and remove the local session store dependency for authentication decisions. This is a high-risk operation that requires extensive monitoring.\n\nThe point of no return is safely reached only after the IdP has handled 100% of successful authentications for a sustained period (e.g., two weeks) with zero errors. We then perform a final cleanup: removing the bcrypt columns from the user table in the monolith’s database and removing the local session creation logic that relied on those hashes. At this stage, the monolith is purely an OIDC consumer. The old data is backed up offsite for 90 days as a cold backup, effectively serving as the undo button if a catastrophic error is found post-cleanup. After this cleanup, the monolith no longer stores passwords, reducing its attack surface and compliance burden.\n\nHandling users who do not log in during the quarter is managed through the 'lazy migration' strategy in step three. These users’ bcrypt hashes are scanned and pushed to the IdP asynchronously. If they never log in, their credentials reside in the IdP but are unused. When they eventually attempt to log in after the cutover (step six), they will be redirected to the IdP. Since their password hash was imported during the quiet phase, the IdP can validate it successfully without requiring a reset. This ensures zero friction for inactive users; they simply become OIDC users upon their next active engagement.\n\nTo address session behavior while both systems are live, we implement 'session federation'. When a user logs in via the monolith, we create a local session. When they log in via the IdP, we create an OIDC-backed session. To prevent session hijacking or confusion, we tag each session with its origin. However, for the purpose of resource access, we treat them equally. If a user has both sessions valid (e.g., they logged in locally before cutover and now log in via IdP), we must decide whether to merge them. A safe approach is to keep them separate but ensure that logging out from one does not invalidate the other unless explicitly configured. Most OIDC providers allow for 'global logout', which we can configure to invalidate all sessions across both issuers, ensuring consistency.\n\nThe main caveats involve identity resolution and race conditions. If a user changes their password in the monolith during the migration, we must ensure the old hash is replaced in the IdP as well. We achieve this by triggering the migration hook on every successful password change event, not just login. Another caveat is performance: importing hashes can be I/O intensive. We throttle the background worker to avoid impacting the monolith’s database performance during product work hours. Finally, we must ensure that the IdP’s API limits are not exceeded for 40,000 users, using batched imports where supported.\n\nThe open questions revolve around edge cases in user identity. Do usernames collide? We assume unique usernames as keys. If emails are also identifiers, we must map them carefully. Another open question is the handling of 'magic links' or social logins if they existed; here we assume standard password auth only. The final review must confirm that all API keys and service-to-service authentication mechanisms are also migrated to OIDC client credentials, not just user-facing sessions.\n\nIn conclusion, this plan leverages a hybrid state for the majority of the quarter, allowing incremental trust building in the IdP. By keeping the monolith as the fallback and source of truth until the very end, we ensure that no step is irreversible without an hour’s rollback capability. The use of bcrypt hash migration allows users to retain their credentials seamlessly. The cutover is a configuration change, not a data migration, minimizing risk. Post-cutover, the cleanup removes legacy technical debt, leaving a clean OIDC-only architecture.\n\nEngineering effort distribution should be weighted heavily towards the first half (infrastructure and dual-auth logic) and the validation/testing of the cutover flag in the second half. The 'lazy migration' worker is low-risk and can be run intermittently by the three engineers alongside their product duties, as it is asynchronous and idempotent. The critical path is the OIDC integration testing with the monolith’s session store.\n\nMonitoring is essential: we must track login failures, redirect loops, and IdP latency. Alerts should be set for any deviation in auth success rates. If the IdP fails, the fallback to bcrypt ensures business continuity. This robust safety net allows the team to proceed with confidence, knowing that the quarter’s timeline is flexible enough to accommodate testing delays without impacting user experience.\n\nFinal validation involves a dry run of the cutover in a staging environment that mirrors production data volume. We simulate IdP outages, slow logins, and session expirations. This ensures that the 'point of no return' logic is sound. Only after passing these simulated failures do we proceed to production. This disciplined approach respects the constraints: no downtime, no forced resets, and full reversibility.",
+          "usage": {
+            "inputTokens": 549,
+            "outputTokens": 2113,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0
+          },
+          "latencyMs": 30324,
+          "at": "2026-11-16T00:31:03.320Z",
+          "passId": "eval:01a1e1bd-fd31-76e7-86b9-e1c3fe24d138"
+        },
+        "baselineCached": true,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "sequencing": {
+                "reason": "Answer B only provides a brief introductory sentence and does not provide an ordered sequence of steps, reversal paths, or states after each step as required.",
+                "score": 0
+              },
+              "credentials": {
+                "reason": "It mentions the strategy relies on a bridge architecture but does not explain how bcrypt users migrate without forced reset or handle dormant users.",
+                "score": 0
+              },
+              "dual-run": {
+                "reason": "It does not describe how sessions behave while both systems are live.",
+                "score": 0
+              },
+              "constraints": {
+                "reason": "It mentions the constraints but provides no plan or schedule to fit them.",
+                "score": 0
+              },
+              "cutover": {
+                "reason": "It does not identify a point of no return or cleanup steps.",
+                "score": 0
+              },
+              "correctness": {
+                "reason": "The single sentence is factually plausible but provides no substance to evaluate for correctness in the context of the problem's complexity.",
+                "score": 1
+              }
+            },
+            "baseline": {
+              "sequencing": {
+                "reason": "The answer provides a detailed six-step sequence with clear reversal paths for each step, but the steps are loosely organized and some logic (like 'lazy migration' vs bulk import) is contradictory or unclear regarding the specific state after each step.",
+                "score": 2
+              },
+              "credentials": {
+                "reason": "It explains that existing users migrate without reset by importing hashes, but contradicts itself between bulk import in step 2 and lazy migration in step 3/6, failing to clearly explain how dormant users are handled securely or efficiently without forcing a reset.",
+                "score": 1
+              },
+              "dual-run": {
+                "reason": "It describes running both systems but fails to provide a clear rule for session ownership or logout behavior, only mentioning tagging and separate sessions which is vague regarding the actual user experience of logout.",
+                "score": 1
+              },
+              "constraints": {
+                "reason": "The plan mentions part-time engineers and no downtime but does not estimate effort per step or justify how the work fits into one quarter, lacking specific scheduling details.",
+                "score": 1
+              },
+              "cutover": {
+                "reason": "It identifies a cutover criterion (100% handling for two weeks) and cleanup actions, but lacks the monitoring period detail requested in the higher scores.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "The technical details are generally sound (OIDC, bcrypt), but the explanation of session management and credential migration is inconsistent and slightly confusing regarding the flow of control.",
+                "score": 2
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer A is significantly better as it provides a complete plan, whereas Answer B is essentially a placeholder."
+          },
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "sequencing": {
+                "reason": "Answer A provides a high-level overview of the plan's structure but fails to list the specific ordered steps required by the rubric.",
+                "score": 1
+              },
+              "credentials": {
+                "reason": "It mentions a 'bridge' architecture and passive migration but lacks specific details on how bcrypt hashes are handled or migrated without reset.",
+                "score": 1
+              },
+              "dual-run": {
+                "reason": "The answer does not describe the behavior of sessions or logout mechanisms during the transition period.",
+                "score": 0
+              },
+              "constraints": {
+                "reason": "It states the plan is for three part-time engineers but offers no evidence that it fits within a quarter or details the reversibility mechanics requested.",
+                "score": 1
+              },
+              "cutover": {
+                "reason": "The point of no return and cleanup are not addressed in the provided text.",
+                "score": 0
+              },
+              "correctness": {
+                "reason": "The concepts are generally sound but too vague to evaluate for material errors or precision.",
+                "score": 1
+              }
+            },
+            "baseline": {
+              "sequencing": {
+                "reason": "Answer B provides a detailed six-step sequence with clear reversal paths and justification for the order, ending with OIDC control.",
+                "score": 3
+              },
+              "credentials": {
+                "reason": "It explains lazy migration at login for active users and an asynchronous scan for dormant users, including the retirement of old hashes.",
+                "score": 2
+              },
+              "dual-run": {
+                "reason": "It describes session tagging and explicit rules for logout validity, though it misses some edge cases like API clients.",
+                "score": 2
+              },
+              "constraints": {
+                "reason": "It fits the constraints with rough effort estimates and naming the critical path, though it lacks specific buffering details for slippage.",
+                "score": 2
+              },
+              "cutover": {
+                "reason": "It identifies the point of no return (decommissioning bcrypt logic) and lists post-cutover cleanup steps including offsite backups.",
+                "score": 3
+              },
+              "correctness": {
+                "reason": "The plan is sound regarding OIDC and bcrypt handling, with precise details on session federation and fallback mechanisms.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer B is significantly more detailed, addresses all success criteria explicitly, and provides a feasible, specific plan that adheres to the constraints. Answer A is too vague and fails to address most of the rubric's specific requirements."
+          }
+        ],
+        "judgeSkipped": [],
+        "judgeUsage": {
+          "inputTokens": 6310,
+          "outputTokens": 1313,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "reasoningTokens": 0,
+          "costUsd": 0
+        },
+        "scores": {
+          "swarm": 14.285714285714285,
+          "baseline": 66.66666666666667,
+          "delta": -52.38095238095239,
+          "winner": "baseline",
+          "consistency": 26.190476190476193
+        },
+        "costUsd": 0
+      },
+      {
+        "problem": {
+          "id": "teen-reading-programme",
+          "title": "A six-week teen reading programme on a $500 budget",
+          "domain": "community-planning",
+          "constraints": [
+            "A public library branch in a mid-sized town; one librarian can give four hours a week, plus volunteers if recruited.",
+            "Budget is $500 in total for the six weeks; the library already has a meeting room and a book collection.",
+            "The target is 13-to-17-year-olds, most of whom do not currently use the library.",
+            "The branch manager wants evidence of the outcome, not only attendance numbers, to decide whether to repeat it."
+          ],
+          "successCriteria": [
+            "A programme design (format, frequency, content) that a non-reading teenager would plausibly turn up to.",
+            "A recruitment plan that reaches teens who do not use the library today.",
+            "A budget that allocates the $500 and shows what it buys.",
+            "Outcome measures beyond attendance, measurable within six weeks, and how they are collected."
+          ],
+          "rubric": [
+            {
+              "id": "design",
+              "weight": 3,
+              "criterion": "Describes a concrete programme (what happens each week) suited to teens who do not read for pleasure.",
+              "scale": "0 = 'a book club'; 1 = a format with no reasoning about the audience; 2 = a format argued from what draws non-readers (choice, social element, media tie-ins, creation); 3 = plus a week-by-week outline."
+            },
+            {
+              "id": "recruitment",
+              "weight": 2,
+              "criterion": "Explains how teens who do not visit the library will hear about it and why they would come.",
+              "scale": "0 = 'put up posters'; 1 = one channel; 2 = channels where teens are (schools, youth groups, social media) with a specific hook; 3 = plus a partner or peer-recruiter mechanism."
+            },
+            {
+              "id": "budget",
+              "weight": 2,
+              "criterion": "Allocates the $500 to specific items that fit the design.",
+              "scale": "0 = no budget; 1 = a total with no breakdown; 2 = a breakdown that fits the design; 3 = a breakdown with a cheaper fallback and what is in kind."
+            },
+            {
+              "id": "outcomes",
+              "weight": 3,
+              "criterion": "Proposes outcome measures beyond attendance (reading behaviour, confidence, library card sign-ups, return visits) and how they are collected in six weeks.",
+              "scale": "0 = attendance only; 1 = outcomes named but not measurable; 2 = measurable outcomes with a collection method (short pre/post survey, borrowing data, retention week to week); 3 = plus what result would justify repeating it."
+            },
+            {
+              "id": "feasibility",
+              "weight": 2,
+              "criterion": "Fits four librarian hours a week and realistic volunteer effort.",
+              "scale": "0 = needs much more staff time; 1 = plausible but unscoped; 2 = time accounted for; 3 = time accounted for with prep done once and reused."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Practical claims hold up: what $500, four librarian hours a week and volunteers can actually buy, and what teenagers will do.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
+            }
+          ],
+          "statement": "A public library branch in a mid-sized town wants to run a six-week programme for 13-to-17-year-olds, most of whom do not use the library today. One librarian can give four hours a week; volunteers can be recruited; the budget is $500 for everything beyond the room and the existing collection. The branch manager will repeat the programme only if there is evidence it changed something for the participants, not just that some turned up.\n\nDesign the programme: what happens each week and why teenagers who do not read for pleasure would come, how the library reaches teens who are not already visitors, how the $500 is spent, and how the outcome is measured within the six weeks in a way that goes beyond attendance. Make sure it fits four hours of librarian time a week."
+        },
+        "swarm": {
+          "runId": "01a1e2e6-780a-76d2-b126-df6505498c5f",
+          "answer": "The Library Game Lab is a six-week interactive programme designed to attract teenagers aged 13 to 17 who do not currently use the library by offering a low-barrier, high-engagement activity centered on analog game design. Instead of traditional reading programs, participants will spend their time building physical card and board games, creating tangible artifacts that provide immediate satisfaction and social value. This format leverages the natural interest adolescents have in gaming and competition while introducing library resources through a creative lens. The programme runs for one hour each week, fitting within a four-hour weekly librarian constraint when combined with volunteer support for setup and teardown.\n\nTo reach teens who are not already visitors, the recruitment strategy relies entirely on a Peer Ambassador model, avoiding paid advertising to keep costs near zero. Three teen ambassadors from local high schools will be recruited to spread the word through existing social networks, class announcements, and school messaging apps. Ambassadors receive free snacks during sessions and a certificate of recognition for their efforts, leveraging peer trust to normalize library attendance. To further extend reach, short digital teasers featuring student-made games will be shared on local community social media groups, using images of the physical prototypes created in previous weeks to demonstrate credibility without requiring a marketing budget.\n\nThe six-week agenda is structured to maintain engagement and prevent the typical drop-off seen in mid-programme activities. Week 1 introduces the concept with a brief overview and hands-on playtesting of existing games to spark interest. Weeks 2 and 3 focus on rule design and prototyping, where teens draft game mechanics and create first drafts using paper, cards, and basic materials. Week 4 is dedicated to playtesting, allowing participants to receive anonymous feedback from peers and refine their games. Weeks 5 and 6 involve finalizing the prototypes and hosting a 'Showcase Tournament' where completed games are played and celebrated. This progression ensures that every session builds on the previous one, creating a sense of accomplishment and ownership over the final product.\n\nThe $500 budget is allocated to cover food incentives, material costs, and prizes that drive attendance and participation. Food is the primary engagement hook, with approximately $170 allocated for weekly pizza or tacos served during each session. This investment in snack culture creates a welcoming social atmosphere and significantly increases turnout among reluctant attendees. An additional $100 is reserved for two substantial gift cards ($50 each) awarded at Week 3 and Week 6 for milestones such as 'Most Creative Rule Set' and 'Best Completed Game.' These tangible rewards incentivize completion and provide competitive motivation without relying on subjective judging criteria that could cause conflict.\n\nThe remaining $230 covers the logistical needs of the programme, including bulk purchases of cardstock, markers, glue sticks, dice, and storage boxes for game components. This material budget ensures that every participant can leave with a physical prototype to take home, reinforcing the value of the library as a resource for creative making rather than just a repository of books. Additionally, $100 is set aside as a contingency fund for emergency supplies or unexpected costs, ensuring flexibility without exceeding the total budget cap. The allocation prioritizes high-impact items like food and prizes while keeping material costs low through bulk purchasing.\n\nOutcome measurement moves beyond simple attendance by tracking 'Tangible Artifact Completion' and 'Library Identity Shift,' providing clear evidence of impact for the branch manager. For artifact completion, the librarian maintains a simple checklist verifying that each participant has created a playable game prototype by the end of Week 4 or later. This concrete output serves as proof of skill acquisition and engagement, replacing subjective self-reports with visible evidence of work. A pre- and post-programme emoji survey is conducted in Week 1 and Week 6, asking participants to rate their comfort level in the library space on a simple scale. This lightweight data collection takes less than five minutes per session and captures shifts in attitude toward the library environment.\n\nThe four-hour weekly librarian commitment is managed effectively by integrating volunteer support into the programme structure. Volunteers, recruited through school credit exchanges for community service hours, handle setup and teardown tasks such as arranging tables, distributing materials, and cleaning up after sessions. This allows the librarian to focus on facilitation, guiding the game design process and managing the flow of activities rather than being bogged down by logistical tasks. The structured roles ensure that the programme remains sustainable and does not overwhelm the single staff member responsible for its operation.\n\nTo address the 'Week 3 Dip' in attendance often seen in six-week programmes, a midpoint milestone is integrated into the schedule. At the end of Week 3, a mini-tournament or showcase of early prototypes is held, accompanied by a special snack incentive or small prize draw. This break in the routine re-engages participants who may be losing interest and provides a tangible sense of progress before the final stretch. The midpoint event also serves as a recruitment opportunity, allowing ambassadors to invite their peers to witness the creative output and join the programme at a later stage if needed.\n\nThe programme design ensures that non-reading teenagers find value in the library by focusing on creation rather than consumption. By teaching game design mechanics, the library positions itself as a hub for digital and analog literacy, appealing to teens interested in gaming, art, or storytelling without requiring them to pick up a traditional book. The social aspect of collaborative building and competitive play fosters a sense of belonging, encouraging participants to return not just for the activity but for the community they have built within the library space.\n\nRecruitment effectiveness is measured by tracking the source of attendance, noting how many participants were referred by peer ambassadors versus other channels. This data helps refine future recruitment efforts and validates the peer-to-peer marketing strategy. The ambassador model also creates a sustainable feedback loop, as new teens become ambassadors who can help recruit subsequent cohorts, reducing the burden on library staff for long-term engagement.\n\nThe budget allocation is strictly monitored to ensure no single category exceeds its limit. Food costs are tracked weekly to prevent overspending, with bulk orders placed in advance to secure lower prices. Gift cards are purchased only when milestones are achieved, ensuring that incentives are tied directly to participation and completion. The contingency fund is used sparingly, primarily for replacing damaged materials or accommodating last-minute changes in attendance numbers.\n\nOutcome data is collected during the final 15 minutes of each session, minimizing disruption to the core activity. The artifact checklist is updated immediately after playtesting sessions, ensuring accuracy and reducing administrative burden at the end of the programme. Pre- and post-surveys are conducted anonymously to encourage honest feedback, with results aggregated to show overall trends in library comfort and engagement. This data is compiled into a final report for the branch manager, highlighting both quantitative metrics (attendance, artifact completion) and qualitative shifts (survey responses, peer feedback).\n\nThe programme concludes with a Showcase Tournament in Week 6, where completed games are displayed and played by participants, families, and community members. This event serves as a public demonstration of the library's value to the community, showcasing the creative output of the teens and validating the investment in the programme. Winners are awarded gift cards, and all participants receive certificates of completion, providing tangible recognition for their efforts.\n\nThe library benefits from this programme by building relationships with a demographic that has historically been disengaged. By offering a space for creation and social interaction, the library attracts new users who may later explore other services such as book borrowing, digital resources, or study spaces. The programme establishes a pipeline for ongoing engagement, encouraging participants to return regularly and recommend the library to their peers.\n\nThe six-week duration is sufficient to establish routine without causing program fatigue. The structured progression from introduction to showcase provides a clear narrative arc that keeps participants invested. Regular check-ins and feedback loops ensure that any issues are addressed promptly, maintaining high engagement levels throughout the programme. The focus on tangible outcomes ensures that the library can demonstrate clear impact, meeting the branch manager's criteria for repeatability.",
+          "confidence": 0.9,
+          "stage": "final",
+          "writeUp": {
+            "maxOutputTokens": 4096,
+            "wordBudget": 1350,
+            "written": true,
+            "costUsd": 0
+          },
+          "writeUpFailure": null,
+          "loop": {
+            "critiques": {
+              "raised": 11,
+              "resolved": 6,
+              "replaced": 5,
+              "open": {
+                "blocking": 0,
+                "major": 0,
+                "minor": 0
+              },
+              "namedStillOpen": 0
+            },
+            "calls": {
+              "made": 10,
+              "rejected": 0
+            },
+            "trimmedReplies": 0,
+            "decisions": 0,
+            "drafts": 1,
+            "subproblems": {
+              "open": 0,
+              "claimed": 0,
+              "done": 5
+            },
+            "rejectedHypotheses": 0,
+            "rivals": 0,
+            "claimsWithoutSuperseding": 0,
+            "subproblemsWithSecondAnswer": 0
+          },
+          "rounds": 5,
+          "status": "completed",
+          "reason": "completed",
+          "entries": 44,
+          "usage": {
+            "inputTokens": 30700,
+            "outputTokens": 9146,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0
+          },
+          "costUsd": 0,
+          "elapsedMs": 149341
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "47cb33806aae8ac3f9997f91055dc2e88f8e91f5fbadf7883821c81dd54b3e43",
+          "problemId": "teen-reading-programme",
+          "modelId": "qwen3.6:35b-mlx",
+          "capUsd": 0.03,
+          "maxOutputTokens": 4096,
+          "wordBudget": 1350,
+          "truncated": false,
+          "answer": "The core concept for this six-week programme is 'The Escape Room Challenge,' a gamified series where teens solve puzzles using library resources to 'escape' a themed scenario each week. This format directly addresses the success criterion of attracting non-reading teenagers by framing information literacy and resource navigation as a game mechanic rather than an academic task. The weekly sessions follow a consistent four-hour block: the first hour introduces the theme and rules, the next two hours are dedicated to collaborative puzzle-solving where participants must locate specific items in the stacks or online databases to get clues, the third hour involves team debriefing and strategy adjustment, and the final hour is for reflection, light snacks, and sign-ups for the next week. This structure ensures that every participant engages with the physical collection and digital tools, not just passively attending. By making the library a place of action and competition rather than quiet study, we lower the barrier to entry for teens who find traditional library environments intimidating or boring.",
+          "usage": {
+            "inputTokens": 554,
+            "outputTokens": 207,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0
+          },
+          "latencyMs": 3446,
+          "at": "2026-11-16T00:35:28.420Z",
+          "passId": "eval:01a1e1bd-fd31-76e7-86b9-e1c3fe24d138"
+        },
+        "baselineCached": true,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "design": {
+                "reason": "Answer B provides a detailed week-by-week outline for a game design programme that is specifically tailored to non-readers through creation and social play.",
+                "score": 3
+              },
+              "recruitment": {
+                "reason": "It details a peer ambassador model using school networks and social media, which are specific channels where teens exist, fulfilling the recruitment criterion.",
+                "score": 2
+              },
+              "budget": {
+                "reason": "The answer provides a specific breakdown of the $500 including food, materials, and prizes that fits the design, though it misses the 'cheaper fallback' nuance for a 3.",
+                "score": 2
+              },
+              "outcomes": {
+                "reason": "It proposes measurable outcomes like artifact completion and pre/post surveys, but fails to explicitly state the specific result threshold that would justify repeating the programme, missing the final anchor of the 3.",
+                "score": 2
+              },
+              "feasibility": {
+                "reason": "It accounts for the four-hour librarian constraint by integrating volunteers for setup/teardown and notes the prep time is managed, fitting the feasibility criteria well.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "The plan is practical within the constraints; $500 covers food and materials for a small group, and volunteer support makes the librarian's time manageable.",
+                "score": 2
+              }
+            },
+            "baseline": {
+              "design": {
+                "reason": "Answer A provides a concrete weekly outline (hourly breakdown) and a specific format (escape room puzzles) that appeals to non-readers, but it completely fails to address recruitment, budget, outcomes, or the feasibility constraints requested in the prompt.",
+                "score": 2
+              },
+              "recruitment": {
+                "reason": "The answer contains no information regarding how teens will be recruited or why they would come beyond the activity itself, missing a core constraint.",
+                "score": 0
+              },
+              "budget": {
+                "reason": "The answer provides no budget allocation, despite the $500 limit being a strict constraint.",
+                "score": 0
+              },
+              "outcomes": {
+                "reason": "The answer does not propose any outcome measures beyond attendance or completion of the game.",
+                "score": 0
+              },
+              "feasibility": {
+                "reason": "The answer outlines a four-hour block that accounts for librarian time but ignores the volunteer and budget constraints required to make it feasible.",
+                "score": 1
+              },
+              "correctness": {
+                "reason": "The concept is sound, but as a single incomplete section of a larger requirement, it fails to demonstrate practical viability regarding resources.",
+                "score": 2
+              }
+            },
+            "preferred": "swarm",
+            "note": "B is better because it addresses all constraints (design, recruitment, budget, outcomes, feasibility), whereas A only addresses design."
+          },
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "design": {
+                "reason": "The answer describes a concrete 'Game Lab' programme with a week-by-week outline (intro, rule design, playtesting, showcase) suited to non-readers.",
+                "score": 3
+              },
+              "recruitment": {
+                "reason": "It proposes a peer ambassador model recruiting from high schools and using social networks, which is a strong mechanism for reaching non-visitors.",
+                "score": 3
+              },
+              "budget": {
+                "reason": "It provides a detailed breakdown of the $500 into food, prizes, materials, and contingency, fitting the design.",
+                "score": 2
+              },
+              "outcomes": {
+                "reason": "It proposes measuring artifact completion and attitude shifts via pre/post surveys, but fails to specify what result would justify repeating the program as required for a score of 3.",
+                "score": 2
+              },
+              "feasibility": {
+                "reason": "It allocates setup/teardown to volunteers, leaving four hours for the librarian, fitting the constraint.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "The claim that $170 per week for food fits within a total of $500 for six weeks is materially false ($170 * 6 = $1020), making the budget breakdown impossible.",
+                "score": 0
+              }
+            },
+            "baseline": {
+              "design": {
+                "reason": "The answer describes the concept and weekly structure but does not provide a specific week-by-week outline of activities or themes for all six weeks, stopping short of the detail required for a 3.",
+                "score": 1
+              },
+              "recruitment": {
+                "reason": "The answer mentions reaching teens but provides no specific recruitment channels or strategies in the text provided.",
+                "score": 0
+              },
+              "budget": {
+                "reason": "The answer contains no budget information.",
+                "score": 0
+              },
+              "outcomes": {
+                "reason": "The answer does not describe how outcomes will be measured or collected.",
+                "score": 0
+              },
+              "feasibility": {
+                "reason": "It describes a four-hour block fitting the librarian's time, but without budget or recruitment details, it is incomplete.",
+                "score": 1
+              },
+              "correctness": {
+                "reason": "The answer is sound in its description of the activity but lacks sufficient content to be evaluated fully against all criteria.",
+                "score": 2
+              }
+            },
+            "preferred": "swarm",
+            "note": "Answer A is better overall despite the budget arithmetic error because it addresses more criteria (design, recruitment, outcomes) than Answer B, which fails to provide content for budget, recruitment, and outcomes entirely. However, both are flawed; A has a critical logic error in the budget section."
+          }
+        ],
+        "judgeSkipped": [],
+        "judgeUsage": {
+          "inputTokens": 5522,
+          "outputTokens": 1293,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0,
+          "reasoningTokens": 0,
+          "costUsd": 0
+        },
+        "scores": {
+          "swarm": 71.42857142857143,
+          "baseline": 25,
+          "delta": 46.42857142857143,
+          "winner": "swarm",
+          "consistency": 5.952380952380951
+        },
+        "costUsd": 0
+      }
+    ],
+    "spentUsd": 0,
+    "stopped": null,
+    "aggregate": {
+      "problems": 3,
+      "judged": 3,
+      "swarmMean": 50.793650793650784,
+      "baselineMean": 57.870370370370374,
+      "meanDelta": -7.076719576719583,
+      "wins": 1,
+      "losses": 2,
+      "ties": 0,
+      "firstShownPreferred": {
+        "count": 3,
+        "of": 6
+      },
+      "consistency": 13.955026455026456
+    }
+  }
+}
