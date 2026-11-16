@@ -6,7 +6,7 @@ import { AGENT_ROLES, renderAgentPrompt, type Roster } from '@team/core';
 import { agentContext, midRunBoard } from '@team/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { loadPromptFiles } from './prompt-files';
+import { loadPromptFiles, loadWriteUpPrompt } from './prompt-files';
 import { loadRosterFile } from './roster-file';
 import { REPO_AGENTS_YAML } from './roster-file.test';
 
@@ -59,9 +59,66 @@ describe('loadPromptFiles', () => {
   });
 });
 
+describe('loadWriteUpPrompt', () => {
+  it('loads the write-up prompt the repository agents.yaml names', async () => {
+    const roster = await loadRosterFile(REPO_AGENTS_YAML);
+    if (!roster.ok) throw new Error(roster.error);
+    expect(roster.value.writeUp).toEqual({ prompt: 'prompts/write-up.md' });
+    const prompt = await loadWriteUpPrompt(roster.value, REPO_AGENTS_YAML);
+    expect(prompt.ok).toBe(true);
+    if (!prompt.ok || prompt.value === undefined) throw new Error('no write-up prompt');
+    const text = prompt.value;
+    expect(text.startsWith('# Final write-up')).toBe(true);
+    // What the answer must be (Phase 5, Step 2a): for a reader who has never seen the board,
+    // every criterion answered, open points decided and labelled, in the shape core parses.
+    expect(text).toContain('Never mention the board');
+    expect(text).toContain('answer every success criterion');
+    expect(text).toContain('"Assumption:"');
+    for (const field of ['`paragraphs`', '`confidence`', '`cites`']) expect(text).toContain(field);
+    expect(text).toContain('Return only JSON matching the schema');
+    expect(text).toContain('Never invent a handle');
+  });
+
+  it('is undefined for a roster that names none, and one line when the file is missing or empty', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'swarm-prompts-'));
+    tempDirs.push(dir);
+    const rosterPath = join(dir, 'agents.yaml');
+    const without = rosterNaming('prompts/any.md');
+    expect(await loadWriteUpPrompt(without, rosterPath)).toEqual({ ok: true, value: undefined });
+
+    const missing = await loadWriteUpPrompt(
+      { ...without, writeUp: { prompt: 'prompts/none.md' } },
+      rosterPath,
+    );
+    expect(!missing.ok && missing.error).toMatch(
+      /^cannot read the write-up prompt at .*none\.md: /,
+    );
+
+    await writeFile(join(dir, 'empty.md'), '  \n');
+    const empty = await loadWriteUpPrompt(
+      { ...without, writeUp: { prompt: 'empty.md' } },
+      rosterPath,
+    );
+    expect(!empty.ok && empty.error).toMatch(/^the write-up prompt at .*empty\.md is empty$/);
+
+    await writeFile(join(dir, 'final.md'), '\n# Final write-up\nWrite it.\n\n');
+    expect(
+      await loadWriteUpPrompt({ ...without, writeUp: { prompt: 'final.md' } }, rosterPath),
+    ).toEqual({ ok: true, value: '# Final write-up\nWrite it.' });
+  });
+});
+
 // The real prompt files are prompt inputs too: a change to any of them shows up as a
 // snapshot diff and is reviewed deliberately.
 describe('role prompt snapshots', () => {
+  it('snapshots the write-up prompt, the system prompt of the final call', async () => {
+    const roster = await loadRosterFile(REPO_AGENTS_YAML);
+    if (!roster.ok) throw new Error(roster.error);
+    const prompt = await loadWriteUpPrompt(roster.value, REPO_AGENTS_YAML);
+    if (!prompt.ok) throw new Error(prompt.error);
+    expect(prompt.value).toMatchSnapshot('write-up');
+  });
+
   it('snapshots each role prompt as the system prompt of a rendered call', async () => {
     const roster = await loadRosterFile(REPO_AGENTS_YAML);
     if (!roster.ok) throw new Error(roster.error);

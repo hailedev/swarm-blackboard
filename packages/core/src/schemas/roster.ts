@@ -53,6 +53,11 @@ export const RosterSchema = z.object({
   models: z.record(z.string().min(1), ModelAliasSchema),
   profiles: z.record(z.string().min(1), ProfileSchema),
   agents: z.record(AgentRoleSchema, AgentDefinitionSchema),
+  /**
+   * The prompt of the final write-up (docs/PLAN.md §2.3 step 8). It is not a role: the
+   * profile's `synthesizer` model writes it. Without it a run ends on its last draft.
+   */
+  writeUp: AgentDefinitionSchema.optional(),
   evals: z.record(z.string().min(1), EvalModelsSchema).optional(),
 });
 export type Roster = z.infer<typeof RosterSchema>;

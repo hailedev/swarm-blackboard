@@ -61,6 +61,12 @@ agents:
   critic: { prompt: prompts/critic.md }
   synthesizer: { prompt: prompts/synthesizer.md }
 
+# The final write-up (docs/PLAN.md §2.3 step 8): when a run ends, the profile's `synthesizer`
+# model writes the answer once more from the whole live board, with this prompt. Its
+# worst-case cost is held back from the run's cap from the first round on. Remove the block
+# and a run ends on its last draft.
+writeUp: { prompt: prompts/write-up.md }
+
 # The eval harness (`pnpm eval --profile <name>`, ADR-0012): the swarm runs on the profile,
 # the single-call baseline and the blind judge on these. A free profile evaluates for free.
 evals:

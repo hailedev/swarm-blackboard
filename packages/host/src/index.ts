@@ -10,7 +10,7 @@ export {
   WARNINGS_RENDERED_FROM_EVENTS,
 } from './adapters/console-logger';
 export type { RolePrompts } from './adapters/prompt-files';
-export { loadPromptFiles } from './adapters/prompt-files';
+export { loadPromptFiles, loadWriteUpPrompt } from './adapters/prompt-files';
 export { loadRosterFile } from './adapters/roster-file';
 export { systemClock } from './adapters/system-clock';
 export type { RandomFill } from './adapters/uuid-v7';
