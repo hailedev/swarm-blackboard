@@ -1,4 +1,4 @@
-import type { BoardView, Entry } from '@team/core';
+import { subproblemStatus, type BoardView, type Entry } from '@team/core';
 
 import { percent } from '../../lib/format';
 import { Badge, cx, HandleChip } from '../ui';
@@ -78,15 +78,16 @@ export const EntryFacts = ({
           {String(entry.payload.successCriteria.length)} success criteria
         </span>
       );
-    case 'subproblem':
+    case 'subproblem': {
+      // Read off the board (core's `subproblemStatus`): done once a hypothesis answers it
+      // with no blocking or major critique standing, claimed while that answer is contested.
+      const status = subproblemStatus(view, entry);
       return (
-        <Badge
-          tone={entry.payload.status === 'done' ? 'good' : 'neutral'}
-          icon={entry.payload.status === 'done' ? '✓' : '○'}
-        >
-          {entry.payload.status}
+        <Badge tone={status === 'done' ? 'good' : 'neutral'} icon={status === 'done' ? '✓' : '○'}>
+          {status}
         </Badge>
       );
+    }
     case 'hypothesis': {
       const critiques = view.critiquesOf(entry.id);
       const blocking = critiques.filter(

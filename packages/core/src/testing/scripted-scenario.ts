@@ -18,9 +18,11 @@ import type { AgentRole } from '../schemas/role';
 //
 // With the default roster and parallelism 2 it runs four rounds:
 //   1 planner → two subproblems
-//   2 solver (hypothesis, closes subproblem 1) + researcher (evidence)
-//   3 critic (major critique + question) + solver (stronger hypothesis, closes subproblem 2)
+//   2 solver (a hypothesis parented on both, which answers them) + researcher (evidence)
+//   3 critic (major critique + question) + solver (a stronger version that supersedes it)
 //   4 critic (minor critique) + synthesizer (synthesis at 0.9) → completed
+// Ten entries: the problem, two subproblems, two hypotheses, one evidence, two critiques,
+// a question and the synthesis.
 // and, when the controller is given the Synthesizer's model for the final write-up, one
 // more call after the last round: the answer written from the whole board.
 
@@ -135,20 +137,8 @@ export const createScriptedModels = (
         const view = getView();
         const open = openSubproblems(view);
         const evidence = handlesOf(view, view.liveOfType('evidence'));
-        const firstOpen = open[0];
         const current = view.liveOfType('hypothesis')[0];
-        const closeFirstOpen =
-          firstOpen === undefined
-            ? []
-            : [
-                {
-                  type: 'subproblem',
-                  content: firstOpen.content,
-                  parents: handlesOfIds(view, firstOpen.parents),
-                  supersedes: view.handleOf(firstOpen.id),
-                  payload: { status: 'done' },
-                },
-              ];
+        // A hypothesis answers the subproblems it names as parents; nobody posts a status.
         if (current === undefined) {
           return respond([
             {
@@ -157,7 +147,6 @@ export const createScriptedModels = (
               parents: handlesOf(view, open),
               payload: { confidence: 0.6, supportedBy: evidence, contradictedBy: [] },
             },
-            ...closeFirstOpen,
           ]);
         }
         return respond([
@@ -169,7 +158,6 @@ export const createScriptedModels = (
             supersedes: view.handleOf(current.id),
             payload: { confidence: 0.85, supportedBy: evidence, contradictedBy: [] },
           },
-          ...closeFirstOpen,
         ]);
       },
     }),

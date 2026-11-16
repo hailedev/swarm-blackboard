@@ -281,7 +281,7 @@ describe('the final write-up at the end of a run', () => {
 
     // Seven calls in the rounds and one after them, all in the run's totals.
     const calls = 8;
-    expect(result.value.totals.entries).toBe(13);
+    expect(result.value.totals.entries).toBe(11);
     expect(result.value.totals.usage.inputTokens).toBe(SCENARIO_TOKENS.inputTokens * calls);
     expect(result.value.totals.usage.costUsd).toBeCloseTo(SCENARIO_CALL_COST_USD * calls, 10);
     expect(ofType(events, 'write_up_completed')[0]).toMatchObject({
@@ -532,7 +532,7 @@ describe('ends that get no write-up', () => {
     const { controller, events, models } = scripted({ writeUp: undefined });
     await controller.start({ content: 'P' });
     const result = await controller.run();
-    expect(result.ok && result.value.totals.entries).toBe(12);
+    expect(result.ok && result.value.totals.entries).toBe(10);
     expect(models.synthesizer.calls.length).toBe(1);
     expect(typesFrom(events, 'round_completed')).toEqual(['round_completed', 'run_terminated']);
   });
@@ -567,8 +567,8 @@ describe('the money held back for the write-up', () => {
   });
 
   it('is out of the rounds’ reach: they stop on cost with it intact, and the call gets its full room', async () => {
-    // A cap a little above the hold leaves the rounds about a cent and a half.
-    const cap = SCENARIO_HOLD_USD + 0.015;
+    // A cap a little above the hold leaves the rounds six tenths of a cent: two scripted calls.
+    const cap = SCENARIO_HOLD_USD + 0.006;
     const { controller, events, models } = scripted();
     await controller.start({ content: 'P' }, { maxCostUsd: cap });
     const result = await controller.run();

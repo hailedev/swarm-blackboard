@@ -11,6 +11,7 @@ import {
   type AgentResult,
 } from '../agents/agent';
 import { planner } from '../agents/roles/planner';
+import { subproblemStatus } from '../agents/eligibility';
 import { createDefaultAgents } from '../agents/roster';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
 import { createFakeModel, type FakeResponse } from '../model/fake-model';
@@ -190,7 +191,9 @@ describe('createController', () => {
     expect(result.value.status).toBe('completed');
     expect(result.value.reason).toBe('completed');
     expect(result.value.rounds).toBe(4);
-    expect(result.value.totals.entries).toBe(12);
+    // The problem, two subproblems, two hypotheses, one evidence, two critiques, a question
+    // and the synthesis: nobody posts copies of a subproblem to say where it stands.
+    expect(result.value.totals.entries).toBe(10);
     const calls = 7;
     expect(result.value.totals.usage).toEqual({
       inputTokens: SCENARIO_TOKENS.inputTokens * calls,
@@ -226,7 +229,12 @@ describe('createController', () => {
 
     const view = result.value.view;
     expect(view.liveOfType('hypothesis').map((h) => h.payload.confidence)).toEqual([0.85]);
-    expect(view.liveOfType('subproblem').map((s) => s.payload.status)).toEqual(['done', 'done']);
+    // Both subproblems are done because the live hypothesis is parented on them and only a
+    // minor critique stands against it; the entries themselves still say what the Planner wrote.
+    const subproblems = view.liveOfType('subproblem');
+    expect(subproblems.map((s) => subproblemStatus(view, s))).toEqual(['done', 'done']);
+    expect(subproblems.map((s) => s.payload.status)).toEqual(['open', 'open']);
+    expect(subproblems.map((s) => s.author)).toEqual(['planner', 'planner']);
     expect(view.liveOfType('synthesis')[0]?.payload.cites.length).toBe(2);
     expect(view.openBlockingCritiques()).toEqual([]);
     expect(events.map((e) => e.seq)).toEqual(events.map((_, i) => i));

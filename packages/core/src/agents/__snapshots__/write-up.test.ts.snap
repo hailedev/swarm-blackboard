@@ -33,7 +33,7 @@ Consolidate into one pnpm workspace, migrating one service per sprint, but keep 
   Which of the three services releases most often, and does it share code with the others?
 
 ## Subproblems
-- S2 (subproblem, round 1): status=open
+- S2 (subproblem, round 1): status=done
   Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
 - S4 (subproblem, round 4): status=done
   Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.

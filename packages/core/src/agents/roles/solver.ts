@@ -4,16 +4,15 @@ import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/c
 import { eligible, notEligible, type RoleDefinition } from '../agent';
 import { evidenceWithoutHypothesis, openSubproblems } from '../eligibility';
 
-/** Up to 6 hypotheses or subproblem status changes, linking only through `refs`. */
-export const solverOutputSchema = (refs: ModelReferenceSchemas) => {
-  const s = contributionSchemas(refs);
-  return z.object({
-    contributions: z.array(z.discriminatedUnion('type', [s.hypothesis, s.subproblem])).max(6),
-  });
-};
+/**
+ * Up to 6 hypotheses, linking only through `refs`. Hypotheses only: where a subproblem
+ * stands is read off the board (`subproblemStatus`), so the Solver has no status to post.
+ */
+export const solverOutputSchema = (refs: ModelReferenceSchemas) =>
+  z.object({ contributions: z.array(contributionSchemas(refs).hypothesis).max(6) });
 
-// Contributes hypotheses and subproblem work (claim / done via supersede).
-// Eligible when subproblems are open or evidence has no hypothesis yet.
+// Contributes hypotheses. A subproblem is answered by a hypothesis that names it among its
+// parents. Eligible when subproblems are open or evidence has no hypothesis yet.
 export const solver: RoleDefinition = {
   role: 'solver',
   outputSchema: solverOutputSchema,

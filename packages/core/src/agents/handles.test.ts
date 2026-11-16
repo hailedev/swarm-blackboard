@@ -98,7 +98,7 @@ describe('buildAgentRequest', () => {
     expect(uuid.success).toBe(false);
   });
 
-  it('lets the solver supersede a live hypothesis but not a superseded subproblem', () => {
+  it('lets the solver supersede a live hypothesis, and post nothing but hypotheses', () => {
     const board = midRunBoard();
     const view = board.fx.view();
     const built = buildAgentRequest(
@@ -122,6 +122,12 @@ describe('buildAgentRequest', () => {
       built.value.schema.safeParse({ contributions: [{ ...hypothesis, supersedes: 'H1' }] })
         .success,
     ).toBe(true);
+    // A hypothesis can only supersede a hypothesis that is live.
+    expect(
+      built.value.schema.safeParse({ contributions: [{ ...hypothesis, supersedes: 'S2' }] })
+        .success,
+    ).toBe(false);
+    // Where a subproblem stands is read off the board: the Solver has no status to post.
     const claim = {
       type: 'subproblem',
       content: 's',
@@ -130,9 +136,6 @@ describe('buildAgentRequest', () => {
     };
     expect(
       built.value.schema.safeParse({ contributions: [{ ...claim, supersedes: 'S2' }] }).success,
-    ).toBe(true);
-    expect(
-      built.value.schema.safeParse({ contributions: [{ ...claim, supersedes: 'S1' }] }).success,
     ).toBe(false);
   });
 

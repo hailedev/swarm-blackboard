@@ -748,7 +748,7 @@ describe('the final write-up', () => {
     expect(run).toMatchObject({
       status: 'completed',
       reason: 'completed',
-      totals: { rounds: 4, entries: 13 },
+      totals: { rounds: 4, entries: 11 },
     });
     const terminated = log.events.at(-1);
     expect(terminated?.type === 'run_terminated' && terminated.totals.usage.inputTokens).toBe(
@@ -835,7 +835,7 @@ describe('the final write-up', () => {
     expect(done).toMatchObject({
       status: 'completed',
       reason: 'completed',
-      totals: { rounds: 4, entries: 13 },
+      totals: { rounds: 4, entries: 11 },
     });
     const log = await body<{ events: BoardEvent[] }>(
       await app.request(`/runs/${controller.runId}/log`),

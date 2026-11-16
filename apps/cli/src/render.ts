@@ -3,6 +3,7 @@ import {
   ENTRY_TYPES,
   isPaidProvider,
   latestSynthesis,
+  subproblemStatus,
   type BoardView,
   type Entry,
   type ResolvedModel,
@@ -19,12 +20,13 @@ const oneLine = (text: string, max = 96): string => {
 /** Entries are named by their board handles (H3, E7), the same names the agents use. */
 type HandleOf = (id: string) => string;
 
-const badge = (entry: Entry, h: HandleOf): string => {
+const badge = (entry: Entry, h: HandleOf, view: BoardView): string => {
   switch (entry.type) {
     case 'problem':
       return `${String(entry.payload.constraints.length)} constraints, ${String(entry.payload.successCriteria.length)} criteria`;
     case 'subproblem':
-      return entry.payload.status;
+      // Read off the board: done once a hypothesis answers it and nothing serious stands against that.
+      return subproblemStatus(view, entry);
     case 'hypothesis':
       return `conf ${entry.payload.confidence.toFixed(2)}, ${String(entry.payload.supportedBy.length)} for / ${String(entry.payload.contradictedBy.length)} against`;
     case 'evidence':
@@ -62,7 +64,7 @@ export const renderBoard = (view: BoardView): string[] => {
       const supersedes =
         entry.supersedes === undefined ? '' : ` (supersedes ${h(entry.supersedes)})`;
       lines.push(
-        `  ${h(entry.id).padEnd(4)} ${entry.author.padEnd(11)} r${String(entry.round)}  ${badge(entry, h)}${status}${supersedes}`,
+        `  ${h(entry.id).padEnd(4)} ${entry.author.padEnd(11)} r${String(entry.round)}  ${badge(entry, h, view)}${status}${supersedes}`,
       );
       lines.push(`        ${oneLine(entry.content)}`);
     }

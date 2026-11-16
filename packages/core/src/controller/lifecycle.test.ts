@@ -299,7 +299,9 @@ describe('force synthesis', () => {
 
     // Spent: the next round is chosen by the triggers alone.
     const next = await controller.runRound();
-    expect(next.ok && next.value.selected).toEqual(['critic', 'solver']);
+    // Round 2's hypothesis answers both subproblems, so the Solver has nothing left to do;
+    // the Researcher is next in line, to find evidence for it.
+    expect(next.ok && next.value.selected).toEqual(['critic', 'researcher']);
   });
 
   it('ends the run on a forced synthesis that clears the usual threshold', async () => {

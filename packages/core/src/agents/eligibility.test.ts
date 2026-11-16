@@ -8,7 +8,11 @@ import {
   hypothesesWithNewEvidence,
   hypothesesWithoutCritique,
   latestSynthesis,
+  openCritiquesOf,
   openSubproblems,
+  rejectedHypothesisIds,
+  standingHypotheses,
+  subproblemStatus,
   synthesisCandidates,
 } from './eligibility';
 
@@ -93,5 +97,89 @@ describe('eligibility predicates', () => {
     const v3 = fx.entry('synthesis', { version: 3, confidence: 0.7, cites: [] });
     fx.entry('synthesis', { version: 2, confidence: 0.9, cites: [] });
     expect(latestSynthesis(fx.view())?.id).toBe(v3.id);
+  });
+});
+
+describe('subproblemStatus: where a subproblem stands, read off the board', () => {
+  const board = () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    fx.startRound(1);
+    const answered = fx.entry('subproblem', { status: 'open' }, { parents: [problem.id] });
+    const untouched = fx.entry('subproblem', { status: 'open' }, { parents: [problem.id] });
+    return { fx, problem, answered, untouched };
+  };
+  const statuses = (fx: BoardFixture) => {
+    const view = fx.view();
+    return view.liveOfType('subproblem').map((s) => subproblemStatus(view, s));
+  };
+
+  it('is open until a hypothesis names it as a parent, then done', () => {
+    const { fx, answered, untouched } = board();
+    expect(statuses(fx)).toEqual(['open', 'open']);
+    fx.entry('hypothesis', hypothesisPayload, { parents: [answered.id] });
+    expect(statuses(fx)).toEqual(['done', 'open']);
+    expect(openSubproblems(fx.view()).map((s) => s.id)).toEqual([untouched.id]);
+  });
+
+  it('is claimed while a blocking or major critique stands against its answer, done again once it is replaced', () => {
+    const { fx, answered } = board();
+    const first = fx.entry('hypothesis', hypothesisPayload, { parents: [answered.id] });
+    const minor = fx.entry('critique', { target: first.id, severity: 'minor' });
+    expect(statuses(fx)[0]).toBe('done');
+    const major = fx.entry('critique', { target: first.id, severity: 'major' });
+    expect(statuses(fx)[0]).toBe('claimed');
+    // Answered, though contested: not open, so nobody is sent to answer it from scratch.
+    expect(openSubproblems(fx.view()).map((s) => s.id)).not.toContain(answered.id);
+    expect(openCritiquesOf(fx.view(), first.id).map((c) => c.id)).toEqual([major.id]);
+    expect(openCritiquesOf(fx.view(), first.id, ['minor']).map((c) => c.id)).toEqual([minor.id]);
+
+    // The Solver's new version drops the subproblem from its parents; it still answers it,
+    // because the version it replaced did.
+    fx.entry(
+      'hypothesis',
+      { ...hypothesisPayload, resolves: [major.id] },
+      { parents: [], supersedes: first.id },
+    );
+    expect(statuses(fx)[0]).toBe('done');
+  });
+
+  it('follows a subproblem the Planner restated', () => {
+    const { fx, answered } = board();
+    fx.entry('hypothesis', hypothesisPayload, { parents: [answered.id] });
+    const restated = fx.entry('subproblem', { status: 'open' }, { supersedes: answered.id });
+    const view = fx.view();
+    expect(subproblemStatus(view, restated)).toBe('done');
+  });
+
+  it('is done when one of two answers is uncontested, and open again when its only answer is rejected', () => {
+    const { fx, answered } = board();
+    const weak = fx.entry('hypothesis', hypothesisPayload, { parents: [answered.id] });
+    fx.entry('critique', { target: weak.id, severity: 'blocking' });
+    const sound = fx.entry('hypothesis', hypothesisPayload, { parents: [answered.id] });
+    expect(statuses(fx)[0]).toBe('done');
+
+    const rejecting = board();
+    const only = rejecting.fx.entry('hypothesis', hypothesisPayload, {
+      parents: [rejecting.answered.id],
+    });
+    const other = rejecting.fx.entry('hypothesis', hypothesisPayload);
+    expect(statuses(rejecting.fx)[0]).toBe('done');
+    rejecting.fx.entry('decision', { chosen: other.id, rejected: [only.id], rationale: 'r' });
+    expect(statuses(rejecting.fx)[0]).toBe('open');
+    expect([...rejectedHypothesisIds(rejecting.fx.view())]).toEqual([only.id]);
+    expect(standingHypotheses(rejecting.fx.view()).map((h) => h.id)).toEqual([other.id]);
+    expect(sound.id).not.toBe(weak.id);
+  });
+
+  it('keeps what an older log recorded when no hypothesis answers the subproblem', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const claimed = fx.entry('subproblem', { status: 'claimed' });
+    const done = fx.entry('subproblem', { status: 'done' });
+    const view = fx.view();
+    expect(subproblemStatus(view, claimed)).toBe('claimed');
+    expect(subproblemStatus(view, done)).toBe('done');
   });
 });

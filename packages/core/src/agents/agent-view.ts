@@ -3,7 +3,7 @@ import type { Entry, EntryOf } from '../schemas/entry';
 import { compareHandles, type Handle } from '../schemas/handle';
 import type { AgentRole } from '../schemas/role';
 import type { ViewBounds } from '../schemas/run-config';
-import { latestSynthesis } from './eligibility';
+import { latestSynthesis, subproblemStatus } from './eligibility';
 
 // The role-specific, size-bounded view an agent reads (docs/PLAN.md §2.2): the problem,
 // the entries its trigger matched, their linked neighbours, and a rolling summary of
@@ -92,7 +92,8 @@ export const payloadDigest = (view: BoardView, entry: Entry): string => {
     case 'problem':
       return `constraints=${String(entry.payload.constraints.length)} criteria=${String(entry.payload.successCriteria.length)}`;
     case 'subproblem':
-      return `status=${entry.payload.status}`;
+      // Where it stands on the board now, not what the entry said when it was posted.
+      return `status=${subproblemStatus(view, entry)}`;
     case 'hypothesis':
       // What it claims to have answered is printed only when it claims something.
       return `confidence=${String(entry.payload.confidence)} supportedBy=${list(h, entry.payload.supportedBy)} contradictedBy=${list(h, entry.payload.contradictedBy)}${entry.payload.resolves.length === 0 ? '' : ` resolves=${list(h, entry.payload.resolves)}`}`;
