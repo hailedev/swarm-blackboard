@@ -30,6 +30,7 @@ import {
   type BlindOrder,
   type UnblindedJudgement,
 } from './judge';
+import type { LoopFigures } from './loop';
 import type { Problem } from './problems';
 import { aggregate, scoreProblem, type Aggregate, type ProblemScores } from './scoring';
 
@@ -55,6 +56,8 @@ export interface SwarmOutcome {
   writeUp: SwarmWriteUp | null;
   /** Why the write-up did not produce the answer, in the controller's words; null when it did. */
   writeUpFailure: string | null;
+  /** How far the run closed its loop: critiques answered, replies lost, subproblems finished. */
+  loop: LoopFigures;
   rounds: number;
   status: RunStatus;
   reason: RunEndReason;
@@ -328,7 +331,11 @@ const runProblem = async (
   result.swarm = swarm.value;
   budget.charge(swarm.value.costUsd);
   deps.log(
-    `   swarm: ${swarm.value.status}/${swarm.value.reason} after ${String(swarm.value.rounds)} rounds, ${String(swarm.value.entries)} entries, $${swarm.value.costUsd.toFixed(4)}${describeAnswer(swarm.value)}`,
+    `   swarm: ${swarm.value.status}/${swarm.value.reason} after ${String(swarm.value.rounds)} rounds, ${String(swarm.value.entries)} entries, ${swarm.value.costUsd.toFixed(4)}${describeAnswer(swarm.value)}`,
+  );
+  const loop = swarm.value.loop;
+  deps.log(
+    `   loop: ${String(loop.critiques.resolved)} of ${String(loop.critiques.raised)} critiques resolved, ${String(loop.calls.rejected)} of ${String(loop.calls.made)} calls rejected, ${String(loop.trimmedReplies)} replies trimmed, ${String(loop.decisions)} decisions`,
   );
 
   // 3. The judge, blind, in one or both orders.

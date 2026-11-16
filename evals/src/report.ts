@@ -1,6 +1,7 @@
 import type { ResolvedEvalModels, RunProfile } from '@team/core';
 
 import type { CriterionScore } from './judge';
+import { describeOpenCritiques } from './loop';
 import type { PassResult, ProblemResult } from './pass';
 
 // The committed report (docs/PLAN.md §6, Phase 5): what ran, what it cost, how the arms
@@ -98,6 +99,18 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
   for (const r of pass.results) lines.push(answerRow(r));
   lines.push('');
 
+  lines.push('## Closing the loop', '');
+  lines.push(
+    'How far each swarm run got with its own objections, counted from its board, its event log and its model calls. A critique is resolved when a hypothesis names it among the critiques it answers; replaced when what it attacked was superseded or rejected without anybody naming it; open when it still stood against a live entry at the end. A call is rejected when its reply did not match the schema; a reply over its role’s limit is trimmed to the limit, not rejected. None of this is judged: it says that an objection was replied to, not that the reply was good.',
+    '',
+  );
+  lines.push(
+    '| Problem | Rounds | End | Critiques resolved / raised | Replaced unnamed | Still open | Calls rejected / made | Replies trimmed | Decisions (hypotheses rejected) | Drafts | Subproblems done / claimed / open |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+  );
+  for (const r of pass.results) lines.push(loopRow(r));
+  lines.push('');
+
   const notes = honestyNotes(pass);
   if (notes.length > 0) {
     lines.push('## Notes', '');
@@ -147,6 +160,13 @@ const problemRow = (r: ProblemResult): string => {
   const tokensCell = r.baseline === null ? '—' : baselineTokens(r.baseline);
   const thinking = `${swarm === null ? '—' : thinkingOf(swarm.usage)} / ${r.baseline === null ? '—' : thinkingOf(r.baseline.usage)} / ${thinkingOf(r.judgeUsage)}`;
   return `| ${r.problem.id} | ${swarm === null ? '—' : `\`${swarm.runId}\``} | ${swarm === null ? '—' : String(swarm.rounds)} | ${swarm === null ? '—' : `${swarm.status}/${swarm.reason}`} | ${swarm === null ? '—' : usd(swarm.costUsd)} | ${baselineCell} | ${tokensCell} | ${thinking} | ${pct(r.scores.swarm)} | ${pct(r.scores.baseline)} | ${signed(r.scores.delta)} | ${r.scores.winner ?? '—'} | ${cell(notes.join('; '))} |`;
+};
+
+const loopRow = (r: ProblemResult): string => {
+  const swarm = r.swarm;
+  if (swarm === null) return `| ${r.problem.id} | — | — | — | — | — | — | — | — | — | — |`;
+  const { critiques, calls, subproblems } = swarm.loop;
+  return `| ${r.problem.id} | ${String(swarm.rounds)} | ${swarm.reason} | ${String(critiques.resolved)} / ${String(critiques.raised)} | ${String(critiques.replaced)} | ${describeOpenCritiques(critiques.open)} | ${String(calls.rejected)} / ${String(calls.made)} | ${String(swarm.loop.trimmedReplies)} | ${String(swarm.loop.decisions)} (${String(swarm.loop.rejectedHypotheses)}) | ${String(swarm.loop.drafts)} | ${String(subproblems.done)} / ${String(subproblems.claimed)} / ${String(subproblems.open)} |`;
 };
 
 /** Words in an answer as a reader would count them: runs of non-space characters. */

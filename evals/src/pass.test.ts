@@ -51,6 +51,15 @@ const swarmOutcome = (
       ? null
       : { maxOutputTokens: 2_048, wordBudget: 650, written: true, costUsd: 0.004 },
   writeUpFailure: null,
+  loop: {
+    critiques: { raised: 5, resolved: 2, replaced: 1, open: { blocking: 0, major: 1, minor: 1 } },
+    calls: { made: 8, rejected: 1 },
+    trimmedReplies: 2,
+    decisions: 1,
+    drafts: 1,
+    subproblems: { done: 2, claimed: 1, open: 0 },
+    rejectedHypotheses: 1,
+  },
   rounds: 4,
   status: 'completed',
   reason: answer === null ? 'budget_rounds' : 'completed',
@@ -433,6 +442,27 @@ describe('report: what each arm wrote, and where the swarm scored low', () => {
         };
       },
     });
+
+  it('tabulates how far each run closed its loop', async () => {
+    const pass = await runPass(
+      options({ problems: [problem('one'), problem('two')] }),
+      deps({
+        runSwarm: (p, cap) =>
+          Promise.resolve(
+            p.id === 'two'
+              ? err('provider unreachable')
+              : ok(swarmOutcome(p.id, Math.min(0.02, cap))),
+          ),
+      }),
+    );
+    const report = renderReport(pass, meta);
+    expect(report).toContain('## Closing the loop');
+    expect(report).toContain(
+      '| one | 4 | completed | 2 / 5 | 1 | 1 major, 1 minor | 1 / 8 | 2 | 1 (1) | 1 | 2 / 1 / 0 |',
+    );
+    // A run that never happened has nothing to count.
+    expect(report).toContain('| two | — | — | — | — | — | — | — | — | — | — |');
+  });
 
   it('counts words the way a reader would', () => {
     expect(wordCount('One two  three.\n\nFour, five!')).toBe(5);

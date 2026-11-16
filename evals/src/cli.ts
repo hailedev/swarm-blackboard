@@ -54,6 +54,7 @@ import {
 import { BaselineRecordSchema, type BaselineCache, type BaselineRecord } from './baseline';
 import { createFakeBaseline, createFakeJudge } from './fake';
 import { mulberry32 } from './judge';
+import { loopFigures } from './loop';
 import { runPass, type PassResult, type SwarmOutcome, type SwarmWriteUp } from './pass';
 import { parseProblemFile, type Problem } from './problems';
 import { renderPair, renderReport, selectPairs } from './report';
@@ -565,6 +566,7 @@ export const main = async (
         stage,
         writeUp: writeUpOf(events),
         writeUpFailure: stage === 'final' ? null : writeUpFailureOf(events),
+        loop: loopFigures(result.value.view, events, calls.forRun(result.value.runId)),
         rounds: result.value.rounds,
         status: result.value.status,
         reason: result.value.reason,
