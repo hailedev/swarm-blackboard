@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
 import { eligible, mandatory, notEligible, type RoleDefinition } from '../agent';
-import { synthesisCandidates } from '../eligibility';
+import { boardChangedSinceLastSynthesis, synthesisCandidates } from '../eligibility';
 
 /** Exactly one synthesis, linking only through `refs`. */
 export const synthesizerOutputSchema = (refs: ModelReferenceSchemas) =>
@@ -14,12 +14,20 @@ export const synthesizerOutputSchema = (refs: ModelReferenceSchemas) =>
 // round: until Phase 5 nothing posts decisions, and the first real run showed the gate
 // otherwise starving the run of any answer until the round cap. A synthesis the user asked
 // for (`synthesisForced`) overrides all of it for one round: whatever the board holds.
+//
+// It runs only when the board has changed since it last wrote. In one step2a run rounds 8
+// to 12 selected the Synthesizer alone, and it rewrote its synthesis five times from an
+// unchanged board at the same confidence. With nothing changed it is not eligible; if
+// nobody else is either, the run ends there and the final write-up follows.
 export const synthesizer: RoleDefinition = {
   role: 'synthesizer',
   outputSchema: synthesizerOutputSchema,
   trigger(view, ctx) {
     const candidates = synthesisCandidates(view).map((h) => h.id);
     if (ctx.flags.synthesisForced) return mandatory(candidates, 'forced by the user');
+    if (!boardChangedSinceLastSynthesis(view)) {
+      return notEligible('nothing has changed since the last synthesis');
+    }
     if (ctx.round >= ctx.config.synthesisFromRound) {
       return eligible(
         95,

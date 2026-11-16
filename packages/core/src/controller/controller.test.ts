@@ -12,6 +12,7 @@ import {
 } from '../agents/agent';
 import { planner } from '../agents/roles/planner';
 import { subproblemStatus } from '../agents/eligibility';
+import { WRITE_UP_ROLE } from '../agents/write-up';
 import { createDefaultAgents } from '../agents/roster';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
 import { createFakeModel, type FakeResponse } from '../model/fake-model';
@@ -25,7 +26,7 @@ import type { BoardEvent } from '../schemas/event';
 import type { RunProfile } from '../schemas/roster';
 import { FakeSpendLedger } from '../testing/fake-spend-ledger';
 import { ManualClock } from '../testing/manual-clock';
-import { testRolePrompts } from '../testing/role-prompts';
+import { testRolePrompts, testWriteUpPrompt } from '../testing/role-prompts';
 import {
   createScriptedModels,
   SCENARIO_CALL_COST_USD,
@@ -991,5 +992,71 @@ describe('a reply over the role’s limit', () => {
     ]);
     // It is not a failure that ends or pauses anything.
     expect(result.ok && result.value.reason).toBe('budget_rounds');
+  });
+});
+
+describe('a run with nothing left to change', () => {
+  it('stops rewriting its synthesis, ends, and is written up', async () => {
+    // A Synthesizer that never clears the threshold and never supersedes its own draft: the
+    // shape that kept one paid run rewriting an unchanged board for five rounds.
+    const cautious = createFakeModel({
+      id: 'fake-cautious-synthesizer',
+      script: (request) =>
+        request.tags.role === WRITE_UP_ROLE
+          ? { object: { paragraphs: ['The answer.'], confidence: 0.4, cites: ['H2'] } }
+          : {
+              object: {
+                contributions: [
+                  {
+                    type: 'synthesis',
+                    content: ['A cautious draft.'],
+                    parents: [],
+                    payload: { version: 1, confidence: 0.4, cites: [] },
+                  },
+                ],
+              },
+            },
+    });
+    const ref: { controller: Controller | undefined } = { controller: undefined };
+    const models = createScriptedModels(() => {
+      if (ref.controller === undefined) throw new Error('controller not ready');
+      return ref.controller.currentView();
+    });
+    const h = harness(
+      createDefaultAgents({ ...models, synthesizer: cautious }, testRolePrompts()),
+      {
+        writeUp: { model: cautious, prompt: testWriteUpPrompt() },
+      },
+    );
+    ref.controller = h.controller;
+    await h.controller.start({ content: 'P' });
+    const result = await h.controller.run();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Round 4 drafts; round 5 drafts once more, because the Critic posted beside it in
+    // round 4; then nothing has changed and nobody else has anything to do.
+    expect(ofType(h.events, 'agents_selected').map((e) => e.selected)).toEqual([
+      ['planner'],
+      ['solver', 'researcher'],
+      ['critic', 'solver'],
+      ['critic', 'synthesizer'],
+      ['synthesizer'],
+      [],
+    ]);
+    expect([result.value.reason, result.value.rounds]).toEqual(['no_eligible_agents', 6]);
+    expect(ofType(h.events, 'agents_selected').at(-1)?.eligible).toEqual([]);
+    // Two drafts, not eight, and the final write-up after them.
+    const syntheses = result.value.view.entries.filter((e) => e.type === 'synthesis');
+    expect(syntheses.map((s) => [s.round, s.payload.stage])).toEqual([
+      [4, 'draft'],
+      [5, 'draft'],
+      [6, 'final'],
+    ]);
+    expect(ofType(h.events, 'write_up_started')[0]).toMatchObject({
+      round: 6,
+      reason: 'no_eligible_agents',
+    });
+    expect(h.events.at(-1)?.type).toBe('run_terminated');
   });
 });

@@ -9,6 +9,7 @@ import { UUID_MODEL_REFERENCES } from '../../schemas/contribution';
 import { agentContext } from '../../testing/agent-context';
 import { BoardFixture } from '../../testing/board-fixture';
 import { createRoleAgent } from '../agent';
+import { boardChangedSinceLastSynthesis } from '../eligibility';
 import { critic } from './critic';
 import { planner } from './planner';
 import { researcher } from './researcher';
@@ -367,5 +368,57 @@ describe('the Solver is sent back to a hypothesis with critiques that stand', ()
       targetIds: [open.id],
       reason: 'open subproblems or unexplained evidence',
     });
+  });
+});
+
+describe('the Synthesizer runs only when the board has changed since it last wrote', () => {
+  const drafted = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypothesis = fx.entry('hypothesis', hypothesisPayload);
+    fx.startRound(2);
+    const draft = fx.entry('synthesis', { version: 1, confidence: 0.5, cites: [hypothesis.id] });
+    return { fx, hypothesis, draft };
+  };
+  const at = (round: number, flags = {}) => agentContext({ round, flags });
+
+  it('is idle on an unchanged board, early and from synthesisFromRound alike', () => {
+    const { fx } = drafted();
+    expect(boardChangedSinceLastSynthesis(fx.view())).toBe(false);
+    for (const round of [3, 8, 12]) {
+      expect(synthesizer.trigger(fx.view(), at(round))).toMatchObject({
+        eligible: false,
+        reason: 'nothing has changed since the last synthesis',
+      });
+    }
+    // The user can still ask for one.
+    expect(synthesizer.trigger(fx.view(), at(3, { synthesisForced: true })).mandatory).toBe(true);
+  });
+
+  it('is eligible again once anything but a synthesis lands, in a later round or the same one', () => {
+    const later = drafted();
+    later.fx.startRound(3);
+    later.fx.entry('critique', { target: later.hypothesis.id, severity: 'minor' });
+    expect(boardChangedSinceLastSynthesis(later.fx.view())).toBe(true);
+    expect(synthesizer.trigger(later.fx.view(), at(4)).eligible).toBe(true);
+
+    // Posted by another agent in the round of the synthesis: the Synthesizer read the board
+    // as that round started, so it has not seen it.
+    const same = drafted();
+    same.fx.entry('evidence', { source: 's', supports: [same.hypothesis.id], contradicts: [] });
+    expect(synthesizer.trigger(same.fx.view(), at(3)).eligible).toBe(true);
+
+    // A second synthesis is not a change, even one that forgot to supersede the first.
+    const twice = drafted();
+    twice.fx.startRound(3);
+    twice.fx.entry('synthesis', { version: 1, confidence: 0.5, cites: [] });
+    expect(synthesizer.trigger(twice.fx.view(), at(4)).eligible).toBe(false);
+  });
+
+  it('has changed by definition before the first synthesis', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    expect(boardChangedSinceLastSynthesis(fx.view())).toBe(true);
   });
 });

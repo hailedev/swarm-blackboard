@@ -138,6 +138,21 @@ export const synthesisCandidates = (view: BoardView): readonly EntryOf<'hypothes
           .some((c) => c.payload.severity === 'blocking' && c.payload.resolvedBy === undefined),
     );
 
+/**
+ * Whether the board has moved since the Synthesizer last wrote: something other than a
+ * synthesis was committed in or after the round of the most recently committed synthesis.
+ * "In or after", because every agent of a round reads the board as it stood when the round
+ * started: what the others posted in that same round is new to the Synthesizer. The most
+ * recently committed synthesis, not the highest version: a model that forgets to supersede
+ * leaves two drafts with one version number, and the newer is the one that saw more.
+ * True when there is no synthesis yet.
+ */
+export const boardChangedSinceLastSynthesis = (view: BoardView): boolean => {
+  const last = view.entries.findLast((entry) => entry.type === 'synthesis');
+  if (last === undefined) return true;
+  return view.entries.some((entry) => entry.type !== 'synthesis' && entry.round >= last.round);
+};
+
 /** The live synthesis with the highest version, if any. */
 export const latestSynthesis = (view: BoardView): EntryOf<'synthesis'> | undefined =>
   view
