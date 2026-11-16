@@ -43,7 +43,8 @@ export {
 } from './conflicts';
 export * from './eligibility';
 export type { AgentRequest, AgentRequestError } from './handles';
-export { withImpliedSupersedes } from './implied-supersedes';
+export type { SettledAnswers } from './implied-supersedes';
+export { settleAnswers, withImpliedSupersedes } from './implied-supersedes';
 export {
   buildAgentRequest,
   PARAGRAPH_SEPARATOR,

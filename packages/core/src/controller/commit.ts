@@ -18,6 +18,7 @@ const references = (c: Contribution): Reference[] => {
         { field: 'supportedBy', ids: c.payload.supportedBy },
         { field: 'contradictedBy', ids: c.payload.contradictedBy },
         { field: 'resolves', ids: c.payload.resolves ?? [] },
+        { field: 'rivalOf', ids: c.payload.rivalOf ?? [] },
       );
       break;
     case 'evidence':

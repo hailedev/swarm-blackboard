@@ -1,9 +1,10 @@
 import type { BoardView } from '../board/board-view';
-import { HANDLE_LEGEND, type Handle } from '../schemas/handle';
+import { compareHandles, HANDLE_LEGEND, type Handle } from '../schemas/handle';
 import type { AgentRole } from '../schemas/role';
 import type { AgentContext } from './agent';
 import { buildAgentView, handleOf, payloadDigest, type FocusEntry } from './agent-view';
 import { openConflicts } from './conflicts';
+import { isDeclaredRival, standingAnswers, subproblemStatus } from './eligibility';
 
 // What an agent reads. The role's instructions come from prompts/<role>.md through the
 // host and are the system prompt verbatim; this module only lays the board out, so the
@@ -72,6 +73,30 @@ export const renderAgentPrompt = (
   lines.push('# Rest of the board');
   lines.push(...(agentView.summary.length === 0 ? ['(nothing else)'] : agentView.summary));
 
+  // The Solver posts each hypothesis as an answer to one subproblem, and where an answer
+  // already stands it must replace it or be declared its rival (schemas/contribution.ts,
+  // `answerSchemas`). So it is shown every live subproblem with what stands for it, and
+  // those handles are named whether or not the bounded view above had room for the entries.
+  const named = new Set<Handle>(agentView.handles);
+  if (role === 'solver') {
+    const subproblems = view.liveOfType('subproblem');
+    if (subproblems.length > 0) lines.push('', '# Subproblems and the answers that stand');
+    for (const subproblem of subproblems) {
+      const standing = standingAnswers(view, subproblem);
+      for (const entry of [subproblem, ...standing]) {
+        const handle = view.handleOf(entry.id);
+        if (handle !== undefined) named.add(handle);
+      }
+      const answers = standing
+        .map((hyp) => `${h(hyp.id)}${isDeclaredRival(view, hyp.id) ? ' (rival)' : ''}`)
+        .join('; ');
+      lines.push(
+        `- ${h(subproblem.id)} (${subproblemStatus(view, subproblem)}): ${answers === '' ? 'no answer yet' : answers}`,
+      );
+    }
+  }
+  const handles = [...named].sort(compareHandles);
+
   // Targets the board no longer knows (superseded since the trigger ran) are not named.
   const targets = ctx.targetIds.flatMap((id) => {
     const handle = view.handleOf(id);
@@ -86,16 +111,18 @@ export const renderAgentPrompt = (
   // The contradictions the forced Critic is to critique and the Synthesizer to decide: which
   // hypotheses, and the evidence that sets them against each other when the view names it.
   if (ctx.flags.criticForced || ctx.flags.decisionRequired) {
-    const shown = new Set<string>(agentView.handles);
+    const shown = new Set<string>(handles);
     const pairs = openConflicts(view).flatMap((conflict) => {
       const a = view.handleOf(conflict.a);
       const b = view.handleOf(conflict.b);
       if (a === undefined || b === undefined || !shown.has(a) || !shown.has(b)) return [];
       const evidence = conflict.via === 'evidence' ? view.handleOf(conflict.evidenceId) : undefined;
       const why =
-        evidence !== undefined && shown.has(evidence)
-          ? ` (${evidence} supports one and contradicts the other)`
-          : '';
+        conflict.via === 'rival'
+          ? ' (rival answers to one subproblem)'
+          : evidence !== undefined && shown.has(evidence)
+            ? ` (${evidence} supports one and contradicts the other)`
+            : '';
       return [`- ${a} and ${b} contradict each other${why}`];
     });
     if (pairs.length > 0) lines.push('', '# Contradictions to settle', ...pairs);
@@ -110,7 +137,7 @@ export const renderAgentPrompt = (
     '',
     `Return JSON matching the schema. Reference entries only by the handles shown above (${HANDLE_LEGEND}), copied exactly.`,
   );
-  return { system: rolePrompt, prompt: lines.join('\n'), handles: agentView.handles };
+  return { system: rolePrompt, prompt: lines.join('\n'), handles };
 };
 
 const MAX_RAW_CHARS = 4_000;

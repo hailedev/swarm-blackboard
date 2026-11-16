@@ -863,6 +863,20 @@ export const createController = (
         const noted = await emit({ type: 'agent_failed', round, ...failure });
         if (!noted.ok) return noted;
       }
+      // A subproblem takes one answer: hypotheses that would have stood beside it, without
+      // replacing it or being declared its rival, were left out. On the log for the same reason.
+      const secondAnswers = result.value.secondAnswers ?? 0;
+      if (secondAnswers > 0) {
+        const failure: AgentFailure = {
+          agentId: agent.id,
+          reason: 'over_limit',
+          detail: `${String(secondAnswers)} ${secondAnswers === 1 ? 'hypothesis' : 'hypotheses'} dropped: a subproblem takes one answer, and ${secondAnswers === 1 ? 'this one' : 'these'} neither replaced the standing one nor ${secondAnswers === 1 ? 'was' : 'were'} declared a rival`,
+        };
+        failures.push(failure);
+        deps.logger.warn('second answers to a subproblem dropped', { runId, round, ...failure });
+        const noted = await emit({ type: 'agent_failed', round, ...failure });
+        if (!noted.ok) return noted;
+      }
       if (batch.problems.length > 0) {
         const failure: AgentFailure = {
           agentId: agent.id,

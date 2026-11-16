@@ -65,6 +65,9 @@ const swarmOutcome = (
     drafts: 1,
     subproblems: { done: 2, claimed: 1, open: 0 },
     rejectedHypotheses: 1,
+    rivals: 1,
+    claimsWithoutSuperseding: 0,
+    subproblemsWithSecondAnswer: 0,
   },
   rounds: 4,
   status: 'completed',
@@ -464,10 +467,10 @@ describe('report: what each arm wrote, and where the swarm scored low', () => {
     const report = renderReport(pass, meta);
     expect(report).toContain('## Closing the loop');
     expect(report).toContain(
-      '| one | 4 | completed | 2 / 5 | 1 | 1 major, 1 minor (1 named as resolved, target not replaced) | 1 / 8 | 2 | 1 (1) | 1 | 2 / 1 / 0 |',
+      '| one | 4 | completed | 2 / 5 | 1 | 1 major, 1 minor (1 named as resolved, target not replaced) | 1 / 8 | 2 | 1 | 1 (1) | 1 | 2 / 1 / 0 | 0 | 0 |',
     );
     // A run that never happened has nothing to count.
-    expect(report).toContain('| two | — | — | — | — | — | — | — | — | — | — |');
+    expect(report).toContain('| two | — | — | — | — | — | — | — | — | — | — | — | — | — |');
   });
 
   it('counts words the way a reader would', () => {

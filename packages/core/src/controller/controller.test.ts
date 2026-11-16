@@ -15,6 +15,7 @@ import {
   contestedHypotheses,
   latestSynthesis,
   subproblemStatus,
+  standingAnswers,
   synthesisCandidates,
 } from '../agents/eligibility';
 import { WRITE_UP_ROLE } from '../agents/write-up';
@@ -1082,28 +1083,29 @@ describe('a contradiction between hypotheses, from evidence to decision', () => 
       planner: createFakeModel({
         script: () => ({
           object: {
-            contributions: [
-              {
+            contributions: ['Is the left road the way?', 'Is the right road the way?'].map(
+              (content) => ({
                 type: 'subproblem',
-                content: 'Which way?',
+                content,
                 parents: ['P1'],
                 payload: { status: 'open' },
-              },
-            ],
+              }),
+            ),
           },
         }),
       }),
-      // Two rival answers to the one subproblem, then nothing more.
+      // One answer to each subproblem, which cannot both hold; then nothing more.
       solver: createFakeModel({
         script: () =>
           handles('hypothesis').length > 0
             ? none
             : {
                 object: {
-                  contributions: ['Go left.', 'Go right.'].map((content) => ({
+                  contributions: ['Go left.', 'Go right.'].map((content, index) => ({
                     type: 'hypothesis',
+                    answers: handles('subproblem')[index],
                     content,
-                    parents: handles('subproblem'),
+                    parents: [],
                     payload: { confidence: 0.6, supportedBy: [], contradictedBy: [] },
                   })),
                 },
@@ -1241,5 +1243,167 @@ describe('a contradiction between hypotheses, from evidence to decision', () => 
     // The rejected hypothesis is not sent back to the Solver, critique or no critique.
     expect(contestedHypotheses(view)).toEqual([]);
     expect(latestSynthesis(view)).toMatchObject({ content: 'Go left.', payload: { version: 2 } });
+  });
+});
+
+describe('one answer per subproblem, and a declared rival decided', () => {
+  it('drops an undeclared second answer, takes a declared rival to the Critic and the decision, and completes', async () => {
+    const ref: { controller: Controller | undefined } = { controller: undefined };
+    const handles = (type: 'hypothesis' | 'subproblem' | 'synthesis' | 'critique') => {
+      if (ref.controller === undefined) throw new Error('controller not ready');
+      const view = ref.controller.currentView();
+      return view.liveOfType(type).map((entry) => view.handleOf(entry.id) ?? '?');
+    };
+    const none: FakeResponse = { object: { contributions: [] } };
+    const answer = (content: string, extra: object = {}) => ({
+      type: 'hypothesis',
+      answers: handles('subproblem')[0],
+      content,
+      parents: [],
+      payload: { confidence: 0.6, supportedBy: [], contradictedBy: [] },
+      ...extra,
+    });
+    const models = {
+      planner: createFakeModel({
+        script: () => ({
+          object: {
+            contributions: [
+              {
+                type: 'subproblem',
+                content: 'Which way?',
+                parents: ['P1'],
+                payload: { status: 'open' },
+              },
+            ],
+          },
+        }),
+      }),
+      // First two answers at once, neither related to the other; later, sent back to the
+      // first, it posts the second again, this time as a rival; then nothing more.
+      solver: createFakeModel({
+        script: () => {
+          const count = handles('hypothesis').length;
+          if (count === 0) {
+            return { object: { contributions: [answer('Go left.'), answer('Go right.')] } };
+          }
+          return count === 1
+            ? { object: { contributions: [answer('Go right.', { relation: 'rival' })] } }
+            : none;
+        },
+      }),
+      researcher: createFakeModel({ script: () => none }),
+      // One objection to the first answer; and, when forced onto the rivals, one to the second.
+      critic: createFakeModel({
+        script: (request) => {
+          const [left, right] = handles('hypothesis');
+          const critique = (target: string, content: string) => ({
+            object: {
+              contributions: [
+                {
+                  type: 'critique',
+                  content,
+                  parents: [target],
+                  payload: { target, severity: 'major' },
+                },
+              ],
+            },
+          });
+          if (request.prompt.includes('criticForced') && right !== undefined) {
+            return critique(right, 'The right road is closed.');
+          }
+          return left !== undefined && handles('critique').length === 0
+            ? critique(left, 'No reason is given for the left road.')
+            : none;
+        },
+      }),
+      synthesizer: createFakeModel({
+        script: (request) => {
+          const [left, right] = handles('hypothesis');
+          const [draft] = handles('synthesis');
+          const synthesis = (confidence: number) => ({
+            type: 'synthesis',
+            content: [confidence > 0.8 ? 'Go left.' : 'Left or right, undecided.'],
+            parents: left === undefined ? [] : [left],
+            ...(draft === undefined ? {} : { supersedes: draft }),
+            payload: {
+              version: draft === undefined ? 1 : 2,
+              confidence,
+              cites: left === undefined ? [] : [left],
+            },
+          });
+          if (
+            !request.prompt.includes('decisionRequired') ||
+            left === undefined ||
+            right === undefined
+          ) {
+            return { object: { contributions: [synthesis(0.4)] } };
+          }
+          return {
+            object: {
+              contributions: [
+                {
+                  type: 'decision',
+                  content: 'Left over right.',
+                  parents: [left, right],
+                  payload: {
+                    chosen: left,
+                    rejected: [right],
+                    rationale: 'The right road is closed.',
+                  },
+                },
+                synthesis(0.9),
+              ],
+            },
+          };
+        },
+      }),
+    };
+    const h = harness(createDefaultAgents(models, testRolePrompts()));
+    ref.controller = h.controller;
+    await h.controller.start({ content: 'Which road?' });
+    const result = await h.controller.run();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.reason).toBe('completed');
+
+    const view = result.value.view;
+    const [subproblem] = view.liveOfType('subproblem');
+    const [left, right, ...more] = view.entries.filter((e) => e.type === 'hypothesis');
+    if (subproblem === undefined || left === undefined || right === undefined) {
+      throw new Error('entries missing');
+    }
+    // The second of the two first answers never reached the board, and the log says so.
+    expect(more).toEqual([]);
+    expect(left.round).toBe(2);
+    expect(ofType(h.events, 'agent_failed').find((e) => e.round === 2)).toMatchObject({
+      agentId: 'solver',
+      reason: 'over_limit',
+      detail:
+        '1 hypothesis dropped: a subproblem takes one answer, and this one neither replaced the standing one nor was declared a rival',
+    });
+    // The rival stands beside the first answer, superseding nothing, on the record as its rival.
+    expect(right.supersedes).toBeUndefined();
+    expect(right.payload).toMatchObject({ rivalOf: [left.id] });
+    expect(right.parents).toEqual([subproblem.id]);
+
+    // The declared rivalry forced the Critic onto the pair, by name.
+    const forced = ofType(h.events, 'agents_selected').find((e) =>
+      e.eligible.some((a) => a.agentId === 'critic' && a.reason.startsWith('forced')),
+    );
+    expect(forced?.selected).toContain('critic');
+    expect(forced?.round).toBe(right.round + 1);
+    const named = '- H1 and H2 contradict each other (rival answers to one subproblem)';
+    expect(models.critic.calls.at(-1)?.request.prompt).toContain(named);
+    expect(models.synthesizer.calls.at(-1)?.request.prompt).toContain(named);
+
+    // The decision settles it: one answer stands for the subproblem.
+    expect(view.liveOfType('decision')[0]?.payload).toMatchObject({
+      chosen: left.id,
+      rejected: [right.id],
+    });
+    expect(standingAnswers(view, subproblem).map((answerEntry) => answerEntry.id)).toEqual([
+      left.id,
+    ]);
+    expect(h.controller.flags).toMatchObject({ criticForced: false, decisionRequired: false });
   });
 });

@@ -36,17 +36,25 @@ export const SubproblemPayloadSchema = z.object({ status: SubproblemStatusSchema
 // switch: a critique stops being open when its target is superseded, whoever names it; what
 // the field adds is which critiques the new version claims to have answered, so the Critic
 // can check the claim and a reader can count what was answered. `critiqueRef` is what the
-// field may point at: for a model, the live critiques in its view.
+// field may point at: for a model, the critiques in its view that still stand.
+//
+// `rivalOf` marks a hypothesis posted as a rival answer: the hypotheses that stood as the
+// answer to its subproblem when it was posted. A subproblem takes one answer; a second one
+// either replaces the first (`supersedes`) or is declared its rival, and a declared rivalry
+// is a contradiction the decision flow settles (docs/PLAN.md §2.3 step 7). The controller
+// stamps the field from the model's declaration; no model's schema has it.
 export const hypothesisPayloadSchema = (ref: ReferenceSchema, critiqueRef: ReferenceSchema = ref) =>
   z.object({
     confidence: ConfidenceSchema,
     supportedBy: z.array(ref),
     contradictedBy: z.array(ref),
     resolves: z.array(critiqueRef).optional(),
+    rivalOf: z.array(ref).optional(),
   });
-/** As stored: a hypothesis recorded before the field existed, or by a model that left it out, resolves nothing. */
+/** As stored: a hypothesis recorded before the fields existed, or by a model that left them out, resolves nothing and rivals nothing. */
 export const HypothesisPayloadSchema = hypothesisPayloadSchema(IdSchema).extend({
   resolves: z.array(IdSchema).default([]),
+  rivalOf: z.array(IdSchema).default([]),
 });
 
 export const evidencePayloadSchema = (ref: ReferenceSchema) =>

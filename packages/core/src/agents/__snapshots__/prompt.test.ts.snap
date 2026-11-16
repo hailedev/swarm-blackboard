@@ -294,6 +294,10 @@ Estimate the migration effort and the CI-time impact of a pnpm workspace against
 # Rest of the board
 [question] Q1 r1 by planner: Which of the three services releases most often, and does it share code with the others?; open
 
+# Subproblems and the answers that stand
+- S2 (claimed): H1
+- S3 (claimed): H1
+
 # Your targets
 H1
 

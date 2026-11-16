@@ -1,16 +1,28 @@
 import { z } from 'zod';
 
-import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
+import {
+  answerSchemas,
+  contributionSchemas,
+  type ModelReferenceSchemas,
+} from '../../schemas/contribution';
 import { CONTRIBUTIONS_SCHEMA_MAX, eligible, notEligible, type RoleDefinition } from '../agent';
 import { contestedHypotheses, evidenceWithoutHypothesis, openSubproblems } from '../eligibility';
 
 /**
- * Hypotheses, linking only through `refs`; the role keeps the first 6. Hypotheses only: where a subproblem
- * stands is read off the board (`subproblemStatus`), so the Solver has no status to post.
+ * Hypotheses only; the role keeps the first 6. Where a subproblem stands is read off the
+ * board (`subproblemStatus`), so the Solver has no status to post.
+ *
+ * With subproblems on the board, each hypothesis is an answer to one of them, in the shape
+ * `answerSchemas` builds: it names the subproblem, and where that subproblem already has a
+ * standing answer it either replaces one of them or is declared a rival. On a board with no
+ * subproblem in view there is nothing to answer in that sense, and the plain hypothesis
+ * shape is used.
  */
 export const solverOutputSchema = (refs: ModelReferenceSchemas) =>
   z.object({
-    contributions: z.array(contributionSchemas(refs).hypothesis).max(CONTRIBUTIONS_SCHEMA_MAX),
+    contributions: z
+      .array(answerSchemas(refs) ?? contributionSchemas(refs).hypothesis)
+      .max(CONTRIBUTIONS_SCHEMA_MAX),
   });
 
 /**

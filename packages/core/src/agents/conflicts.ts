@@ -1,4 +1,5 @@
 import type { BoardView } from '../board/board-view';
+import { lineOf, standingHypotheses } from './eligibility';
 
 // Contradictions between hypotheses, read off the board (docs/PLAN.md §2.3 step 7). Pure
 // functions of the view, so the roles' triggers and prompts can use them as well as the
@@ -6,35 +7,76 @@ import type { BoardView } from '../board/board-view';
 // which conflicts the Critic has already addressed).
 
 export type Conflict = { a: string; b: string } & (
-  { via: 'contradictedBy' } | { via: 'evidence'; evidenceId: string }
+  | { via: 'contradictedBy' }
+  | { via: 'evidence'; evidenceId: string }
+  // Two answers to one subproblem, one of them posted as the other's rival. `line` names the
+  // two lines of answers by their first versions, so the conflict stays the same conflict
+  // when either side is replaced by a new version.
+  | { via: 'rival'; line: string }
 );
 
-export const conflictKey = (conflict: Conflict): string => `${conflict.a}|${conflict.b}`;
+export const conflictKey = (conflict: Conflict): string =>
+  conflict.via === 'rival' ? conflict.line : `${conflict.a}|${conflict.b}`;
 
-// Two live hypotheses contradict when one lists the other in `contradictedBy`,
-// or when a live evidence entry supports one and contradicts the other.
+/** The live entry at the end of the line that `id` belongs to, if the line is still alive. */
+const headOf = (view: BoardView, id: string): string | undefined => {
+  let current = view.byId(id);
+  const seen = new Set<string>();
+  while (current !== undefined && !seen.has(current.id)) {
+    seen.add(current.id);
+    const next = view.supersededBy(current.id);
+    if (next === undefined) break;
+    current = next;
+  }
+  return current !== undefined && view.isLive(current.id) ? current.id : undefined;
+};
+
+const rootOf = (view: BoardView, id: string): string => lineOf(view, id).at(-1)?.id ?? id;
+
+// Two live hypotheses contradict when one lists the other in `contradictedBy`, when a live
+// evidence entry supports one and contradicts the other, or when one was posted as a rival
+// to the other's line and both still stand.
 export const detectConflicts = (view: BoardView): Conflict[] => {
   const hypotheses = view.liveOfType('hypothesis');
   const liveIds = new Set(hypotheses.map((h) => h.id));
   const found = new Map<string, Conflict>();
-  const add = (x: string, y: string, via: Conflict['via'], evidenceId?: string): void => {
-    if (x === y || !liveIds.has(x) || !liveIds.has(y)) return;
-    const [a, b] = x < y ? [x, y] : [y, x];
-    const key = `${a}|${b}`;
-    if (found.has(key)) return;
-    found.set(
-      key,
-      via === 'evidence' && evidenceId !== undefined
-        ? { a, b, via: 'evidence', evidenceId }
-        : { a, b, via: 'contradictedBy' },
-    );
+  const pair = (x: string, y: string): [string, string] | undefined => {
+    if (x === y || !liveIds.has(x) || !liveIds.has(y)) return undefined;
+    return x < y ? [x, y] : [y, x];
+  };
+  const add = (conflict: Conflict): void => {
+    const key = `${conflict.a}|${conflict.b}`;
+    if (!found.has(key)) found.set(key, conflict);
   };
   for (const h of hypotheses) {
-    for (const other of h.payload.contradictedBy) add(h.id, other, 'contradictedBy');
+    for (const other of h.payload.contradictedBy) {
+      const ends = pair(h.id, other);
+      if (ends !== undefined) add({ a: ends[0], b: ends[1], via: 'contradictedBy' });
+    }
   }
   for (const e of view.liveOfType('evidence')) {
     for (const s of e.payload.supports) {
-      for (const c of e.payload.contradicts) add(s, c, 'evidence', e.id);
+      for (const c of e.payload.contradicts) {
+        const ends = pair(s, c);
+        if (ends !== undefined) add({ a: ends[0], b: ends[1], via: 'evidence', evidenceId: e.id });
+      }
+    }
+  }
+  // Declared rivals: a standing hypothesis whose line was posted as a rival of another
+  // line, where that other line still stands too. A decision rejects one line, which then
+  // no longer stands, and the conflict is gone.
+  const standing = new Set(standingHypotheses(view).map((h) => h.id));
+  for (const id of standing) {
+    for (const version of lineOf(view, id)) {
+      if (version.type !== 'hypothesis') continue;
+      for (const rivalled of version.payload.rivalOf) {
+        const other = headOf(view, rivalled);
+        if (other === undefined || !standing.has(other)) continue;
+        const ends = pair(id, other);
+        if (ends === undefined) continue;
+        const line = `rival:${[rootOf(view, id), rootOf(view, other)].sort().join('|')}`;
+        add({ a: ends[0], b: ends[1], via: 'rival', line });
+      }
     }
   }
   return [...found.values()];

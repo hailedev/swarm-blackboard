@@ -4,6 +4,8 @@ import type { BoardView } from '../board/board-view';
 import { err, ok, type Result } from '../ports/result';
 import {
   CONTRIBUTION_TYPES,
+  parseRelation,
+  type AnswerRefs,
   type Contribution,
   type ContributionType,
   type ModelContribution,
@@ -11,6 +13,7 @@ import {
 } from '../schemas/contribution';
 import type { Handle } from '../schemas/handle';
 import type { AgentContext, AgentOutput, RoleDefinition } from './agent';
+import { critiqueStands, rejectedHypothesisIds, standingAnswers } from './eligibility';
 import { renderAgentPrompt } from './prompt';
 
 // Models never generate ids. An agent's prompt names entries by handle, its output schema
@@ -32,7 +35,37 @@ export const referenceSchemasFor = (
     });
     if (live.length > 0) liveOf[type] = z.enum(live);
   }
-  return { any: z.enum([...handles]), liveOf, paragraphs: true };
+  // Critiques that can still be answered: named in the view and still standing.
+  const named = new Set<string>(handles);
+  const rejected = rejectedHypothesisIds(view);
+  const openAgainst = (targetId: string): Handle[] =>
+    view.critiquesOf(targetId).flatMap((critique) => {
+      const handle = view.handleOf(critique.id);
+      return handle !== undefined && named.has(handle) && critiqueStands(view, critique, rejected)
+        ? [handle]
+        : [];
+    });
+  const open = handles.filter((handle) => {
+    const entry = view.byHandle(handle);
+    return entry?.type === 'critique' && critiqueStands(view, entry, rejected);
+  });
+  // Every live subproblem the view names, with what stands as its answer.
+  const answers: AnswerRefs[] = handles.flatMap((handle) => {
+    const entry = view.byHandle(handle);
+    if (entry?.type !== 'subproblem' || !view.isLive(entry.id)) return [];
+    const standing = standingAnswers(view, entry).flatMap((hypothesis) => {
+      const h = view.handleOf(hypothesis.id);
+      return h === undefined ? [] : [{ hypothesis: h, openCritiques: openAgainst(hypothesis.id) }];
+    });
+    return [{ subproblem: handle, standing }];
+  });
+  return {
+    any: z.enum([...handles]),
+    liveOf,
+    ...(open.length === 0 ? {} : { openCritiques: z.enum(open) }),
+    ...(answers.length === 0 ? {} : { answers }),
+    paragraphs: true,
+  };
 };
 
 /** How the paragraphs a model returns become the one markdown string the board stores. */
@@ -93,19 +126,60 @@ export const resolveHandles = (
     switch (c.type) {
       case 'subproblem':
         return { ...base, type: c.type, payload: c.payload };
-      case 'hypothesis':
+      case 'hypothesis': {
+        if (!('answers' in c)) {
+          return {
+            ...base,
+            type: c.type,
+            payload: {
+              confidence: c.payload.confidence,
+              supportedBy: many('payload.supportedBy', c.payload.supportedBy),
+              contradictedBy: many('payload.contradictedBy', c.payload.contradictedBy),
+              ...(c.payload.resolves === undefined
+                ? {}
+                : { resolves: many('payload.resolves', c.payload.resolves) }),
+            },
+          };
+        }
+        // An answer to a subproblem (schemas/contribution.ts, `answerSchemas`): what it
+        // replaces or rivals is read off `relation` and the subproblem's standing answers.
+        const subproblemId = one('answers', c.answers);
+        const subproblem = view.byId(subproblemId);
+        const standing = subproblem?.type === 'subproblem' ? standingAnswers(view, subproblem) : [];
+        const relation = c.relation === undefined ? undefined : parseRelation(c.relation);
+        const rival = relation?.rival === true;
+        // Stated, or with one standing answer and nothing stated, a new version of it.
+        const [only] = standing;
+        const replaced =
+          relation !== undefined && !relation.rival
+            ? one('relation', relation.of)
+            : !rival && standing.length === 1
+              ? only?.id
+              : undefined;
+        // A critique is answered by the version that replaces what it attacks: a rival
+        // resolves nothing, and a new version only the critiques of the one it replaces.
+        const resolves =
+          replaced === undefined
+            ? []
+            : many('payload.resolves', c.payload.resolves ?? []).filter((id) => {
+                const critique = view.byId(id);
+                return critique?.type === 'critique' && critique.payload.target === replaced;
+              });
         return {
-          ...base,
+          content: base.content,
+          // The subproblem it answers comes first, whatever else the model listed.
+          parents: [subproblemId, ...base.parents.filter((id) => id !== subproblemId)],
+          ...(replaced === undefined ? {} : { supersedes: replaced }),
           type: c.type,
           payload: {
             confidence: c.payload.confidence,
             supportedBy: many('payload.supportedBy', c.payload.supportedBy),
             contradictedBy: many('payload.contradictedBy', c.payload.contradictedBy),
-            ...(c.payload.resolves === undefined
-              ? {}
-              : { resolves: many('payload.resolves', c.payload.resolves) }),
+            ...(resolves.length === 0 ? {} : { resolves }),
+            ...(rival && standing.length > 0 ? { rivalOf: standing.map((h) => h.id) } : {}),
           },
         };
+      }
       case 'evidence':
         return {
           ...base,

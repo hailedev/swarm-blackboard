@@ -3,7 +3,7 @@ import type { Entry, EntryOf } from '../schemas/entry';
 import { compareHandles, type Handle } from '../schemas/handle';
 import type { AgentRole } from '../schemas/role';
 import type { ViewBounds } from '../schemas/run-config';
-import { latestSynthesis, subproblemStatus } from './eligibility';
+import { latestSynthesis, standingAnswers, subproblemStatus } from './eligibility';
 
 // The role-specific, size-bounded view an agent reads (docs/PLAN.md §2.2): the problem,
 // the entries its trigger matched, their linked neighbours, and a rolling summary of
@@ -57,6 +57,7 @@ export const payloadReferences = (entry: Entry): string[] => {
         ...entry.payload.supportedBy,
         ...entry.payload.contradictedBy,
         ...entry.payload.resolves,
+        ...entry.payload.rivalOf,
       ];
     case 'evidence':
       return [...entry.payload.supports, ...entry.payload.contradicts];
@@ -96,7 +97,7 @@ export const payloadDigest = (view: BoardView, entry: Entry): string => {
       return `status=${subproblemStatus(view, entry)}`;
     case 'hypothesis':
       // What it claims to have answered is printed only when it claims something.
-      return `confidence=${String(entry.payload.confidence)} supportedBy=${list(h, entry.payload.supportedBy)} contradictedBy=${list(h, entry.payload.contradictedBy)}${entry.payload.resolves.length === 0 ? '' : ` resolves=${list(h, entry.payload.resolves)}`}`;
+      return `confidence=${String(entry.payload.confidence)} supportedBy=${list(h, entry.payload.supportedBy)} contradictedBy=${list(h, entry.payload.contradictedBy)}${entry.payload.resolves.length === 0 ? '' : ` resolves=${list(h, entry.payload.resolves)}`}${entry.payload.rivalOf.length === 0 ? '' : ` rivalOf=${list(h, entry.payload.rivalOf)}`}`;
     case 'evidence':
       return `source=${entry.payload.source} supports=${list(h, entry.payload.supports)} contradicts=${list(h, entry.payload.contradicts)}`;
     case 'critique':
@@ -191,8 +192,11 @@ const roleExtras = (view: BoardView, role: AgentRole): Entry[] => {
           ...view.evidenceContradicting(h.id),
           ...view.critiquesOf(h.id),
         ]);
-    case 'researcher':
     case 'solver':
+      // What already stands as the answer to each subproblem: a new hypothesis on one of
+      // them is a new version of it or its rival, and the Solver has to have read it.
+      return view.liveOfType('subproblem').flatMap((s) => [...standingAnswers(view, s)]);
+    case 'researcher':
     case 'critic':
       return [];
   }

@@ -1,6 +1,7 @@
 import { openSubproblems } from '../agents/eligibility';
 import { WRITE_UP_ROLE } from '../agents/write-up';
 import type { BoardView } from '../board/board-view';
+import { newVersionOf } from '../schemas/contribution';
 import {
   createFakeModel,
   type FakeModel,
@@ -138,24 +139,35 @@ export const createScriptedModels = (
         const open = openSubproblems(view);
         const evidence = handlesOf(view, view.liveOfType('evidence'));
         const current = view.liveOfType('hypothesis')[0];
-        // A hypothesis answers the subproblems it names as parents; nobody posts a status.
+        // A hypothesis answers one subproblem by name and any other it lists as a parent
+        // that has no answer yet; nobody posts a status.
         if (current === undefined) {
+          const [first] = handlesOf(view, open);
           return respond([
             {
               type: 'hypothesis',
+              ...(first === undefined ? {} : { answers: first }),
               content: 'Consolidate into a single pnpm monorepo with shared tooling.',
               parents: handlesOf(view, open),
               payload: { confidence: 0.6, supportedBy: evidence, contradictedBy: [] },
             },
           ]);
         }
+        // The stronger version replaces the standing answer to the same subproblem.
+        const [answered] = handlesOf(
+          view,
+          view.liveOfType('subproblem').filter((s) => current.parents.includes(s.id)),
+        );
+        const standing = view.handleOf(current.id);
         return respond([
           {
             type: 'hypothesis',
+            ...(answered === undefined || standing === undefined
+              ? { supersedes: standing }
+              : { answers: answered, relation: newVersionOf(standing) }),
             content:
               'Consolidate into a single pnpm monorepo, migrating one team per quarter and keeping deploys independent.',
             parents: handlesOfIds(view, current.parents),
-            supersedes: view.handleOf(current.id),
             payload: { confidence: 0.85, supportedBy: evidence, contradictedBy: [] },
           },
         ]);

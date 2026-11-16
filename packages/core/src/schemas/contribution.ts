@@ -1,6 +1,6 @@
 import { z, type ZodType } from 'zod';
 
-import { IdSchema } from './common';
+import { ConfidenceSchema, IdSchema } from './common';
 import {
   critiquePayloadSchema,
   decisionPayloadSchema,
@@ -41,12 +41,31 @@ export interface ReferenceSchemas<P extends boolean = boolean> {
    */
   liveOf: Partial<Record<ContributionType, ReferenceSchema>>;
   /**
+   * The critiques a hypothesis may say it resolves: those that still stand. A critique whose
+   * target has been replaced is closed and cannot be claimed. Absent when none stands, and
+   * the schema then has no `resolves` field.
+   */
+  openCritiques?: ReferenceSchema;
+  /**
+   * For the role that answers subproblems: every live subproblem and what stands as its
+   * answer. When present (and not empty) a hypothesis is posted as an answer to one of
+   * them (`answerSchemas`). Absent for stored references and for a board with no subproblem.
+   */
+  answers?: readonly AnswerRefs[];
+  /**
    * Long-form content (the synthesis) as an array of paragraphs the controller joins with a
    * blank line: the shape a model answers against, because a local model under a JSON
    * `format` may never emit a line break inside a string (ADR-0008, third amendment). The
    * stored shape is one markdown string.
    */
   paragraphs: P;
+}
+
+/** A live subproblem and the hypotheses that stand as its answer, by handle. */
+export interface AnswerRefs {
+  subproblem: string;
+  /** Each standing hypothesis with the open critiques against it that the agent's view names. */
+  standing: readonly { hypothesis: string; openCritiques: readonly string[] }[];
 }
 
 /** The shape a model answers against: handle references, long-form content as paragraphs. */
@@ -58,6 +77,7 @@ export type StoredReferenceSchemas = ReferenceSchemas<false>;
 export const UUID_REFERENCES: StoredReferenceSchemas = {
   any: IdSchema,
   liveOf: Object.fromEntries(CONTRIBUTION_TYPES.map((type) => [type, IdSchema])),
+  openCritiques: IdSchema,
   paragraphs: false,
 };
 
@@ -89,12 +109,100 @@ const contributionOf = <T extends ContributionType, P extends ZodType, C extends
   return (live === undefined ? full.omit({ supersedes: true }) : full) as typeof full;
 };
 
-// A hypothesis may name the critiques it resolves, and only live critiques: with none in
-// view the field is left out of the schema, as `supersedes` is, so a model cannot invent one.
+// A hypothesis may name the critiques it resolves, and only critiques that still stand:
+// with none in view the field is left out of the schema, as `supersedes` is, so a model
+// cannot invent one or claim one that is already closed. `rivalOf` is the controller's to
+// stamp: the shape a model answers against does not have it.
 const hypothesisPayloadOf = (refs: ReferenceSchemas) => {
-  const critiques = refs.liveOf.critique;
+  const critiques = refs.openCritiques;
   const full = hypothesisPayloadSchema(refs.any, critiques ?? refs.any);
-  return (critiques === undefined ? full.omit({ resolves: true }) : full) as typeof full;
+  const claimable = (critiques === undefined ? full.omit({ resolves: true }) : full) as typeof full;
+  return (refs.paragraphs ? claimable.omit({ rivalOf: true }) : claimable) as typeof full;
+};
+
+// ── A hypothesis as an answer to a subproblem ────────────────────────────────────────────
+//
+// A subproblem takes one answer. A hypothesis posted on a subproblem that already has a
+// standing one either replaces it or is declared its rival (docs/PLAN.md §2.1), and the
+// schema is where that is made unavoidable: one variant per live subproblem, told apart by
+// `answers`, whose `relation` admits only that subproblem's standing hypotheses and
+// "rival", and whose `resolves` admits only the open critiques against them. `answers` and
+// `relation` come before the content, so a provider that decodes against the schema has
+// settled what the hypothesis is before it writes it.
+//
+// - no standing hypothesis: the variant has no `relation`; the hypothesis is the first answer;
+// - exactly one: `relation` is optional, and leaving it out means a new version of that one
+//   (the controller links it; models leave optional fields out, and this is the safe reading);
+// - two or more (rivals not yet decided between): `relation` is required.
+//
+// In the rehearsals of 2026-11-16 the local Solver, free to set `supersedes` or not, left
+// 15 of 93 hypotheses standing beside the ones they rewrote.
+
+/** `relation` value for a hypothesis that competes with the standing answer instead of replacing it. */
+export const RELATION_RIVAL = 'rival';
+const NEW_VERSION_OF = 'new version of ';
+/** `relation` value for a hypothesis that replaces the standing hypothesis with this handle. */
+export const newVersionOf = (handle: string): string => `${NEW_VERSION_OF}${handle}`;
+/** What a `relation` value says: a rival, or the handle of the hypothesis it replaces. */
+export const parseRelation = (relation: string): { rival: true } | { rival: false; of: string } =>
+  relation === RELATION_RIVAL
+    ? { rival: true }
+    : {
+        rival: false,
+        of: relation.startsWith(NEW_VERSION_OF) ? relation.slice(NEW_VERSION_OF.length) : relation,
+      };
+
+/** A hypothesis as a model posts it in answer to a subproblem, before `resolveHandles`. */
+export interface ModelAnswer {
+  type: 'hypothesis';
+  /** The handle of the subproblem it answers. */
+  answers: string;
+  relation?: string | undefined;
+  content: string;
+  parents: string[];
+  /** Not in the schema: what it replaces is said by `relation`. Here so the union reads uniformly. */
+  supersedes?: undefined;
+  payload: {
+    confidence: number;
+    supportedBy: string[];
+    contradictedBy: string[];
+    resolves?: string[] | undefined;
+  };
+}
+
+const answerSchema = (refs: ModelReferenceSchemas, slot: AnswerRefs) => {
+  const relation = z.enum([
+    ...slot.standing.map((standing) => newVersionOf(standing.hypothesis)),
+    RELATION_RIVAL,
+  ]);
+  const critiques = slot.standing.flatMap((standing) => standing.openCritiques);
+  return z.object({
+    type: z.literal('hypothesis'),
+    answers: z.literal(slot.subproblem),
+    ...(slot.standing.length === 0
+      ? {}
+      : { relation: slot.standing.length === 1 ? relation.optional() : relation }),
+    content: ContentSchema,
+    parents: z.array(refs.any),
+    payload: z.object({
+      confidence: ConfidenceSchema,
+      supportedBy: z.array(refs.any),
+      contradictedBy: z.array(refs.any),
+      ...(critiques.length === 0 ? {} : { resolves: z.array(z.enum(critiques)).optional() }),
+    }),
+  });
+};
+
+/**
+ * The schema of one hypothesis posted as an answer: a union over `refs.answers`, or
+ * undefined when the board has no live subproblem to answer (the caller then falls back to
+ * the plain hypothesis shape).
+ */
+export const answerSchemas = (refs: ModelReferenceSchemas): ZodType<ModelAnswer> | undefined => {
+  const [first, ...rest] = (refs.answers ?? []).map((slot) => answerSchema(refs, slot));
+  if (first === undefined) return undefined;
+  const schema = rest.length === 0 ? first : z.discriminatedUnion('answers', [first, ...rest]);
+  return schema as unknown as ZodType<ModelAnswer>;
 };
 
 // A critique closes when what it attacks is replaced (docs/PLAN.md §2.1), not on its
@@ -173,7 +281,7 @@ export type ContributionOf<T extends ContributionType> = Extract<Contribution, {
 
 /** A contribution as a model returns it: references by handle, synthesis content in paragraphs. */
 export const ModelContributionSchema = contributionSchema(UUID_MODEL_REFERENCES);
-export type ModelContribution = z.infer<typeof ModelContributionSchema>;
+export type ModelContribution = z.infer<typeof ModelContributionSchema> | ModelAnswer;
 export type ModelContributionOf<T extends ContributionType> = Extract<
   ModelContribution,
   { type: T }

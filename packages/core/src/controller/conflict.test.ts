@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { isDeclaredRival, rejectedHypothesisIds, standingAnswers } from '../agents/eligibility';
 import { BoardFixture } from '../testing/board-fixture';
 import { ConflictTracker, conflictKey, detectConflicts, isDecided } from './conflict';
 
@@ -95,5 +96,84 @@ describe('isDecided, either way round', () => {
     const [conflict] = detectConflicts(fx.view());
     expect(conflict).toEqual({ a: h1.id, b: h2.id, via: 'contradictedBy' });
     expect(conflict !== undefined && isDecided(fx.view(), conflict)).toBe(true);
+  });
+});
+
+describe('declared rivals', () => {
+  // One subproblem, its answer, and a second hypothesis posted as that answer's rival.
+  const rivals = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const subproblem = fx.entry('subproblem', { status: 'open' });
+    fx.startRound(2);
+    const first = fx.entry('hypothesis', hyp(), { parents: [subproblem.id] });
+    fx.startRound(3);
+    const rival = fx.entry(
+      'hypothesis',
+      { ...hyp(), rivalOf: [first.id] },
+      { parents: [subproblem.id] },
+    );
+    return { fx, subproblem, first, rival };
+  };
+
+  it('are a conflict while both stand', () => {
+    const { fx, subproblem, first, rival } = rivals();
+    const [conflict] = detectConflicts(fx.view());
+    expect(conflict).toMatchObject({ a: first.id, b: rival.id, via: 'rival' });
+    expect(standingAnswers(fx.view(), subproblem)).toHaveLength(2);
+    expect(isDeclaredRival(fx.view(), rival.id)).toBe(true);
+    expect(isDeclaredRival(fx.view(), first.id)).toBe(false);
+  });
+
+  it('stay the same conflict when either side is replaced by a new version', () => {
+    const { fx, first, rival } = rivals();
+    const before = detectConflicts(fx.view()).map(conflictKey);
+    fx.startRound(4);
+    const firstAgain = fx.entry('hypothesis', hyp(), { supersedes: first.id });
+    const rivalAgain = fx.entry('hypothesis', hyp(), { supersedes: rival.id });
+    const [conflict] = detectConflicts(fx.view());
+    // The pair is the two new versions; the key is the two lines.
+    expect([conflict?.a, conflict?.b].sort()).toEqual([firstAgain.id, rivalAgain.id].sort());
+    expect(detectConflicts(fx.view()).map(conflictKey)).toEqual(before);
+    expect(isDeclaredRival(fx.view(), rivalAgain.id)).toBe(true);
+
+    // So the Critic is not forced again for a conflict it has already addressed.
+    const tracker = new ConflictTracker();
+    const { fx: fresh, first: a } = rivals();
+    expect(tracker.assess(fresh.view(), new Set([a.id]))).toMatchObject({
+      criticForced: false,
+      decisionRequired: true,
+    });
+    fresh.startRound(4);
+    fresh.entry('hypothesis', hyp(), { supersedes: a.id });
+    expect(tracker.assess(fresh.view(), new Set())).toMatchObject({
+      criticForced: false,
+      decisionRequired: true,
+    });
+  });
+
+  it('are settled by a decision, which takes the rejected line and its later versions out', () => {
+    const { fx, subproblem, first, rival } = rivals();
+    fx.startRound(4);
+    // The Solver posts a new version of the rival in the round the decision rejects it.
+    const rivalAgain = fx.entry('hypothesis', hyp(), { supersedes: rival.id });
+    fx.entry('decision', { chosen: first.id, rejected: [rival.id], rationale: 'Better backed.' });
+    const view = fx.view();
+    expect([...rejectedHypothesisIds(view)].sort()).toEqual([rival.id, rivalAgain.id].sort());
+    expect(standingAnswers(view, subproblem).map((h) => h.id)).toEqual([first.id]);
+    expect(detectConflicts(view)).toEqual([]);
+    expect(new ConflictTracker().assess(view, new Set())).toMatchObject({
+      criticForced: false,
+      decisionRequired: false,
+    });
+  });
+
+  it('are no conflict once the rivalled answer is gone', () => {
+    const { fx, subproblem, first, rival } = rivals();
+    fx.startRound(4);
+    fx.entry('decision', { chosen: rival.id, rejected: [first.id], rationale: 'Better backed.' });
+    expect(detectConflicts(fx.view())).toEqual([]);
+    expect(standingAnswers(fx.view(), subproblem).map((h) => h.id)).toEqual([rival.id]);
   });
 });

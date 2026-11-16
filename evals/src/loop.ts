@@ -1,5 +1,7 @@
 import {
+  isDeclaredRival,
   rejectedHypothesisIds,
+  standingAnswers,
   subproblemStatus,
   type BoardEvent,
   type BoardView,
@@ -46,6 +48,18 @@ export interface LoopFigures {
   subproblems: Record<SubproblemStatus, number>;
   /** Hypotheses a decision rejected. */
   rejectedHypotheses: number;
+  /** Hypotheses posted as a declared rival to the standing answer of their subproblem. */
+  rivals: number;
+  /**
+   * Hypotheses that name critiques they resolve and supersede nothing. A critique is
+   * answered by the version that replaces what it attacks, so this should be 0.
+   */
+  claimsWithoutSuperseding: number;
+  /**
+   * Live subproblems that ended with more than one standing answer not posted as a rival:
+   * an answer rewritten beside the old one instead of replacing it. Should be 0.
+   */
+  subproblemsWithSecondAnswer: number;
 }
 
 export const loopFigures = (
@@ -73,12 +87,23 @@ export const loopFigures = (
     drafts: 0,
     subproblems: { open: 0, claimed: 0, done: 0 },
     rejectedHypotheses: rejected.size,
+    rivals: 0,
+    claimsWithoutSuperseding: 0,
+    subproblemsWithSecondAnswer: 0,
   };
   for (const entry of view.entries) {
     if (entry.type === 'decision') figures.decisions += 1;
     if (entry.type === 'synthesis' && entry.payload.stage === 'draft') figures.drafts += 1;
     if (entry.type === 'subproblem' && view.isLive(entry.id)) {
       figures.subproblems[subproblemStatus(view, entry)] += 1;
+      const undeclared = standingAnswers(view, entry).filter((h) => !isDeclaredRival(view, h.id));
+      if (undeclared.length > 1) figures.subproblemsWithSecondAnswer += 1;
+    }
+    if (entry.type === 'hypothesis') {
+      if (entry.payload.rivalOf.length > 0) figures.rivals += 1;
+      if (entry.payload.resolves.length > 0 && entry.supersedes === undefined) {
+        figures.claimsWithoutSuperseding += 1;
+      }
     }
     if (entry.type !== 'critique') continue;
     figures.critiques.raised += 1;

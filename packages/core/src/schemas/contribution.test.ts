@@ -3,11 +3,17 @@ import { z } from 'zod';
 
 import { sequentialId } from '../testing/sequential-id-generator';
 import {
+  answerSchemas,
   CONTRIBUTION_TYPES,
   ContributionSchema,
   contributionSchema,
   contributionSchemas,
+  newVersionOf,
+  parseRelation,
+  RELATION_RIVAL,
   UUID_REFERENCES,
+  type AnswerRefs,
+  type ModelReferenceSchemas,
 } from './contribution';
 
 const id = sequentialId;
@@ -182,15 +188,17 @@ describe('the critiques a hypothesis may say it resolves', () => {
     },
   });
 
-  it('are an enum of the live critiques in view', () => {
+  it('are an enum of the critiques in view that still stand', () => {
     const schema = contributionSchemas({
       any: z.enum(['P1', 'H1', 'C1', 'C2']),
-      liveOf: { hypothesis: z.enum(['H1']), critique: z.enum(['C2']) },
+      // Both critiques are live entries; only C2 still stands against something.
+      liveOf: { hypothesis: z.enum(['H1']), critique: z.enum(['C1', 'C2']) },
+      openCritiques: z.enum(['C2']),
       paragraphs: true,
     }).hypothesis;
     expect(schema.safeParse(hypothesis(['C2'])).success).toBe(true);
     expect(schema.safeParse(hypothesis()).success).toBe(true);
-    // C1 is on the board but not live; H1 is not a critique.
+    // C1 is on the board but what it attacked has been replaced; H1 is not a critique.
     expect(schema.safeParse(hypothesis(['C1'])).success).toBe(false);
     expect(schema.safeParse(hypothesis(['H1'])).success).toBe(false);
     expect(JSON.stringify(z.toJSONSchema(schema))).toContain('"resolves"');
@@ -210,5 +218,115 @@ describe('the critiques a hypothesis may say it resolves', () => {
   it('stay optional on a contribution, so a model that leaves the field out is valid', () => {
     const stored = ContributionSchema.parse({ ...hypothesis(), parents: [] });
     expect(stored.type === 'hypothesis' && stored.payload.resolves).toBeUndefined();
+  });
+});
+
+describe('a hypothesis posted as an answer to a subproblem', () => {
+  const refs = (answers: AnswerRefs[]): ModelReferenceSchemas => ({
+    any: z.enum(['P1', 'S1', 'S2', 'H1', 'H2', 'E1', 'C1', 'C2']),
+    liveOf: {},
+    answers,
+    paragraphs: true,
+  });
+  const answer = (extra: object = {}) => ({
+    type: 'hypothesis',
+    answers: 'S1',
+    content: 'An answer.',
+    parents: [],
+    payload: { confidence: 0.5, supportedBy: [], contradictedBy: [] },
+    ...extra,
+  });
+  const schemaFor = (answers: AnswerRefs[]) => {
+    const schema = answerSchemas(refs(answers));
+    if (schema === undefined) throw new Error('no schema');
+    return schema;
+  };
+
+  it('has no schema when the board has no subproblem to answer', () => {
+    expect(answerSchemas(refs([]))).toBeUndefined();
+    expect(answerSchemas({ any: z.enum(['P1']), liveOf: {}, paragraphs: true })).toBeUndefined();
+  });
+
+  it('is a first answer, with nothing to relate to, where nothing stands yet', () => {
+    const schema = schemaFor([{ subproblem: 'S1', standing: [] }]);
+    expect(JSON.stringify(z.toJSONSchema(schema))).not.toContain('relation');
+    // A relation sent anyway is not kept: there is nothing it could mean.
+    const parsed = schema.parse(answer({ relation: 'rival' }));
+    expect('relation' in parsed).toBe(false);
+    expect(schema.safeParse(answer({ answers: 'S2' })).success).toBe(false);
+    expect(schema.safeParse(answer({ answers: undefined })).success).toBe(false);
+  });
+
+  it('may leave the relation out where one hypothesis stands, and may only name that one or "rival"', () => {
+    const schema = schemaFor([
+      { subproblem: 'S1', standing: [{ hypothesis: 'H1', openCritiques: [] }] },
+    ]);
+    expect(schema.safeParse(answer()).success).toBe(true);
+    expect(schema.safeParse(answer({ relation: newVersionOf('H1') })).success).toBe(true);
+    expect(schema.safeParse(answer({ relation: RELATION_RIVAL })).success).toBe(true);
+    expect(schema.safeParse(answer({ relation: newVersionOf('H2') })).success).toBe(false);
+    expect(schema.safeParse(answer({ relation: 'H1' })).success).toBe(false);
+  });
+
+  it('must say which where two stand', () => {
+    const schema = schemaFor([
+      {
+        subproblem: 'S1',
+        standing: [
+          { hypothesis: 'H1', openCritiques: [] },
+          { hypothesis: 'H2', openCritiques: [] },
+        ],
+      },
+    ]);
+    expect(schema.safeParse(answer()).success).toBe(false);
+    expect(schema.safeParse(answer({ relation: newVersionOf('H2') })).success).toBe(true);
+    expect(schema.safeParse(answer({ relation: RELATION_RIVAL })).success).toBe(true);
+  });
+
+  it('is told apart by the subproblem it answers: each has its own standing hypotheses and critiques', () => {
+    const schema = schemaFor([
+      { subproblem: 'S1', standing: [{ hypothesis: 'H1', openCritiques: ['C1'] }] },
+      { subproblem: 'S2', standing: [{ hypothesis: 'H2', openCritiques: [] }] },
+    ]);
+    const resolving = (answers: string, resolves: string[]) =>
+      answer({
+        answers,
+        payload: { confidence: 0.5, supportedBy: [], contradictedBy: [], resolves },
+      });
+    expect(schema.safeParse(answer({ relation: newVersionOf('H1') })).success).toBe(true);
+    expect(schema.safeParse(answer({ answers: 'S2', relation: newVersionOf('H1') })).success).toBe(
+      false,
+    );
+    expect(schema.safeParse(resolving('S1', ['C1'])).success).toBe(true);
+    expect(schema.safeParse(resolving('S1', ['C2'])).success).toBe(false);
+    // No open critique against S2's answer: the field is not in that variant at all.
+    const parsed = schema.parse(resolving('S2', ['C1']));
+    expect('resolves' in parsed.payload).toBe(false);
+    // Said before the content is written: which subproblem, then what it replaces.
+    const properties = Object.keys(
+      (z.toJSONSchema(schema) as { oneOf: { properties: object }[] }).oneOf[0]?.properties ?? {},
+    );
+    expect(properties.slice(0, 4)).toEqual(['type', 'answers', 'relation', 'content']);
+  });
+
+  it('reads a relation back', () => {
+    expect(parseRelation(newVersionOf('H12'))).toEqual({ rival: false, of: 'H12' });
+    expect(parseRelation(RELATION_RIVAL)).toEqual({ rival: true });
+  });
+
+  it('keeps rivalOf out of what a model can send, and on what the controller commits', () => {
+    const modelFacing = contributionSchemas({
+      any: z.enum(['P1', 'H1']),
+      liveOf: {},
+      paragraphs: true,
+    }).hypothesis;
+    expect(JSON.stringify(z.toJSONSchema(modelFacing))).not.toContain('rivalOf');
+    const stored = ContributionSchema.parse({
+      type: 'hypothesis',
+      content: 'A rival.',
+      parents: [],
+      payload: { confidence: 0.5, supportedBy: [], contradictedBy: [], rivalOf: [id(2)] },
+    });
+    expect(stored.type === 'hypothesis' && stored.payload.rivalOf).toEqual([id(2)]);
   });
 });

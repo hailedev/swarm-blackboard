@@ -11,7 +11,7 @@ import type {
 import type { AgentRole } from '../schemas/role';
 import type { RunConfig } from '../schemas/run-config';
 import { buildAgentRequest, resolveHandles } from './handles';
-import { withImpliedSupersedes } from './implied-supersedes';
+import { settleAnswers } from './implied-supersedes';
 import { renderRepairPrompt } from './prompt';
 
 // Controller-owned flags the triggers may read (docs/PLAN.md §2.3 steps 7–8).
@@ -106,6 +106,11 @@ export interface AgentResult {
   contributions: readonly Contribution[];
   /** Set when the model returned more than the role may post and the rest was dropped. */
   trimmed?: Trimmed;
+  /**
+   * Hypotheses left out because the subproblem they answer already had its answer and they
+   * neither replaced it nor were declared its rival (agents/implied-supersedes.ts).
+   */
+  secondAnswers?: number;
 }
 
 export interface Trimmed {
@@ -266,8 +271,10 @@ export const createRoleAgent = (
       resolveHandles(object.contributions, view),
     );
     if (!result.ok) return reject(result.error);
-    const kept = keepWithinLimit(definition.limit, result.value);
-    // A hypothesis that names the critiques of one hypothesis is its new version.
-    return ok({ ...kept, contributions: withImpliedSupersedes(view, kept.contributions) });
+    // One answer per subproblem first (a hypothesis replaces the standing one, is its
+    // declared rival, or goes), then the role's limit on what is left.
+    const settled = settleAnswers(view, result.value);
+    const kept = keepWithinLimit(definition.limit, settled.contributions);
+    return ok(settled.dropped === 0 ? kept : { ...kept, secondAnswers: settled.dropped });
   },
 });

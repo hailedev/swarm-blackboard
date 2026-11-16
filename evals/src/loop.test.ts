@@ -128,3 +128,39 @@ describe('loopFigures', () => {
     expect(figures.critiques.open).toEqual({ blocking: 1, major: 0, minor: 0 });
   });
 });
+
+describe('loopFigures: one answer per subproblem', () => {
+  const HYP = { confidence: 0.5, supportedBy: [], contradictedBy: [] };
+
+  it('counts a subproblem left with a second answer nobody declared a rival', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const rewritten = fx.entry('subproblem', { status: 'open' });
+    const contested = fx.entry('subproblem', { status: 'open' });
+    fx.startRound(2);
+    fx.entry('hypothesis', HYP, { parents: [rewritten.id] });
+    const standing = fx.entry('hypothesis', HYP, { parents: [contested.id] });
+    fx.startRound(3);
+    // Rewritten beside the first answer, superseding nothing: the thing the rule forbids.
+    fx.entry('hypothesis', HYP, { parents: [rewritten.id] });
+    // A declared rival is a second answer too, but one a decision will settle.
+    fx.entry('hypothesis', { ...HYP, rivalOf: [standing.id] }, { parents: [contested.id] });
+    const figures = loopFigures(fx.view(), [], []);
+    expect(figures.subproblemsWithSecondAnswer).toBe(1);
+    expect(figures.rivals).toBe(1);
+    expect(figures.claimsWithoutSuperseding).toBe(0);
+  });
+
+  it('counts a hypothesis that names critiques and supersedes nothing', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const target = fx.entry('hypothesis', HYP);
+    const critique = fx.entry('critique', { target: target.id, severity: 'major' });
+    fx.startRound(2);
+    fx.entry('hypothesis', { ...HYP, resolves: [critique.id] });
+    fx.entry('hypothesis', { ...HYP, resolves: [critique.id] }, { supersedes: target.id });
+    expect(loopFigures(fx.view(), [], []).claimsWithoutSuperseding).toBe(1);
+  });
+});

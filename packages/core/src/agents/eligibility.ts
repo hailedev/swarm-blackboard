@@ -1,5 +1,5 @@
 import type { BoardView } from '../board/board-view';
-import type { EntryOf } from '../schemas/entry';
+import type { Entry, EntryOf } from '../schemas/entry';
 import type { CritiqueSeverity, SubproblemStatus } from '../schemas/payloads';
 
 // Pure predicates over the board, one per rule in docs/PLAN.md §2.2.
@@ -28,9 +28,42 @@ export const openCritiquesOf = (
     .critiquesOf(id)
     .filter((c) => c.payload.resolvedBy === undefined && severities.includes(c.payload.severity));
 
-/** Hypotheses a live decision has rejected: no longer candidates for the answer. */
-export const rejectedHypothesisIds = (view: BoardView): ReadonlySet<string> =>
-  new Set(view.liveOfType('decision').flatMap((d) => d.payload.rejected));
+/**
+ * Hypotheses a live decision has rejected, and every later version of them: no longer
+ * candidates for the answer. A decision settles between two lines of answers, not two
+ * entries: the Solver may post a new version of a hypothesis in the very round the
+ * Synthesizer rejects it, and that version is rejected with it.
+ */
+export const rejectedHypothesisIds = (view: BoardView): ReadonlySet<string> => {
+  const rejected = new Set(view.liveOfType('decision').flatMap((d) => d.payload.rejected));
+  if (rejected.size === 0) return rejected;
+  // Commit order: a version always comes after the entry it supersedes.
+  for (const entry of view.entries) {
+    if (
+      entry.type === 'hypothesis' &&
+      entry.supersedes !== undefined &&
+      rejected.has(entry.supersedes)
+    ) {
+      rejected.add(entry.id);
+    }
+  }
+  return rejected;
+};
+
+/**
+ * Whether a critique still stands: nothing has resolved it, it is live, and what it attacks
+ * is live and has not been rejected by a decision. A critique closes when its target is
+ * replaced (docs/PLAN.md §2.1); one that has closed cannot be claimed as resolved again.
+ */
+export const critiqueStands = (
+  view: BoardView,
+  critique: EntryOf<'critique'>,
+  rejected: ReadonlySet<string> = rejectedHypothesisIds(view),
+): boolean =>
+  critique.payload.resolvedBy === undefined &&
+  view.isLive(critique.id) &&
+  view.isLive(critique.payload.target) &&
+  !rejected.has(critique.payload.target);
 
 /** Live hypotheses that are still in the running: no live decision has rejected them. */
 export const standingHypotheses = (view: BoardView): readonly EntryOf<'hypothesis'>[] => {
@@ -74,15 +107,47 @@ export const subproblemStatus = (
   view: BoardView,
   subproblem: EntryOf<'subproblem'>,
 ): SubproblemStatus => {
-  const versions = new Set(view.chain(subproblem.id).map((version) => version.id));
-  const answering = standingHypotheses(view).filter((hypothesis) =>
-    view
-      .chain(hypothesis.id)
-      .some((version) => version.parents.some((parent) => versions.has(parent))),
-  );
+  const answering = standingAnswers(view, subproblem);
   if (answering.length === 0) return subproblem.payload.status;
   return answering.some((h) => openCritiquesOf(view, h.id).length === 0) ? 'done' : 'claimed';
 };
+
+/**
+ * The hypotheses that stand as the answer to a subproblem, in commit order: standing
+ * hypotheses of which some version is parented on some version of the subproblem. One is
+ * the rule; more than one are rivals a decision has yet to settle between.
+ */
+export const standingAnswers = (
+  view: BoardView,
+  subproblem: EntryOf<'subproblem'>,
+): readonly EntryOf<'hypothesis'>[] => {
+  const versions = new Set(view.chain(subproblem.id).map((version) => version.id));
+  return standingHypotheses(view).filter((hypothesis) =>
+    lineOf(view, hypothesis.id).some((version) =>
+      version.parents.some((parent) => versions.has(parent)),
+    ),
+  );
+};
+
+/**
+ * An entry and everything it supersedes, newest first: its own line back to the root.
+ * Unlike `view.chain`, which follows the latest branch forward, this never leaves the line.
+ */
+export const lineOf = (view: BoardView, id: string): readonly Entry[] => {
+  const line: Entry[] = [];
+  let current = view.byId(id);
+  while (current !== undefined && !line.includes(current)) {
+    line.push(current);
+    current = current.supersedes === undefined ? undefined : view.byId(current.supersedes);
+  }
+  return line;
+};
+
+/** Whether a hypothesis, in any version of its line, was posted as a rival answer. */
+export const isDeclaredRival = (view: BoardView, hypothesisId: string): boolean =>
+  lineOf(view, hypothesisId).some(
+    (version) => version.type === 'hypothesis' && version.payload.rivalOf.length > 0,
+  );
 
 /** Live subproblems nothing answers yet. */
 export const openSubproblems = (view: BoardView): readonly EntryOf<'subproblem'>[] =>

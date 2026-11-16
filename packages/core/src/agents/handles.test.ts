@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import type { ModelContribution } from '../schemas/contribution';
+import type { ModelAnswer, ModelContribution } from '../schemas/contribution';
 import { agentContext } from '../testing/agent-context';
 import { BoardFixture } from '../testing/board-fixture';
 import { testRolePrompts } from '../testing/role-prompts';
@@ -98,7 +98,7 @@ describe('buildAgentRequest', () => {
     expect(uuid.success).toBe(false);
   });
 
-  it('lets the solver supersede a live hypothesis, and post nothing but hypotheses', () => {
+  it('has the solver post each hypothesis as an answer to a subproblem, and nothing but hypotheses', () => {
     const board = midRunBoard();
     const view = board.fx.view();
     const built = buildAgentRequest(
@@ -114,19 +114,30 @@ describe('buildAgentRequest', () => {
     if (!built.ok) throw new Error('no handles');
     const hypothesis = {
       type: 'hypothesis',
+      answers: 'S2',
       content: 'h',
       parents: ['S2'],
       payload: { confidence: 0.5, supportedBy: ['E1'], contradictedBy: [] },
     };
-    expect(
-      built.value.schema.safeParse({ contributions: [{ ...hypothesis, supersedes: 'H1' }] })
-        .success,
-    ).toBe(true);
-    // A hypothesis can only supersede a hypothesis that is live.
-    expect(
-      built.value.schema.safeParse({ contributions: [{ ...hypothesis, supersedes: 'S2' }] })
-        .success,
-    ).toBe(false);
+    const accepts = (contribution: object): boolean =>
+      built.value.schema.safeParse({ contributions: [contribution] }).success;
+    // H1 stands as the answer to S2: a new version of it, its rival, or (unsaid) a new version.
+    expect(accepts({ ...hypothesis, relation: 'new version of H1' })).toBe(true);
+    expect(accepts({ ...hypothesis, relation: 'rival' })).toBe(true);
+    expect(accepts(hypothesis)).toBe(true);
+    // Only what stands for that subproblem can be replaced.
+    expect(accepts({ ...hypothesis, relation: 'new version of S2' })).toBe(false);
+    expect(accepts({ ...hypothesis, relation: 'new version of H9' })).toBe(false);
+    // It has to say which subproblem it answers, and one the board has.
+    expect(accepts({ ...hypothesis, answers: undefined })).toBe(false);
+    expect(accepts({ ...hypothesis, answers: 'S9' })).toBe(false);
+    // The critiques it may claim are the open ones against that subproblem's answers.
+    expect(accepts({ ...hypothesis, payload: { ...hypothesis.payload, resolves: ['C1'] } })).toBe(
+      true,
+    );
+    expect(accepts({ ...hypothesis, payload: { ...hypothesis.payload, resolves: ['E1'] } })).toBe(
+      false,
+    );
     // Where a subproblem stands is read off the board: the Solver has no status to post.
     const claim = {
       type: 'subproblem',
@@ -256,6 +267,124 @@ describe('resolveHandles', () => {
       'contributions.0.supersedes: unknown handle "H4"',
       'contributions.0.parents.1: unknown handle "S9"',
       'contributions.0.payload.contradictedBy.0: unknown handle "E8"',
+    ]);
+  });
+});
+
+describe('answers to a subproblem, from handles to links', () => {
+  // S1 answered by H1 (one major critique, C1), S2 by H2 (a minor one, C2), S3 by nothing.
+  const answered = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const s1 = fx.entry('subproblem', { status: 'open' });
+    const s2 = fx.entry('subproblem', { status: 'open' });
+    const s3 = fx.entry('subproblem', { status: 'open' });
+    fx.startRound(2);
+    const h1 = fx.entry('hypothesis', HYP, { parents: [s1.id] });
+    const h2 = fx.entry('hypothesis', HYP, { parents: [s2.id] });
+    fx.startRound(3);
+    const c1 = fx.entry('critique', { target: h1.id, severity: 'major' });
+    const c2 = fx.entry('critique', { target: h2.id, severity: 'minor' });
+    return { fx, s1, s2, s3, h1, h2, c1, c2 };
+  };
+  const HYP = { confidence: 0.5, supportedBy: [], contradictedBy: [] };
+  const answer = (extra: Partial<ModelAnswer>): ModelAnswer => ({
+    type: 'hypothesis',
+    answers: 'S1',
+    content: 'An answer.',
+    parents: [],
+    payload: HYP,
+    ...extra,
+  });
+  const resolveOne = (fx: BoardFixture, contribution: ModelAnswer) => {
+    const resolved = resolveHandles([contribution], fx.view());
+    if (!resolved.ok) throw new Error(resolved.error.join('; '));
+    const [first] = resolved.value;
+    if (first?.type !== 'hypothesis') throw new Error('not a hypothesis');
+    return first;
+  };
+
+  it('names, per subproblem, what stands and the open critiques against it', () => {
+    const { fx } = answered();
+    const refs = referenceSchemasFor(fx.view(), ['P1', 'S1', 'S2', 'S3', 'H1', 'H2', 'C1', 'C2']);
+    expect(refs.answers).toEqual([
+      { subproblem: 'S1', standing: [{ hypothesis: 'H1', openCritiques: ['C1'] }] },
+      { subproblem: 'S2', standing: [{ hypothesis: 'H2', openCritiques: ['C2'] }] },
+      { subproblem: 'S3', standing: [] },
+    ]);
+    expect(enumValues(must(refs.openCritiques))).toEqual(['C1', 'C2']);
+  });
+
+  it('offers no critique whose target has been replaced', () => {
+    const { fx, h1 } = answered();
+    fx.startRound(4);
+    fx.entry('hypothesis', HYP, { supersedes: h1.id });
+    const refs = referenceSchemasFor(fx.view(), ['S1', 'S2', 'H2', 'H3', 'C1', 'C2']);
+    // C1 is still a live entry, and may be superseded by its author, but it is closed.
+    expect(enumValues(must(refs.liveOf.critique))).toEqual(['C1', 'C2']);
+    expect(enumValues(must(refs.openCritiques))).toEqual(['C2']);
+    expect(refs.answers?.[0]).toEqual({
+      subproblem: 'S1',
+      standing: [{ hypothesis: 'H3', openCritiques: [] }],
+    });
+  });
+
+  it('makes a stated new version supersede, with the subproblem first among its parents', () => {
+    const { fx, s1, h1, c1 } = answered();
+    const resolved = resolveOne(
+      fx,
+      answer({
+        relation: 'new version of H1',
+        parents: ['P1', 'S1'],
+        payload: { ...HYP, resolves: ['C1'] },
+      }),
+    );
+    expect(resolved.supersedes).toBe(h1.id);
+    expect(resolved.parents).toEqual([s1.id, must(fx.view().problem()).id]);
+    expect(resolved.payload.resolves).toEqual([c1.id]);
+    expect(resolved.payload.rivalOf).toBeUndefined();
+  });
+
+  it('links a hypothesis that states nothing to the one answer that stands', () => {
+    const { fx, h1 } = answered();
+    expect(resolveOne(fx, answer({})).supersedes).toBe(h1.id);
+  });
+
+  it('records a declared rival against what stood, superseding and resolving nothing', () => {
+    const { fx, s1, h1 } = answered();
+    const resolved = resolveOne(
+      fx,
+      answer({ relation: 'rival', payload: { ...HYP, resolves: ['C1'] } }),
+    );
+    expect(resolved.supersedes).toBeUndefined();
+    expect(resolved.payload.rivalOf).toEqual([h1.id]);
+    expect(resolved.payload.resolves).toBeUndefined();
+    expect(resolved.parents).toEqual([s1.id]);
+  });
+
+  it('posts a first answer as it is', () => {
+    const { fx, s3 } = answered();
+    const resolved = resolveOne(fx, answer({ answers: 'S3' }));
+    expect(resolved.supersedes).toBeUndefined();
+    expect(resolved.parents).toEqual([s3.id]);
+    expect(resolved.payload.rivalOf).toBeUndefined();
+  });
+
+  it('keeps only the critiques of the hypothesis the new version replaces', () => {
+    const { fx, c1 } = answered();
+    const resolved = resolveOne(
+      fx,
+      answer({ relation: 'new version of H1', payload: { ...HYP, resolves: ['C1', 'C2'] } }),
+    );
+    expect(resolved.payload.resolves).toEqual([c1.id]);
+  });
+
+  it('reports a subproblem the board does not have', () => {
+    const { fx } = answered();
+    const resolved = resolveHandles([answer({ answers: 'S9' })], fx.view());
+    expect(!resolved.ok && resolved.error).toEqual([
+      'contributions.0.answers: unknown handle "S9"',
     ]);
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Contribution } from '../schemas/contribution';
 import { BoardFixture } from '../testing/board-fixture';
-import { withImpliedSupersedes } from './implied-supersedes';
+import { settleAnswers, withImpliedSupersedes } from './implied-supersedes';
 
 // Two hypotheses, each with a critique against it.
 const contested = () => {
@@ -100,5 +100,104 @@ describe('withImpliedSupersedes', () => {
     fx.entry('decision', { chosen: other.id, rejected: [second.id], rationale: 'Better backed.' });
     const [rejected] = withImpliedSupersedes(fx.view(), [hypothesis([onSecond.id])]);
     expect(rejected?.supersedes).toBeUndefined();
+  });
+});
+
+describe('settleAnswers: one answer per subproblem', () => {
+  const HYP = { confidence: 0.5, supportedBy: [], contradictedBy: [] };
+  // S1 answered by H1, S2 by H2, S3 by nothing.
+  const answered = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const s1 = fx.entry('subproblem', { status: 'open' });
+    const s2 = fx.entry('subproblem', { status: 'open' });
+    const s3 = fx.entry('subproblem', { status: 'open' });
+    fx.startRound(2);
+    const h1 = fx.entry('hypothesis', HYP, { parents: [s1.id] });
+    const h2 = fx.entry('hypothesis', HYP, { parents: [s2.id] });
+    return { fx, s1, s2, s3, h1, h2 };
+  };
+  const answerTo = (
+    parents: string[],
+    extra: { supersedes?: string; rivalOf?: string[]; content?: string } = {},
+  ): Contribution => ({
+    type: 'hypothesis',
+    content: extra.content ?? 'An answer.',
+    parents,
+    ...(extra.supersedes === undefined ? {} : { supersedes: extra.supersedes }),
+    payload: { ...HYP, ...(extra.rivalOf === undefined ? {} : { rivalOf: extra.rivalOf }) },
+  });
+
+  it('lets a subproblem with no answer take one, and only one, from a reply', () => {
+    const { fx, s3 } = answered();
+    const settled = settleAnswers(fx.view(), [
+      answerTo([s3.id], { content: 'first' }),
+      answerTo([s3.id], { content: 'second' }),
+    ]);
+    expect(settled.contributions.map((c) => c.content)).toEqual(['first']);
+    expect(settled.dropped).toBe(1);
+  });
+
+  it('links a hypothesis that says nothing to the one answer its subproblem has', () => {
+    const { fx, s1, h1 } = answered();
+    const settled = settleAnswers(fx.view(), [answerTo([s1.id])]);
+    expect(settled.contributions[0]?.supersedes).toBe(h1.id);
+    expect(settled.dropped).toBe(0);
+  });
+
+  it('keeps one new version of a hypothesis per reply', () => {
+    const { fx, s1, h1 } = answered();
+    const settled = settleAnswers(fx.view(), [
+      answerTo([s1.id], { supersedes: h1.id, content: 'first' }),
+      answerTo([s1.id], { supersedes: h1.id, content: 'second' }),
+      // Says nothing: the one answer of S1 is already replaced by this reply.
+      answerTo([s1.id], { content: 'third' }),
+    ]);
+    expect(settled.contributions.map((c) => c.content)).toEqual(['first']);
+    expect(settled.dropped).toBe(2);
+  });
+
+  it('keeps a declared rival beside the answer it rivals, and beside its new version', () => {
+    const { fx, s1, h1 } = answered();
+    const settled = settleAnswers(fx.view(), [
+      answerTo([s1.id], { supersedes: h1.id, content: 'new version' }),
+      answerTo([s1.id], { rivalOf: [h1.id], content: 'rival' }),
+    ]);
+    expect(settled.contributions.map((c) => c.content)).toEqual(['new version', 'rival']);
+    expect(settled.dropped).toBe(0);
+  });
+
+  it('strikes a subproblem that already has another answer from the parents', () => {
+    const { fx, s1, s2, s3, h1 } = answered();
+    // A new version of S1's answer that also lists S2 (answered by H2) and S3 (unanswered).
+    const settled = settleAnswers(fx.view(), [
+      answerTo([s1.id, s2.id, s3.id], { supersedes: h1.id }),
+    ]);
+    expect(settled.contributions[0]?.parents).toEqual([s1.id, s3.id]);
+    expect(settled.dropped).toBe(0);
+  });
+
+  it('drops a hypothesis that would stand beside two answers without replacing either or being their rival', () => {
+    const { fx, s1, h1 } = answered();
+    fx.startRound(3);
+    fx.entry('hypothesis', { ...HYP, rivalOf: [h1.id] }, { parents: [s1.id] });
+    const settled = settleAnswers(fx.view(), [answerTo([s1.id])]);
+    expect(settled.contributions).toEqual([]);
+    expect(settled.dropped).toBe(1);
+  });
+
+  it('passes other contributions, and hypotheses that name no subproblem, through', () => {
+    const { fx, h1 } = answered();
+    const critique: Contribution = {
+      type: 'critique',
+      content: 'Wrong.',
+      parents: [h1.id],
+      payload: { target: h1.id, severity: 'minor' },
+    };
+    const loose = answerTo([]);
+    const settled = settleAnswers(fx.view(), [critique, loose, loose]);
+    expect(settled.contributions).toEqual([critique, loose, loose]);
+    expect(settled.dropped).toBe(0);
   });
 });
