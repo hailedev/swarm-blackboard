@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-// Phase 4's smoke test: start a run, see entries appear, pause, inject, stop, and replay
-// it, in a real browser against the server in `--fake` mode. Nothing is called or billed.
+// Phase 4's smoke test: start a run, see entries appear, pause, inject, stop (which ends
+// with the final write-up), and replay it, in a real browser against the server in `--fake`
+// mode. Nothing is called or billed.
 
 const card = (page: Page, handle: string): Locator =>
   page.locator(`[data-testid="entry-card"][data-handle="${handle}"]`);
@@ -58,12 +59,24 @@ test('a run can be started, watched, steered and replayed', async ({ page }) => 
   await expect(detail).toHaveAttribute('data-handle', 'H1');
   await expect(detail.getByTestId('provenance')).toContainText('P1');
 
-  // Stop: the run ends and says why; there is nothing left to steer.
+  // Stop: before the run ends the Synthesizer's model writes the final answer from the
+  // whole board; then the run says why it ended and there is nothing left to steer.
   await page.getByRole('button', { name: 'Stop' }).click();
+  await expect(page.getByTestId('live-feed')).toContainText('Writing the final answer');
   await expect(status(page)).toHaveAttribute('data-status', 'stopped', { timeout: 15_000 });
   await expect(status(page)).toHaveAttribute('data-reason', 'user_stopped');
   await expect(status(page)).toContainText('Stopped — at your request');
   await expect(page.getByTestId('controls')).toContainText('This run has ended');
+  await expect(page.getByTestId('live-feed')).toContainText('Final answer written');
+
+  // The answer is that write-up: the first synthesis on this board, marked final.
+  await page.getByRole('tab', { name: 'Answer' }).click();
+  const answer = page.getByTestId('answer');
+  await expect(answer).toHaveAttribute('data-handle', 'A1');
+  await expect(answer).toHaveAttribute('data-stage', 'final');
+  await expect(answer).toContainText('Final answer');
+  await expect(answer).toContainText('Adopt a single pnpm monorepo');
+  await page.getByRole('tab', { name: 'Board' }).click();
 
   // Replay: after a reload the run is in the list with its reason, and opens from the log.
   await page.reload();
@@ -83,9 +96,9 @@ test('a run can be started, watched, steered and replayed', async ({ page }) => 
   await page.getByRole('button', { name: 'Latest' }).click();
   await expect(card(page, 'H1')).toBeVisible();
 
-  // The trace has the scripted calls behind those rounds.
+  // The trace has the scripted calls behind those rounds, and the write-up after them.
   await page.getByRole('tab', { name: /Trace/ }).click();
-  await expect(page.locator('[data-testid="trace-table"] tbody tr')).toHaveCount(3);
+  await expect(page.locator('[data-testid="trace-table"] tbody tr')).toHaveCount(4);
 });
 
 test('a paid profile cannot start without an explicit yes', async ({ page }) => {

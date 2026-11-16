@@ -110,6 +110,7 @@ export const RunPage = ({ runId }: { runId: string }) => {
             <p className="mt-1 text-xs text-ink-2">
               profile {now.profile?.name ?? 'not recorded'}
               {now.roundInFlight ? ` · round ${String(now.round)} in flight` : ''}
+              {now.writingUp ? ' · writing the final answer' : ''}
               {' · '}
               <span data-testid="stream-state" data-stream={stream.kind}>
                 {stream.kind === 'open'

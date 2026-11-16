@@ -20,8 +20,10 @@ describe('AnswerPanel', () => {
     const html = render(<AnswerPanel view={view} threshold={0.8} onSelect={() => undefined} />);
     expect(elements(html, 'answer')[0]?.['data-handle']).toBe('A4');
     const seen = text(html);
+    // The recorded run predates the final write-up: its answer is the last draft, and says so.
+    expect(elements(html, 'answer')[0]?.['data-stage']).toBe('draft');
     expect(seen).toMatch(
-      /^A4 Version 4 confidence 0\.60 \(the run completes at 0\.80(, and \d+ blocking critiques? (is|are) open)?\) · round 12 · 4 versions /,
+      /^A4 Draft, version 4 confidence 0\.60 \(the run completes at 0\.80(, and \d+ blocking critiques? (is|are) open)?\) · round 12 · 4 versions /,
     );
     expect(seen).toContain('Recommendation:');
     const a4 = view.byHandle('A4');
@@ -29,6 +31,43 @@ describe('AnswerPanel', () => {
     const rests = seen.slice(seen.indexOf('Rests on'));
     for (const cited of a4.payload.cites)
       expect(rests).toContain(view.handleOf(cited) ?? 'missing');
+  });
+
+  it('shows the final write-up as the answer once a run has ended with one', async () => {
+    const run = await scriptedRun(undefined, { writeUp: true });
+    await run.controller.run();
+    const ended = buildBoardView(run.controller.runId, run.events);
+    const html = render(<AnswerPanel view={ended} threshold={0.8} onSelect={() => undefined} />);
+    expect(elements(html, 'answer')[0]).toMatchObject({
+      'data-handle': 'A2',
+      'data-stage': 'final',
+    });
+    const seen = text(html);
+    // Not a version among versions, and no threshold: the run is over.
+    expect(seen).toMatch(
+      /^A2 Final answer written from the whole board when the run ended · confidence 0\.90 · after 1 draft /,
+    );
+    expect(seen).not.toContain('the run completes at');
+    expect(seen).toContain('Assumption: the payback period holds as estimated.');
+    expect(seen.slice(seen.indexOf('Rests on'))).toContain('H2');
+
+    // While the write-up's call is in flight the answer is still the draft.
+    const during = run.events.slice(
+      0,
+      run.events.findIndex((e) => e.type === 'write_up_started') + 1,
+    );
+    const before = render(
+      <AnswerPanel
+        view={buildBoardView(run.controller.runId, during)}
+        threshold={0.8}
+        onSelect={() => undefined}
+      />,
+    );
+    expect(elements(before, 'answer')[0]).toMatchObject({
+      'data-handle': 'A1',
+      'data-stage': 'draft',
+    });
+    expect(text(before)).toMatch(/^A1 Draft, version 1 confidence 0\.90 /);
   });
 
   it('says there is no answer yet, and how one comes about', () => {

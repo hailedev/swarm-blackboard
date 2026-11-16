@@ -508,6 +508,56 @@ describe('the final write-up', () => {
     expect(runStateOf(events)).toMatchObject({ status: 'paused', writingUp: false });
     expect(agentStatesOf(events).every((state) => state.activity !== 'running')).toBe(true);
   });
+
+  it('shows while a paused run is being stopped, on a log the controller wrote', async () => {
+    const run = await scriptedRun(
+      (event, controller) => {
+        if (event.type === 'round_completed' && event.round === 2) controller.requestPause();
+      },
+      { writeUp: true },
+    );
+    await run.controller.run();
+    await run.controller.stop();
+    const at = (type: BoardEvent['type']) =>
+      run.events.slice(0, run.events.findIndex((e) => e.type === type) + 1);
+
+    // The status still reads paused while the call is in flight; the run page says what
+    // is going on, and the Synthesizer is the one at work.
+    const during = at('write_up_started');
+    expect(runStateOf(during)).toMatchObject({ status: 'paused', writingUp: true });
+    expect(
+      agentStatesOf(during)
+        .filter((state) => state.activity === 'running')
+        .map((state) => state.role),
+    ).toEqual(['synthesizer']);
+
+    expect(runStateOf(run.events)).toMatchObject({
+      status: 'stopped',
+      reason: 'user_stopped',
+      writingUp: false,
+    });
+    expect(agentStatesOf(run.events).every((state) => state.activity !== 'running')).toBe(true);
+    // The feed tells it in order, and the answer is the write-up.
+    const view = buildBoardView(run.controller.runId, run.events);
+    expect(
+      feedOf(run.events, view)
+        .slice(-4)
+        .map((line) => line.title),
+    ).toEqual([
+      'Writing the final answer',
+      'A1 · synthesis by synthesizer',
+      'Final answer written',
+      'Stopped — at your request',
+    ]);
+    expect(latestSynthesis(view)?.payload.stage).toBe('final');
+    expect(usageOf(run.events).costUsd).toBeCloseTo(
+      run.events.at(-1)?.type === 'run_terminated'
+        ? (run.events.at(-1) as Extract<BoardEvent, { type: 'run_terminated' }>).totals.usage
+            .costUsd
+        : -1,
+      10,
+    );
+  });
 });
 
 describe('a round the host left in flight', () => {

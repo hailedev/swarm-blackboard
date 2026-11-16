@@ -11,6 +11,7 @@ import {
   ManualClock,
   SequentialIdGenerator,
   testRolePrompts,
+  testWriteUpPrompt,
 } from '@team/core/testing';
 
 // A real controller over the scripted swarm, so UI tests fold logs the controller itself
@@ -26,6 +27,8 @@ export interface ScriptedRun {
 export const scriptedRun = async (
   /** Called after every event, the problem's own included; steer or move the clock here. */
   onEvent?: (event: BoardEvent, controller: Controller, clock: ManualClock) => void,
+  /** `writeUp` ends the run the way the server does: with the final write-up after the last round. */
+  options: { writeUp?: boolean } = {},
 ): Promise<ScriptedRun> => {
   const events: BoardEvent[] = [];
   const clock = new ManualClock();
@@ -40,6 +43,10 @@ export const scriptedRun = async (
     ids: new SequentialIdGenerator(),
     logger: nullLogger,
     agents: createDefaultAgents(models, testRolePrompts()),
+    writeUp:
+      options.writeUp === true
+        ? { model: models.synthesizer, prompt: testWriteUpPrompt() }
+        : undefined,
     onEvent: (event) => {
       events.push(event);
       if (ref.controller !== undefined) onEvent?.(event, ref.controller, clock);

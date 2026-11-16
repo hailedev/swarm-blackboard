@@ -108,6 +108,7 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
         reason = null;
         break;
       case 'run_terminated':
+        writingUp = false;
         status = event.status;
         reason = event.reason;
         break;
@@ -126,7 +127,8 @@ export const runStateOf = (events: readonly BoardEvent[]): RunState | undefined 
     round,
     completedRounds: completed,
     roundInFlight: status === 'running' && round > completed,
-    writingUp: status === 'running' && writingUp,
+    // Also while the status still reads paused: a paused run that is stopped writes up before it ends.
+    writingUp,
   };
 };
 
@@ -260,7 +262,7 @@ export const agentStatesOf = (events: readonly BoardEvent[]): AgentState[] => {
       // In a round, the agents selected for it; after the last one, the Synthesizer's
       // model while it writes the final answer.
       (running && inFlight !== null && state.lastSelectedRound === inFlight) ||
-      (running && writingUp && state.role === 'synthesizer')
+      (writingUp && state.role === 'synthesizer')
         ? 'running'
         : state.failure !== null && state.failure.round === state.lastSelectedRound
           ? 'failed'
