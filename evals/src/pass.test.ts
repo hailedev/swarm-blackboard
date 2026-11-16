@@ -7,7 +7,7 @@ import { createFakeBaseline, createFakeJudge, FAKE_BASELINE_USAGE, FAKE_JUDGE_US
 import { mulberry32 } from './judge';
 import { PassBudget, runPass, type PassDeps, type PassOptions, type SwarmOutcome } from './pass';
 import type { Problem } from './problems';
-import { renderPair, renderReport, selectPairs } from './report';
+import { lowSwarmScores, renderPair, renderReport, selectPairs, wordCount } from './report';
 
 const problem = (id: string): Problem => ({
   id,
@@ -35,14 +35,22 @@ const memoryCache = (): BaselineCache & { records: Map<string, BaselineRecord> }
   };
 };
 
+// A run that ended with its final write-up, unless it has no answer or `overrides` say otherwise.
 const swarmOutcome = (
   id: string,
   costUsd: number,
   answer: string | null = `Swarm answer for ${id}.`,
+  overrides: Partial<SwarmOutcome> = {},
 ): SwarmOutcome => ({
   runId: `run-${id}`,
   answer,
   confidence: answer === null ? null : 0.9,
+  stage: answer === null ? null : 'final',
+  writeUp:
+    answer === null
+      ? null
+      : { maxOutputTokens: 2_048, wordBudget: 650, written: true, costUsd: 0.004 },
+  writeUpFailure: null,
   rounds: 4,
   status: 'completed',
   reason: answer === null ? 'budget_rounds' : 'completed',
@@ -50,6 +58,7 @@ const swarmOutcome = (
   usage: { ...zeroUsage(), inputTokens: 5_000, outputTokens: 1_500, costUsd },
   costUsd,
   elapsedMs: 1_000,
+  ...overrides,
 });
 
 const options = (overrides: Partial<PassOptions> = {}): PassOptions => ({
@@ -86,7 +95,7 @@ const BASELINE_COST =
 const JUDGE_COST = (FAKE_JUDGE_USAGE.inputTokens * 1 + FAKE_JUDGE_USAGE.outputTokens * 5) / 1e6;
 
 describe('runPass', () => {
-  it('runs swarm, baseline and both judging orders per problem, charging the pass for each', async () => {
+  it('runs baseline, swarm and both judging orders per problem, charging the pass for each', async () => {
     const d = deps();
     const pass = await runPass(options(), d);
     expect(pass.results.map((r) => r.problem.id)).toEqual(['one', 'two']);
@@ -140,9 +149,10 @@ describe('runPass', () => {
       },
     });
     const pass = await runPass(options({ capUsd: 0.1, runCapUsd: 0.08 }), d);
-    // Problem one: swarm $0.08 of $0.10, baseline capped at min(0.08, 0.02 left), judge calls fit what remains.
+    // Problem one: the baseline is capped at the run cap, then the swarm at min(0.08, what
+    // the baseline left of $0.10); the judge calls fit what remains.
+    expect(pass.results[0]?.baseline?.capUsd).toBe(0.08);
     expect(caps[0]).toBe(0.08);
-    expect(pass.results[0]?.baseline?.capUsd).toBeCloseTo(0.02, 9);
     // Problem two gets whatever is left, then the pass is out of money.
     expect(caps[1]).toBeLessThan(0.02);
     expect(pass.results.length).toBe(2);
@@ -195,13 +205,76 @@ describe('runPass', () => {
     });
     const pass = await runPass(options(), d);
     expect(pass.results[0]).toMatchObject({ swarm: null, swarmError: 'provider unreachable' });
+    // The baseline comes first, so it was made (and cached) before the swarm failed.
+    expect(pass.results[0]?.baseline).not.toBeNull();
+    expect(pass.results[0]?.judgements).toEqual([]);
     expect(pass.results[1]?.judgements).toEqual([]);
     expect(pass.results[1]?.judgeSkipped).toEqual([
       expect.stringContaining('invalid_output'),
       expect.stringContaining('invalid_output'),
     ]);
     // The failed judge calls still cost tokens, and the pass was charged for them.
-    expect(pass.spentUsd).toBeCloseTo(0.02 + BASELINE_COST + 2 * JUDGE_COST, 9);
+    expect(pass.spentUsd).toBeCloseTo(0.02 + 2 * BASELINE_COST + 2 * JUDGE_COST, 9);
+  });
+
+  it('makes the baseline first and hands its output allowance to the swarm for its write-up', async () => {
+    const order: string[] = [];
+    const allowances: (number | null)[] = [];
+    const baseline = createFakeBaseline(SCENARIO_PRICING);
+    const cache = memoryCache();
+    const d = deps({
+      cache,
+      baselineModel: {
+        ...baseline,
+        generateObject: (request) => {
+          order.push('baseline');
+          return baseline.generateObject(request);
+        },
+      },
+      runSwarm: (p, cap, writeUpMaxOutputTokens) => {
+        order.push('swarm');
+        allowances.push(writeUpMaxOutputTokens);
+        return Promise.resolve(ok(swarmOutcome(p.id, Math.min(0.02, cap))));
+      },
+    });
+    const pass = await runPass(options({ problems: [problem('one')] }), d);
+    expect(order).toEqual(['baseline', 'swarm']);
+    // Under an $0.08 cap the whole 2,048-token allowance fits, and the swarm gets the same.
+    expect(pass.results[0]?.baseline?.maxOutputTokens).toBe(2_048);
+    expect(allowances).toEqual([2_048]);
+    expect(d.lines.join('\n')).toContain('final write-up allowed 2048 output tokens');
+
+    // A cached baseline made under a tighter cap: the swarm is given that record's allowance,
+    // because that is the answer it will be judged against.
+    const stored = cache.records.get('one|fake-baseline');
+    if (stored === undefined) throw new Error('no cached baseline');
+    cache.records.set('one|fake-baseline', { ...stored, maxOutputTokens: 1_200, wordBudget: 400 });
+    await runPass(options({ problems: [problem('one')] }), d);
+    expect(order).toEqual(['baseline', 'swarm', 'swarm']);
+    expect(allowances).toEqual([2_048, 1_200]);
+  });
+
+  it('falls back to what a baseline would have been given, or to the run default', async () => {
+    const allowances: (number | null)[] = [];
+    const runSwarm: PassDeps['runSwarm'] = (p, cap, writeUpMaxOutputTokens) => {
+      allowances.push(writeUpMaxOutputTokens);
+      return Promise.resolve(ok(swarmOutcome(p.id, Math.min(0.001, cap))));
+    };
+    // The baseline's answer fails its schema: no record, but the allowance it was sized for stands.
+    const broken = createFakeModel({
+      id: 'fake-baseline',
+      pricing: SCENARIO_PRICING,
+      script: () => ({ object: { nonsense: true }, usage: FAKE_BASELINE_USAGE }),
+    });
+    const failed = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({ baselineModel: broken, runSwarm }),
+    );
+    expect(failed.results[0]?.baseline).toBeNull();
+    expect(allowances).toEqual([2_048]);
+    // No baseline call fits the cap at all: the swarm keeps its own default.
+    await runPass(options({ problems: [problem('one')], runCapUsd: 0.0001 }), deps({ runSwarm }));
+    expect(allowances).toEqual([2_048, null]);
   });
 
   it('pauses the pass before a problem when the month is spent', async () => {
@@ -318,6 +391,179 @@ describe('report', () => {
     });
     expect(report).toContain('cached baseline was capped at $0.0800');
     expect(report).toContain("this pass's cap is $0.2000");
+  });
+});
+
+describe('report: what each arm wrote, and where the swarm scored low', () => {
+  const local = { alias: 'x', provider: 'ollama' as const, model: 'm' };
+  const meta = {
+    label: 'answers',
+    profile: {
+      name: 'dev',
+      roles: {
+        planner: local,
+        researcher: local,
+        solver: local,
+        critic: local,
+        synthesizer: local,
+      },
+      bidder: null,
+      fallback: null,
+      paid: false,
+    },
+    evalModels: { baseline: local, judge: local },
+    commit: null,
+    baselineModelId: 'fake-baseline',
+    judgeModelId: 'fake-judge',
+  };
+  // A judge that gives both answers the same scores, whatever the order: 1, 3 and 0.
+  const strictJudge = () =>
+    createFakeModel({
+      id: 'fake-judge',
+      pricing: SCENARIO_PRICING,
+      script: () => {
+        const scores = {
+          coverage: { reason: 'Leaves the second half of the question out.', score: 1 },
+          clarity: { reason: 'Clear enough.', score: 3 },
+          honesty: { reason: 'Names no limit at all | not one.', score: 0 },
+        };
+        return {
+          object: { A: scores, B: scores, overall: 'tie', note: 'Much the same.' },
+          usage: FAKE_JUDGE_USAGE,
+        };
+      },
+    });
+
+  it('counts words the way a reader would', () => {
+    expect(wordCount('One two  three.\n\nFour, five!')).toBe(5);
+    expect(wordCount('   ')).toBe(0);
+  });
+
+  it('tabulates the words each arm wrote against the words it was asked for', async () => {
+    const pass = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({
+        runSwarm: (p, cap) =>
+          Promise.resolve(
+            ok(swarmOutcome(p.id, Math.min(0.02, cap), 'One two three four five six seven.')),
+          ),
+      }),
+    );
+    const report = renderReport(pass, meta);
+    expect(report).toContain('## Answers');
+    // The fake baseline writes 31 words; both arms were asked for 650.
+    const baselineWords = wordCount(pass.results[0]?.baseline?.answer ?? '');
+    expect(report).toContain(
+      `| one | final write-up | 7 / 650 | $0.0040 | ${String(baselineWords)} / 650 | complete |`,
+    );
+    expect(report).not.toContain('asked for different lengths');
+    expect(report).not.toContain('is a draft');
+    const pair = selectPairs(pass)[0];
+    if (pair === undefined) throw new Error('no pair');
+    expect(renderPair(pair.result, pair.why)).toContain(
+      '; the final write-up, asked for about 650 words, 7 written._',
+    );
+  });
+
+  it('says so when a draft was judged because the write-up failed, and when the budgets differ', async () => {
+    const pass = await runPass(
+      options({ problems: [problem('one'), problem('two')] }),
+      deps({
+        runSwarm: (p, cap) =>
+          Promise.resolve(
+            ok(
+              p.id === 'one'
+                ? swarmOutcome(p.id, Math.min(0.02, cap), 'Only a draft.', {
+                    stage: 'draft',
+                    writeUp: {
+                      maxOutputTokens: 2_048,
+                      wordBudget: 650,
+                      written: false,
+                      costUsd: 0.001,
+                    },
+                    writeUpFailure: 'invalid_output: cites.0: Invalid option',
+                  })
+                : swarmOutcome(p.id, Math.min(0.02, cap), 'A final answer.', {
+                    writeUp: {
+                      maxOutputTokens: 900,
+                      wordBudget: 300,
+                      written: true,
+                      costUsd: 0.002,
+                    },
+                  }),
+            ),
+          ),
+      }),
+    );
+    const report = renderReport(pass, meta);
+    expect(report).toContain(
+      '| one | **draft** (invalid_output: cites.0: Invalid option) | 3 / 650 | $0.0010 |',
+    );
+    expect(report).toContain(
+      "`one`: the swarm's answer is a draft, not its final write-up (invalid_output: cites.0: Invalid option); the judge scored the draft.",
+    );
+    expect(report).toContain('| two | final write-up | 3 / 300 | $0.0020 |');
+    expect(report).toContain(
+      "`two`: the arms were asked for different lengths, the swarm's write-up for about 300 words and the baseline for about 650.",
+    );
+  });
+
+  it('lists every criterion a judgement gave the swarm 0 or 1 on, with the reason', async () => {
+    const pass = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({ judgeModel: strictJudge() }),
+    );
+    const low = lowSwarmScores(pass);
+    // Two orders, two low criteria each: coverage at 1 and honesty at 0; clarity at 3 is left out.
+    expect(low.map((item) => [item.criterionId, item.swarmScore, item.baselineScore])).toEqual([
+      ['coverage', 1, 1],
+      ['honesty', 0, 0],
+      ['coverage', 1, 1],
+      ['honesty', 0, 0],
+    ]);
+    expect(new Set(low.map((item) => item.shownFirst))).toEqual(new Set(['swarm', 'baseline']));
+    expect(low[0]).toMatchObject({ problemId: 'one', weight: 3 });
+
+    const report = renderReport(pass, meta);
+    expect(report).toContain('## Where the swarm scored 0 or 1');
+    expect(report).toMatch(
+      /- `one` · \*\*coverage\*\* \(weight 3; order A = (swarm|baseline)\): swarm 1, baseline 1\. Leaves the second half of the question out\./,
+    );
+    // A pipe in the judge's words cannot break the list or a table.
+    expect(report).toContain('swarm 0, baseline 0. Names no limit at all \\| not one.');
+    expect(report.indexOf('## Where the swarm scored 0 or 1')).toBeLessThan(
+      report.indexOf('## Pairs written out'),
+    );
+  });
+
+  it('says nowhere when the swarm never scored below 2, and nothing when nothing was judged', async () => {
+    const generous = createFakeModel({
+      id: 'fake-judge',
+      pricing: SCENARIO_PRICING,
+      script: () => {
+        const scores = Object.fromEntries(
+          ['coverage', 'clarity', 'honesty'].map((id) => [id, { reason: 'Good.', score: 2 }]),
+        );
+        return {
+          object: { A: scores, B: scores, overall: 'tie', note: '' },
+          usage: FAKE_JUDGE_USAGE,
+        };
+      },
+    });
+    const judged = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({ judgeModel: generous }),
+    );
+    expect(lowSwarmScores(judged)).toEqual([]);
+    expect(renderReport(judged, meta)).toContain(
+      'Nowhere: the swarm scored 2 or 3 on every criterion of every judgement.',
+    );
+    const unjudged = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({ runSwarm: (p) => Promise.resolve(ok(swarmOutcome(p.id, 0.02, null))) }),
+    );
+    expect(renderReport(unjudged, meta)).not.toContain('## Where the swarm scored 0 or 1');
+    expect(renderReport(unjudged, meta)).toContain('| one | none | — | — |');
   });
 });
 

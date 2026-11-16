@@ -17,8 +17,10 @@ import {
   resolveEvalModels,
   resolveProfile,
   type AgentRole,
+  type BoardEvent,
   type Clock,
   type Controller,
+  type ControllerError,
   type Model,
   type ResolvedEvalModels,
   type ResolvedModel,
@@ -31,6 +33,7 @@ import {
   createUuidV7Generator,
   loadPromptFiles,
   loadRosterFile,
+  loadWriteUpPrompt,
   ModelCallStore,
   monthlyBudgetFromEnv,
   openDatabase,
@@ -51,7 +54,7 @@ import {
 import { BaselineRecordSchema, type BaselineCache, type BaselineRecord } from './baseline';
 import { createFakeBaseline, createFakeJudge } from './fake';
 import { mulberry32 } from './judge';
-import { runPass, type PassResult, type SwarmOutcome } from './pass';
+import { runPass, type PassResult, type SwarmOutcome, type SwarmWriteUp } from './pass';
 import { parseProblemFile, type Problem } from './problems';
 import { renderPair, renderReport, selectPairs } from './report';
 
@@ -69,6 +72,12 @@ export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
 export const DEFAULT_DATABASE_URL = 'file:./data/team.db';
 export const DEFAULT_PASS_CAP_USD = 1;
 export const DEFAULT_RUN_CAP_USD = 0.03;
+/**
+ * The run cap of a `--fake` pass. The scripted models are priced at a round $1 in and $5
+ * out per million tokens, far above the models a real `cheap` run uses, so the money held
+ * back for the final write-up alone (about 4 cents at those prices) would not fit $0.03.
+ */
+export const DEFAULT_FAKE_RUN_CAP_USD = 0.1;
 export const DEFAULT_PROBLEMS_DIR = 'evals/problems';
 export const DEFAULT_RESULTS_DIR = 'evals/results';
 
@@ -81,7 +90,7 @@ export const USAGE = [
   '                       baseline and judge come from its `evals` entry',
   '  --yes                skip the confirmation a paid pass asks for',
   `  --max-cost <usd>     cap on the whole pass (default ${String(DEFAULT_PASS_CAP_USD)})`,
-  `  --run-cap <usd>      cap on each swarm run and on the baseline call (default ${String(DEFAULT_RUN_CAP_USD)})`,
+  `  --run-cap <usd>      cap on each swarm run and on the baseline call (default ${String(DEFAULT_RUN_CAP_USD)}; ${String(DEFAULT_FAKE_RUN_CAP_USD)} with --fake)`,
   '  --label <name>       names the results folder: <out>/<date>-<label>',
   '  --problems a,b       only these problem ids; --limit N takes the first N',
   '  --judge-orders 1|2   judge each pair once, or in both orders (default 2)',
@@ -183,6 +192,58 @@ export const fileBaselineCache = (dir: string): BaselineCache => {
   };
 };
 
+/** A controller error in one line, with the issues of a refused config rather than its kind alone. */
+const describeControllerError = (error: ControllerError): string => {
+  switch (error.kind) {
+    case 'invalid_config':
+    case 'invalid_problem':
+    case 'invalid_note':
+      return `${error.kind}: ${error.issues.join('; ')}`;
+    case 'monthly_budget':
+      return `monthly_budget: ${error.spentUsd.toFixed(4)} of ${error.limitUsd.toFixed(2)} spent, a cap of ${error.requestedCapUsd.toFixed(4)} does not fit`;
+    case 'ledger':
+      return `ledger: ${error.message}`;
+    case 'store':
+      return `store: ${error.error.kind}`;
+    case 'terminated':
+    case 'paused':
+      return `${error.kind}: ${error.reason}`;
+    case 'not_started':
+    case 'already_started':
+    case 'not_paused':
+      return error.kind;
+  }
+};
+
+/** The final write-up's call as the run's log has it, or null when it never started. */
+export const writeUpOf = (events: readonly BoardEvent[]): SwarmWriteUp | null => {
+  const started = events.findLast((e) => e.type === 'write_up_started');
+  if (started?.type !== 'write_up_started') return null;
+  const completed = events.findLast((e) => e.type === 'write_up_completed');
+  const done = completed?.type === 'write_up_completed' ? completed : undefined;
+  return {
+    maxOutputTokens: started.maxOutputTokens,
+    wordBudget: started.wordBudget,
+    written: (done?.newEntries ?? 0) > 0,
+    costUsd: done?.usage.costUsd ?? 0,
+  };
+};
+
+/**
+ * Why a run's answer is not its write-up: what the controller logged against the
+ * Synthesizer after the last round ended, or that no write-up was attempted at all.
+ */
+export const writeUpFailureOf = (events: readonly BoardEvent[]): string => {
+  const lastRound = events.map((e) => e.type).lastIndexOf('round_completed');
+  const failure = events
+    .slice(lastRound + 1)
+    .findLast((e) => e.type === 'agent_failed' && e.agentId === 'synthesizer');
+  if (failure?.type === 'agent_failed') return `${failure.reason}: ${failure.detail}`;
+  return events.some((e) => e.type === 'write_up_started')
+    ? 'the write-up committed nothing'
+    : 'no final write-up was attempted';
+};
+
 const gitCommit = async (): Promise<string | null> => {
   try {
     const { stdout } = await promisify(execFile)('git', ['rev-parse', '--short', 'HEAD']);
@@ -256,7 +317,11 @@ export const main = async (
     return 0;
   }
   const passCap = money(values['max-cost'], '--max-cost', DEFAULT_PASS_CAP_USD);
-  const runCap = money(values['run-cap'], '--run-cap', DEFAULT_RUN_CAP_USD);
+  const runCap = money(
+    values['run-cap'],
+    '--run-cap',
+    values.fake ? DEFAULT_FAKE_RUN_CAP_USD : DEFAULT_RUN_CAP_USD,
+  );
   const limit = integer(values.limit, '--limit', Number.MAX_SAFE_INTEGER);
   const seed = integer(values.seed, '--seed', clock.nowMs() % 2_147_483_647);
   for (const parsed of [passCap, runCap, limit, seed]) {
@@ -290,6 +355,11 @@ export const main = async (
   const prompts = await loadPromptFiles(roster.value, values.roster);
   if (!prompts.ok) {
     io.write(prompts.error);
+    return 2;
+  }
+  const writeUpPrompt = await loadWriteUpPrompt(roster.value, values.roster);
+  if (!writeUpPrompt.ok) {
+    io.write(writeUpPrompt.error);
     return 2;
   }
   const loaded = await loadProblems(values['problems-dir']);
@@ -445,16 +515,28 @@ export const main = async (
     const runSwarm = async (
       problem: Problem,
       maxCostUsd: number,
+      writeUpMaxOutputTokens: number | null,
     ): Promise<Result<SwarmOutcome, string>> => {
       const agents = createDefaultAgents(swarmModels.roles, prompts.value, swarmModels.fallback);
+      const events: BoardEvent[] = [];
       const controller = createController({
         store,
         clock,
         ids,
         logger,
         agents,
+        // The run ends with the Synthesizer's model writing the answer (docs/PLAN.md §2.3 step 8).
+        writeUp:
+          writeUpPrompt.value === undefined
+            ? undefined
+            : {
+                model: swarmModels.roles.synthesizer,
+                fallback: swarmModels.fallback,
+                prompt: writeUpPrompt.value,
+              },
         periodBudget,
         profile: profile.value,
+        onEvent: (event) => events.push(event),
       });
       ref.controller = controller;
       const started = await controller.start(
@@ -463,16 +545,26 @@ export const main = async (
           constraints: problem.constraints,
           successCriteria: problem.successCriteria,
         },
-        { maxCostUsd },
+        {
+          maxCostUsd,
+          // The baseline's output allowance, so the write-up is asked for the same words.
+          ...(writeUpMaxOutputTokens === null
+            ? {}
+            : { writeUp: { maxOutputTokens: writeUpMaxOutputTokens } }),
+        },
       );
-      if (!started.ok) return err(`could not start: ${started.error.kind}`);
+      if (!started.ok) return err(`could not start: ${describeControllerError(started.error)}`);
       const result = await controller.run();
-      if (!result.ok) return err(`run failed: ${result.error.kind}`);
+      if (!result.ok) return err(`run failed: ${describeControllerError(result.error)}`);
       const synthesis = latestSynthesis(result.value.view);
+      const stage = synthesis?.payload.stage ?? null;
       return ok({
         runId: result.value.runId,
         answer: synthesis?.content ?? null,
         confidence: synthesis?.payload.confidence ?? null,
+        stage,
+        writeUp: writeUpOf(events),
+        writeUpFailure: stage === 'final' ? null : writeUpFailureOf(events),
         rounds: result.value.rounds,
         status: result.value.status,
         reason: result.value.reason,

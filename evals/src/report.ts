@@ -86,11 +86,43 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
   lines.push('');
   lines.push(thinkingLine(pass), '');
 
+  lines.push('## Answers', '');
+  lines.push(
+    'What each arm wrote against what it was asked for. The swarm’s answer is its final write-up, written from the whole board when the run ended and given the baseline’s output allowance; where that call failed, its last draft.',
+    '',
+  );
+  lines.push(
+    '| Problem | Swarm answer | Swarm words written / asked | Write-up cost | Baseline words written / asked | Baseline answer |',
+    '|---|---|---|---|---|---|',
+  );
+  for (const r of pass.results) lines.push(answerRow(r));
+  lines.push('');
+
   const notes = honestyNotes(pass);
   if (notes.length > 0) {
     lines.push('## Notes', '');
     for (const note of notes) lines.push(`- ${note}`);
     lines.push('');
+  }
+
+  const judgedPairs = pass.results.filter((r) => r.judgements.length > 0);
+  if (judgedPairs.length > 0) {
+    lines.push('## Where the swarm scored 0 or 1', '');
+    const low = lowSwarmScores(pass);
+    if (low.length === 0) {
+      lines.push('Nowhere: the swarm scored 2 or 3 on every criterion of every judgement.', '');
+    } else {
+      lines.push(
+        'Every criterion on which a judgement gave the swarm 0 or 1 of 3, with the judge’s reason and the baseline’s score on the same criterion.',
+        '',
+      );
+      for (const item of low) {
+        lines.push(
+          `- \`${item.problemId}\` · **${item.criterionId}** (weight ${String(item.weight)}; order A = ${item.shownFirst}): swarm ${String(item.swarmScore)}, baseline ${item.baselineScore === null ? '—' : String(item.baselineScore)}. ${cell(item.reason)}`,
+        );
+      }
+      lines.push('');
+    }
   }
 
   lines.push('## Pairs written out', '');
@@ -116,6 +148,73 @@ const problemRow = (r: ProblemResult): string => {
   const thinking = `${swarm === null ? '—' : thinkingOf(swarm.usage)} / ${r.baseline === null ? '—' : thinkingOf(r.baseline.usage)} / ${thinkingOf(r.judgeUsage)}`;
   return `| ${r.problem.id} | ${swarm === null ? '—' : `\`${swarm.runId}\``} | ${swarm === null ? '—' : String(swarm.rounds)} | ${swarm === null ? '—' : `${swarm.status}/${swarm.reason}`} | ${swarm === null ? '—' : usd(swarm.costUsd)} | ${baselineCell} | ${tokensCell} | ${thinking} | ${pct(r.scores.swarm)} | ${pct(r.scores.baseline)} | ${signed(r.scores.delta)} | ${r.scores.winner ?? '—'} | ${cell(notes.join('; '))} |`;
 };
+
+/** Words in an answer as a reader would count them: runs of non-space characters. */
+export const wordCount = (text: string): number =>
+  text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+
+const answerRow = (r: ProblemResult): string => {
+  const swarm = r.swarm;
+  const kind =
+    swarm === null
+      ? '—'
+      : swarm.answer === null
+        ? 'none'
+        : swarm.stage === 'final'
+          ? 'final write-up'
+          : `**draft** (${cell(swarm.writeUpFailure ?? 'no final write-up')})`;
+  const swarmWords =
+    swarm === null || swarm.answer === null
+      ? '—'
+      : `${String(wordCount(swarm.answer))} / ${swarm.writeUp === null ? '—' : String(swarm.writeUp.wordBudget)}`;
+  const writeUpCost = swarm?.writeUp == null ? '—' : usd(swarm.writeUp.costUsd);
+  const baselineWords =
+    r.baseline === null
+      ? '—'
+      : `${String(wordCount(r.baseline.answer))} / ${String(r.baseline.wordBudget)}`;
+  const baselineKind =
+    r.baseline === null
+      ? 'none'
+      : `${r.baseline.truncated ? '**truncated**' : 'complete'}${r.baselineCached ? ', cached' : ''}`;
+  return `| ${r.problem.id} | ${kind} | ${swarmWords} | ${writeUpCost} | ${baselineWords} | ${baselineKind} |`;
+};
+
+export interface LowSwarmScore {
+  problemId: string;
+  criterionId: string;
+  weight: number;
+  /** Which arm the judge saw as Answer A in that judgement. */
+  shownFirst: 'swarm' | 'baseline';
+  swarmScore: number;
+  baselineScore: number | null;
+  /** The judge's reason for the swarm's score. */
+  reason: string;
+}
+
+/** Every criterion on which a judgement gave the swarm 0 or 1, in problem, order and rubric order. */
+export const lowSwarmScores = (pass: PassResult): LowSwarmScore[] =>
+  pass.results.flatMap((r) =>
+    r.judgements.flatMap((j) =>
+      r.problem.rubric.flatMap((criterion): LowSwarmScore[] => {
+        const scored = j.swarm[criterion.id];
+        if (scored === undefined || scored.score > 1) return [];
+        return [
+          {
+            problemId: r.problem.id,
+            criterionId: criterion.id,
+            weight: criterion.weight,
+            shownFirst: j.order.A,
+            swarmScore: scored.score,
+            baselineScore: j.baseline[criterion.id]?.score ?? null,
+            reason: scored.reason,
+          },
+        ];
+      }),
+    ),
+  );
 
 /** "1,234 of 5,678": the thinking part of an arm's output tokens. */
 const thinkingOf = (usage: { reasoningTokens: number; outputTokens: number }): string =>
@@ -169,6 +268,27 @@ export const honestyNotes = (pass: PassResult): string[] => {
     if (r.baseline === null) continue;
     notes.push(
       `\`${r.problem.id}\`: the cached baseline was capped at ${usd(r.baseline.capUsd)} (about ${String(r.baseline.wordBudget)} words) on an earlier pass; this pass's cap is ${usd(runCap)}, so the arms did not share one budget. Pass \`--refresh-baselines\` to redo it.`,
+    );
+  }
+  // The swarm's answer is meant to be its final write-up; a draft judged in its place, or
+  // the two arms asked for different lengths, changes what the pair compares.
+  const drafts = pass.results.filter(
+    (r) => r.swarm !== null && r.swarm.answer !== null && r.swarm.stage !== 'final',
+  );
+  for (const r of drafts) {
+    notes.push(
+      `\`${r.problem.id}\`: the swarm's answer is a draft, not its final write-up (${r.swarm?.writeUpFailure ?? 'no final write-up'}); the judge scored the draft.`,
+    );
+  }
+  const unequal = pass.results.filter(
+    (r) =>
+      r.swarm?.writeUp != null &&
+      r.baseline !== null &&
+      r.swarm.writeUp.wordBudget !== r.baseline.wordBudget,
+  );
+  for (const r of unequal) {
+    notes.push(
+      `\`${r.problem.id}\`: the arms were asked for different lengths, the swarm's write-up for about ${String(r.swarm?.writeUp?.wordBudget ?? 0)} words and the baseline for about ${String(r.baseline?.wordBudget ?? 0)}.`,
     );
   }
   const noAnswer = pass.results.filter((r) => r.swarm !== null && r.swarm.answer === null);
@@ -258,7 +378,13 @@ export const renderPair = (result: ProblemResult, why: string): string => {
     '',
     result.swarm === null
       ? '_The swarm did not run._'
-      : `_Run \`${result.swarm.runId}\`, ${String(result.swarm.rounds)} rounds, ${result.swarm.status}/${result.swarm.reason}, ${usd(result.swarm.costUsd)}${result.swarm.confidence === null ? '' : `, confidence ${result.swarm.confidence.toFixed(2)}`}._`,
+      : `_Run \`${result.swarm.runId}\`, ${String(result.swarm.rounds)} rounds, ${result.swarm.status}/${result.swarm.reason}, ${usd(result.swarm.costUsd)}${result.swarm.confidence === null ? '' : `, confidence ${result.swarm.confidence.toFixed(2)}`}${
+          result.swarm.answer === null
+            ? ''
+            : result.swarm.stage === 'final'
+              ? `; the final write-up${result.swarm.writeUp === null ? '' : `, asked for about ${String(result.swarm.writeUp.wordBudget)} words, ${String(wordCount(result.swarm.answer))} written`}`
+              : `; a draft, not the final write-up (${result.swarm.writeUpFailure ?? 'no final write-up'})`
+        }._`,
     '',
     result.swarm?.answer ?? '_No synthesis._',
     '',

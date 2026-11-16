@@ -7,6 +7,7 @@ import {
   type Result,
   type RunEndReason,
   type RunStatus,
+  type SynthesisStage,
   type Usage,
 } from '@team/core';
 
@@ -14,6 +15,7 @@ import {
   baselineCacheKey,
   describeBaselineError,
   generateBaseline,
+  sizeBaseline,
   type BaselineCache,
   type BaselineRecord,
 } from './baseline';
@@ -31,8 +33,10 @@ import {
 import type { Problem } from './problems';
 import { aggregate, scoreProblem, type Aggregate, type ProblemScores } from './scoring';
 
-// One eval pass (ADR-0012): for each problem, in order, the swarm run, the baseline call
-// and the blind judgements. The pass has its own dollar cap, enforced here in code like
+// One eval pass (ADR-0012): for each problem, in order, the baseline call, the swarm run
+// and the blind judgements. The baseline comes first so that the swarm's final write-up
+// can be given the output allowance the baseline really got, and with it the same word
+// budget (docs/PLAN.md §2.3 step 8): both arms are asked for one length. The pass has its own dollar cap, enforced here in code like
 // every other budget (CLAUDE.md rule 4): a call that cannot fit what is left is skipped
 // with a reason, and the pass stops cleanly, with a partial report, when nothing more fits.
 // Everything that touches the outside world comes in through `PassDeps`.
@@ -42,6 +46,15 @@ export interface SwarmOutcome {
   /** The latest synthesis's content, or null when the run ended without one. */
   answer: string | null;
   confidence: number | null;
+  /**
+   * What that answer is: `final` when the run ended with its write-up, `draft` when the
+   * last draft is all there is (the write-up failed or was skipped), null with no answer.
+   */
+  stage: SynthesisStage | null;
+  /** The final write-up's call, or null when it never started. */
+  writeUp: SwarmWriteUp | null;
+  /** Why the write-up did not produce the answer, in the controller's words; null when it did. */
+  writeUpFailure: string | null;
   rounds: number;
   status: RunStatus;
   reason: RunEndReason;
@@ -51,14 +64,33 @@ export interface SwarmOutcome {
   elapsedMs: number;
 }
 
+export interface SwarmWriteUp {
+  /** The output allowance the call was given, after fitting what the run had left. */
+  maxOutputTokens: number;
+  /** The words its prompt asked for. */
+  wordBudget: number;
+  /** Whether it committed the final answer. */
+  written: boolean;
+  /** What its calls cost, repairs included; part of the run's cost. */
+  costUsd: number;
+}
+
 export interface MonthGuard {
   spentUsd(): Promise<number>;
   limitUsd: number;
 }
 
 export interface PassDeps {
-  /** Runs the swarm on a problem under a cost cap; the controller enforces the cap. */
-  runSwarm(problem: Problem, maxCostUsd: number): Promise<Result<SwarmOutcome, string>>;
+  /**
+   * Runs the swarm on a problem under a cost cap; the controller enforces the cap.
+   * `writeUpMaxOutputTokens` is the output allowance for the run's final write-up, the
+   * baseline's own; null leaves the run's default.
+   */
+  runSwarm(
+    problem: Problem,
+    maxCostUsd: number,
+    writeUpMaxOutputTokens: number | null,
+  ): Promise<Result<SwarmOutcome, string>>;
   baselineModel: Model;
   judgeModel: Model;
   cache: BaselineCache;
@@ -192,6 +224,30 @@ export const runPass = async (options: PassOptions, deps: PassDeps): Promise<Pas
 
 const pct = (value: number | null): string => (value === null ? '—' : `${value.toFixed(0)}%`);
 
+/** The allowance a baseline call would be fitted to under `capUsd`; null when none fits. */
+const wouldBeAllowance = (
+  problem: Problem,
+  options: PassOptions,
+  deps: PassDeps,
+  capUsd: number,
+): number | null => {
+  const { fit } = sizeBaseline({
+    model: deps.baselineModel,
+    problem,
+    capUsd,
+    maxOutputTokens: options.baselineMaxOutputTokens,
+  });
+  return fit.fits ? fit.maxOutputTokens : null;
+};
+
+const describeAnswer = (swarm: SwarmOutcome): string => {
+  if (swarm.answer === null) return ', no synthesis';
+  if (swarm.stage === 'final' && swarm.writeUp !== null) {
+    return `; final write-up asked for about ${String(swarm.writeUp.wordBudget)} words, $${swarm.writeUp.costUsd.toFixed(4)}`;
+  }
+  return `; the answer is a DRAFT${swarm.writeUpFailure === null ? '' : ` (${swarm.writeUpFailure})`}`;
+};
+
 const runProblem = async (
   problem: Problem,
   options: PassOptions,
@@ -213,23 +269,8 @@ const runProblem = async (
   };
   const tags = (role: string) => ({ role, runId: `eval:${options.passId}`, round: 0 });
 
-  // 1. The swarm, under the smaller of the run cap and what the pass has left.
-  deps.log(
-    `== ${problem.id}: swarm run (cap $${Math.min(options.runCapUsd, budget.remainingUsd).toFixed(4)}) ==`,
-  );
-  const swarm = await deps.runSwarm(problem, Math.min(options.runCapUsd, budget.remainingUsd));
-  if (!swarm.ok) {
-    result.swarmError = swarm.error;
-    deps.log(`   swarm failed: ${swarm.error}`);
-    return result;
-  }
-  result.swarm = swarm.value;
-  budget.charge(swarm.value.costUsd);
-  deps.log(
-    `   swarm: ${swarm.value.status}/${swarm.value.reason} after ${String(swarm.value.rounds)} rounds, ${String(swarm.value.entries)} entries, $${swarm.value.costUsd.toFixed(4)}${swarm.value.answer === null ? ', no synthesis' : ''}`,
-  );
-
-  // 2. The baseline: cached unless asked otherwise, else one call capped at the swarm's cost.
+  deps.log(`== ${problem.id} ==`);
+  // 1. The baseline: cached unless asked otherwise, else one call under the run cap.
   const stored = options.refreshBaselines
     ? undefined
     : await deps.cache.get(problem.id, deps.baselineModel.id);
@@ -268,6 +309,27 @@ const runProblem = async (
       );
     }
   }
+
+  // 2. The swarm, under the smaller of the run cap and what the pass has left. Its final
+  //    write-up gets the baseline's output allowance, so both arms are asked for the same
+  //    number of words; with no baseline to copy, what a baseline would have been given.
+  const swarmCapUsd = Math.min(options.runCapUsd, budget.remainingUsd);
+  const writeUpMaxOutputTokens =
+    result.baseline?.maxOutputTokens ?? wouldBeAllowance(problem, options, deps, swarmCapUsd);
+  deps.log(
+    `== ${problem.id}: swarm run (cap $${swarmCapUsd.toFixed(4)}${writeUpMaxOutputTokens === null ? '' : `, final write-up allowed ${String(writeUpMaxOutputTokens)} output tokens`}) ==`,
+  );
+  const swarm = await deps.runSwarm(problem, swarmCapUsd, writeUpMaxOutputTokens);
+  if (!swarm.ok) {
+    result.swarmError = swarm.error;
+    deps.log(`   swarm failed: ${swarm.error}`);
+    return result;
+  }
+  result.swarm = swarm.value;
+  budget.charge(swarm.value.costUsd);
+  deps.log(
+    `   swarm: ${swarm.value.status}/${swarm.value.reason} after ${String(swarm.value.rounds)} rounds, ${String(swarm.value.entries)} entries, $${swarm.value.costUsd.toFixed(4)}${describeAnswer(swarm.value)}`,
+  );
 
   // 3. The judge, blind, in one or both orders.
   if (swarm.value.answer === null || result.baseline === null) {
