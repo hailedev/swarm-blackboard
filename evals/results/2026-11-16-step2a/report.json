@@ -1,0 +1,830 @@
+{
+  "meta": {
+    "label": "step2a",
+    "profile": {
+      "name": "cheap",
+      "roles": {
+        "planner": {
+          "alias": "haiku",
+          "provider": "anthropic",
+          "model": "claude-haiku-5-5",
+          "think": false
+        },
+        "researcher": {
+          "alias": "local",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-a3b-q8_0",
+          "think": false
+        },
+        "solver": {
+          "alias": "local",
+          "provider": "ollama",
+          "model": "qwen3.6:35b-a3b-q8_0",
+          "think": false
+        },
+        "critic": {
+          "alias": "haiku",
+          "provider": "anthropic",
+          "model": "claude-haiku-5-5",
+          "think": false
+        },
+        "synthesizer": {
+          "alias": "haiku",
+          "provider": "anthropic",
+          "model": "claude-haiku-5-5",
+          "think": false
+        }
+      },
+      "bidder": {
+        "alias": "haiku",
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5",
+        "think": false
+      },
+      "fallback": {
+        "alias": "haiku",
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5",
+        "think": false
+      },
+      "paid": true
+    },
+    "evalModels": {
+      "baseline": {
+        "alias": "sonnet",
+        "provider": "anthropic",
+        "model": "claude-sonnet-5-5",
+        "think": false
+      },
+      "judge": {
+        "alias": "sonnet",
+        "provider": "anthropic",
+        "model": "claude-sonnet-5-5",
+        "think": false
+      }
+    },
+    "commit": "007b2cb",
+    "baselineModelId": "claude-sonnet-5-5",
+    "judgeModelId": "claude-sonnet-5-5"
+  },
+  "pass": {
+    "passId": "01a1e1cf-33e8-79d7-b354-b9764f7a85fe",
+    "startedAt": "2026-11-16T00:43:35.273Z",
+    "endedAt": "2026-11-16T00:58:29.396Z",
+    "options": {
+      "passId": "01a1e1cf-33e8-79d7-b354-b9764f7a85fe",
+      "capUsd": 0.35,
+      "runCapUsd": 0.03,
+      "judgeOrders": 2,
+      "refreshBaselines": false,
+      "baselineMaxOutputTokens": 4096,
+      "judgeMaxOutputTokens": 4096,
+      "problemIds": [
+        "api-rate-limiting",
+        "oidc-migration",
+        "teen-reading-programme"
+      ]
+    },
+    "results": [
+      {
+        "problem": {
+          "id": "api-rate-limiting",
+          "title": "Rate limiting a public API for bursty clients across three regions",
+          "domain": "system-design",
+          "constraints": [
+            "The API runs in three regions behind one global DNS name; a client's requests may land in any region.",
+            "Paying customers are limited by plan (for example 600 requests per minute); free clients to 60 per minute.",
+            "Legitimate clients are bursty: a client may send its whole minute's quota in two seconds, then nothing.",
+            "The limiter must not add more than about five milliseconds to a request, and the API must keep serving if the limiter's storage is unavailable."
+          ],
+          "successCriteria": [
+            "A named limiting algorithm and why it suits bursty clients better than the alternatives.",
+            "Where the limiter's state lives, how three regions see one customer's quota, and what inaccuracy that implies.",
+            "What happens when the state store is slow or down, and what the client sees.",
+            "How a client learns its limit and when to retry."
+          ],
+          "rubric": [
+            {
+              "id": "algorithm",
+              "weight": 3,
+              "criterion": "Names an algorithm (token bucket, sliding window log or counter, leaky bucket) and argues it against alternatives for bursty traffic.",
+              "scale": "0 = no algorithm; 1 = an algorithm with no comparison; 2 = compared with one alternative on burstiness; 3 = compared on burstiness and on memory or accuracy, with the parameters (bucket size, refill rate) stated."
+            },
+            {
+              "id": "state",
+              "weight": 3,
+              "criterion": "Says where the counters live and how three regions share a customer's quota, with the inaccuracy named.",
+              "scale": "0 = state placement not addressed; 1 = 'use Redis' with no regional story; 2 = a regional design (central store, per-region share, or async sync) with its latency; 3 = plus a quantified or clearly described over- or under-admission."
+            },
+            {
+              "id": "failure",
+              "weight": 3,
+              "criterion": "Specifies the behaviour when the state store is slow or unavailable, within the latency budget.",
+              "scale": "0 = failure not addressed; 1 = 'fail open' or 'fail closed' with no reasoning; 2 = a choice with reasoning and a timeout that meets the budget; 3 = plus a local fallback (in-memory bucket) and how it recovers."
+            },
+            {
+              "id": "client",
+              "weight": 1,
+              "criterion": "Describes the response headers or body that tell a client its limit, remaining quota and retry time.",
+              "scale": "0 = not addressed; 1 = 'return 429'; 2 = 429 plus retry timing; 3 = 429, remaining-quota and reset headers, and advice for burst clients."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Technical claims hold up; numbers are consistent with the constraints.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and explicit about the guarantees it does and does not make."
+            }
+          ],
+          "statement": "A company runs a public HTTP API in three regions behind a single global hostname; a client's consecutive requests can land in different regions. Paying plans allow between 600 and 6,000 requests per minute, free accounts 60. Many legitimate clients are bursty: a scheduled job may send its whole minute's allowance in two seconds and then go quiet. The team has been asked to add rate limiting that adds no more than about five milliseconds to a request and that never takes the API down when the limiter's own storage is slow or unavailable.\n\nDesign the rate limiter: the algorithm and why it fits bursty clients, where its state lives and how the three regions share a customer's quota, what happens when that state is slow or unreachable, and how clients learn their limits and when to retry. Be explicit about what the design gets wrong and by how much."
+        },
+        "swarm": {
+          "runId": "01a1e1cf-8612-7ab4-b493-069bb38d90b1",
+          "answer": "Recommendation: enforce each customer's limit with a token bucket whose capacity equals the per-minute quota (600 for paid plans, 60 for free) and whose refill rate is the quota divided by 60 tokens per second. Each region keeps a local in-memory bucket per customer, so the request path performs only a local atomic decrement, adding about 0.1 ms, well inside the 5 ms budget. Regions ship consumption deltas asynchronously to a shared central store (for example Redis Cluster) and absorb other regions' deltas on a short replication cycle. This design is fast and available but approximate, and the approximation is stated below rather than hidden.\n\nWhy a token bucket: a full bucket lets a bursty client spend its entire minute's allowance in about two seconds and then wait for refill, which matches the scheduled-job pattern. A fixed window can reject a legitimate burst that straddles a window boundary and wastes unused quota at each boundary. A sliding window log needs per-request timestamps that are costly to store and share across regions within a 5 ms budget. A sliding window counter needs atomic updates to two adjacent bins, adding cross-region coordination that a single-key token bucket avoids.\n\nWhat the design gets wrong: because each region holds a full-capacity bucket, a client spreading requests across three regions can be admitted up to roughly 3N in a burst before deltas sync, so the global limit is only enforced after replication catches up. Over-admission is bounded by replication lag times the request rate per region. For a 6,000/min customer at about 100 requests/s with a 50 ms lag this is on the order of 15 extra requests (about 0.25% of quota) per burst event, rising to about 2N in the worst simultaneous multi-region burst. These are bounded, accepted inaccuracies, not an exact limit. Assumption: the 50 ms lag is an estimate and must be measured; if real lag is seconds, the over-admission bound grows proportionally.\n\nClient view: every response carries RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset, where Remaining is a per-region local estimate and may be optimistic by up to the concurrent admissions of other regions. A 429 response with Retry-After is the only global truth. Clients should use exponential backoff with jitter, rely on 429 for hard limits, and not schedule traffic from the Remaining value alone. Assumption: reset semantics (per region or per customer) are fixed in the API contract as per customer, with Remaining documented as advisory.\n\nFailure behaviour: the store call gets a timeout well inside the 5 ms budget and is guarded by a circuit breaker that trips when store latency exceeds about 2 ms. While tripped, each region falls back to a local limiter set to a plan-proportional share of the quota, assumed to be 1% to 5% of the plan maximum (roughly 60 to 300 requests per minute per region for a 6,000/min customer, so up to about three times that across regions). This bounds abuse during an outage to a stated multiple of the legitimate burst allowance and never takes the API down, though it can admit more than the global limit for the duration of the outage. The fallback percentage and breaker threshold need load testing before launch.",
+          "confidence": 0.6,
+          "stage": "final",
+          "writeUp": {
+            "maxOutputTokens": 2694,
+            "wordBudget": 900,
+            "written": true,
+            "costUsd": 0.0020734250000000003
+          },
+          "writeUpFailure": null,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 106,
+          "usage": {
+            "inputTokens": 129659,
+            "outputTokens": 26249,
+            "cacheReadTokens": 7964,
+            "cacheWriteTokens": 41254,
+            "reasoningTokens": 0,
+            "costUsd": 0.021471990000000003
+          },
+          "costUsd": 0.021471990000000003,
+          "elapsedMs": 331709
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "aa5350d9d02593a75041c2242311c11a7c09cab2f3c3d8b36ddc3e730c063c22",
+          "problemId": "api-rate-limiting",
+          "modelId": "claude-sonnet-5-5",
+          "capUsd": 0.03,
+          "maxOutputTokens": 2694,
+          "wordBudget": 900,
+          "truncated": false,
+          "answer": "**Recommendation:** use a token bucket per customer, enforced in each region against a local in-memory replica of the customer's state, with quota shared across regions by asynchronous, periodic exchange of consumption rather than a synchronous global counter. Fail open when the shared layer is slow or down, degrading to a conservative local-only limit. Tell clients their limits in standard headers and give them a precise Retry-After on every rejection.\n\n**Algorithm: token bucket.** Each customer has a bucket with capacity B and refill rate R. A 600/min plan refills 10 tokens per second; a request costs one token. Capacity is the key tuning knob: set B equal to the plan's per-minute allowance (600, 6,000, 60 for free). That means a scheduled job can spend its entire minute's quota in two seconds, then wait for refill, and is never rejected for behaving legitimately. Alternatives fit worse. A fixed window counter permits double the allowance across a boundary (full quota at 0:59, full again at 1:00) and punishes nothing smooth. A sliding window log is exact but stores a timestamp per request, which is expensive at 6,000/min. A sliding window counter smooths the boundary but still rejects bursts that a bucket handles naturally. A leaky bucket as a queue shapes traffic by delaying requests, which adds latency we do not have budget for; as a meter it is equivalent to a token bucket with no burst headroom. The token bucket also needs only two numbers per customer (token count, last-refill timestamp), so state is tiny and updates are O(1).\n\n**Where state lives and how regions share quota.** Each region runs the limiter inline in the API tier, holding bucket state in local memory, with a regional Redis (or equivalent) as the durable, shared-within-region copy. The hot path touches only local memory, which keeps added latency well under a millisecond, far inside the five-millisecond budget. A cross-region synchronous check would cost 50 to 150 ms and violate the constraint outright, so it is off the table.\n\nTo make three regions behave like one quota, split the customer's allowance by observed traffic. Each region starts with a share of the bucket (initially a third, or proportional to recent usage). Every 200 to 500 ms, regions broadcast their consumption deltas (tokens spent since the last sync) to the other two, and each region deducts remote consumption from its local bucket. Refill is computed locally from the clock, so only consumption needs replicating. A sync message is a few bytes per active customer, batched, so bandwidth is modest. An alternative is allocating token leases: a region requests a chunk of tokens (say 10 percent of the bucket) from a home region for that customer and spends it locally. Leases give a hard ceiling on overage but add complexity and strand tokens in idle regions; I would start with delta gossip and move to leases only if overage proves costly.\n\n**What the inaccuracy is.** Between syncs, each region is blind to the others. Worst case, a customer whose requests are spread across all three regions can spend their full bucket in each region before any sync lands, getting up to roughly 3x the allowance in a single burst (1,800 requests on a 600 plan) in the first sync interval. Typical overage is far smaller, because DNS and load balancing rarely spread a two-second burst evenly, and with proportional shares (each region starting with a third of the bucket) the worst case drops to roughly the true quota plus whatever one region can spend before its first sync, on the order of 5 to 15 percent in realistic traffic. Over a full minute the error washes out, since deductions converge after each sync and refill is capped at the true rate. The opposite error also exists: after a sync a region may be slightly too strict, rejecting a request the true global state would allow, for a few hundred milliseconds. I consider both acceptable for an API whose purpose is protecting capacity, not metering billing. Anything billed per request must be counted separately from this limiter, from request logs.\n\n**When the state store is slow or down.** The limiter must never be on the critical failure path. Rules: every call to Redis or the cross-region channel has a hard timeout of 2 ms, and the request path never waits on replication. If the regional store is slow or unreachable, the region keeps enforcing from its in-memory bucket, which is already authoritative for the hot path, and queues deltas for later. If a node restarts and has lost memory, it initialises buckets from the regional store; if that is also down, it starts each customer with a conservative bucket (say 25 percent of capacity, refilling at the plan rate) so a cold limiter cannot admit an unbounded flood. If the cross-region channel is partitioned, each region enforces only its local share plus a safety margin, so a customer can exceed quota by at most about 3x but the API stays up. A circuit breaker trips after repeated timeouts, stops calling the store for 5 to 10 seconds, then probes. In every failure mode the default is fail open to a degraded local limit, never fail closed. Clients see nothing unusual: no extra errors, perhaps slightly looser enforcement. The one exception is a global safety valve: a coarse per-region overall cap, independent of customer state, protects the backend if every limiter degrades at once.\n\n**What clients see.** Every response carries the IETF draft headers RateLimit-Limit (plan allowance and window), RateLimit-Remaining (tokens left in the serving region's view), and RateLimit-Reset (seconds until the bucket would be full). Because remaining is a regional estimate, document it as approximate. Rejected requests return 429 Too Many Requests with a Retry-After header in seconds, computed from the bucket: time until one token is available, rounded up, plus a small random jitter of up to a second so that a burst of rejected scheduled jobs does not retry in lockstep. The body carries a machine-readable error code and the plan limit. Publish the algorithm in docs, explaining that the bucket permits bursts up to the full minute allowance, and recommend exponential backoff honouring Retry-After.\n\n**Open questions.** Is the 3x worst-case overage tolerable for the largest plans, or should those customers get region-pinned routing or leases? Do we need per-endpoint costs (a heavy endpoint spending several tokens)? Clock skew between nodes affects refill slightly; use monotonic local clocks for refill and treat gossip as deltas, not timestamps.",
+          "usage": {
+            "inputTokens": 1054,
+            "outputTokens": 2109,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.023198
+          },
+          "latencyMs": 21001,
+          "at": "2026-11-16T00:43:35.281Z",
+          "passId": "eval:01a1e1cf-33e8-79d7-b354-b9764f7a85fe"
+        },
+        "baselineCached": false,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "algorithm": {
+                "reason": "Names token bucket with capacity equal to quota and refill quota/60 per second, and compares against fixed window, sliding window log and sliding window counter on burstiness, memory and coordination cost.",
+                "score": 3
+              },
+              "state": {
+                "reason": "Local in-memory buckets per region with async delta sync to a central store, ~0.1 ms hot path, and over-admission quantified (up to ~3N burst, ~15 extra requests with 50 ms lag, ~2N worst case).",
+                "score": 3
+              },
+              "failure": {
+                "reason": "Circuit breaker at ~2 ms with a plan-proportional local fallback (1-5% per region) and a stated abuse bound, but recovery from the fallback is not described.",
+                "score": 2
+              },
+              "client": {
+                "reason": "RateLimit-Limit/Remaining/Reset plus 429 with Retry-After and backoff with jitter, but advice for burst clients is thin and Remaining is documented as advisory.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Mostly sound and explicit about assumptions, but the 15-request estimate is inconsistent with the stated 3N over-admission, and the fallback of 1-5% of plan would reject legitimate bursts.",
+                "score": 2
+              }
+            },
+            "baseline": {
+              "algorithm": {
+                "reason": "Token bucket with B equal to per-minute allowance and refill 10 tokens/s stated, compared against fixed window (double allowance at boundary), sliding log, sliding counter and leaky bucket on burst, memory and latency.",
+                "score": 3
+              },
+              "state": {
+                "reason": "Local memory with regional Redis, delta gossip every 200-500 ms with proportional shares, a lease alternative, explicit 3x worst-case (1,800 on a 600 plan) and the under-admission side, and a note not to bill from this limiter.",
+                "score": 3
+              },
+              "failure": {
+                "reason": "2 ms timeout, in-memory bucket stays authoritative, cold-start conservative bucket at 25% capacity, circuit breaker with 5-10 s probe, partition behaviour and a global safety valve, with recovery covered.",
+                "score": 3
+              },
+              "client": {
+                "reason": "429 with Retry-After computed from the bucket plus jitter, RateLimit headers with Remaining flagged as approximate, a machine-readable body, and docs and backoff advice for burst clients.",
+                "score": 3
+              },
+              "correctness": {
+                "reason": "Sound and explicit about what is and is not guaranteed (3x worst case, under-admission, billing exclusion, clock skew); the 5-15% realistic overage is loosely justified but flagged as typical.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer B is more complete and more explicit about guarantees and recovery, while A is solid but thinner on client advice and fallback recovery."
+          },
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "algorithm": {
+                "reason": "Names token bucket with capacity = quota and refill = quota/60 and compares against fixed window, sliding log (storage cost) and sliding counter (coordination), covering burst and memory/accuracy, though the leaky bucket is not discussed.",
+                "score": 3
+              },
+              "state": {
+                "reason": "Local in-memory buckets with async delta shipping to a central Redis Cluster; quantifies over-admission (about 15 extra requests, 0.25% per burst, up to 2N worst) but gives less detail on sync cadence and cross-region latency; also says 3N then 2N inconsistently.",
+                "score": 2
+              },
+              "failure": {
+                "reason": "Has a timeout within the budget, a circuit breaker tripping at about 2 ms, and a local fallback at 1-5% of plan per region with bounded abuse, but says little about how it recovers or about cold starts, and the fallback percentages are assumed rather than argued.",
+                "score": 2
+              },
+              "client": {
+                "reason": "Lists the RateLimit headers, 429 with Retry-After, exponential backoff with jitter, and notes that Remaining is advisory, but gives no Retry-After computation and only light burst-specific advice.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Honest about assumptions, but internally inconsistent: it states up to 3N admission and then 2N worst case, and a 1-5% local fallback would throttle legitimate bursty clients below their quota during an outage without acknowledging it.",
+                "score": 2
+              }
+            },
+            "baseline": {
+              "algorithm": {
+                "reason": "Names token bucket with explicit B=plan per-minute allowance and a 10 tokens/s refill for 600/min, and compares against fixed window, sliding log, sliding counter and leaky bucket on both burst handling and memory/accuracy (two numbers per customer).",
+                "score": 3
+              },
+              "state": {
+                "reason": "Describes local in-memory buckets plus regional Redis, rejects synchronous cross-region (50-150 ms), proposes 200-500 ms delta gossip with an alternative of token leases, and quantifies overage (up to 3x worst case, 5-15% typical) and the opposite under-admission.",
+                "score": 3
+              },
+              "failure": {
+                "reason": "Gives a 2 ms hard timeout, fail-open to the in-memory bucket, a conservative 25% cold-start bucket, a circuit breaker with 5-10 s probe/recovery, and a global safety valve, with reasoning for never failing closed.",
+                "score": 3
+              },
+              "client": {
+                "reason": "Specifies RateLimit-Limit/Remaining/Reset headers, 429 with Retry-After computed from token availability plus jitter, a machine-readable body, and burst-client advice (documented burst allowance, exponential backoff honouring Retry-After).",
+                "score": 3
+              },
+              "correctness": {
+                "reason": "Claims are largely sound and explicit about guarantees (approximate, not for billing, 3x worst case); minor looseness in the 5-15% figure and the 'initial third share' vs 'full bucket' 3x worst case, but internally acknowledged.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer A is more complete and specific on every criterion, especially failure recovery, regional sync design, and client guidance, while B is solid but thinner and slightly inconsistent."
+          }
+        ],
+        "judgeSkipped": [],
+        "judgeUsage": {
+          "inputTokens": 8596,
+          "outputTokens": 1987,
+          "cacheReadTokens": 1899,
+          "cacheWriteTokens": 1899,
+          "reasoningTokens": 0,
+          "costUsd": 0.0421893
+        },
+        "scores": {
+          "swarm": 79.16666666666667,
+          "baseline": 100,
+          "delta": -20.83333333333333,
+          "winner": "baseline",
+          "consistency": 4.166666666666671
+        },
+        "costUsd": 0.08685929
+      },
+      {
+        "problem": {
+          "id": "oidc-migration",
+          "title": "Moving a monolith from home-grown sessions to OIDC without downtime",
+          "domain": "planning",
+          "constraints": [
+            "One quarter, three engineers part-time alongside product work.",
+            "About 40,000 active users with passwords stored as bcrypt hashes in the monolith's database; users must not be forced to reset passwords.",
+            "The company has chosen a hosted identity provider that supports OIDC and can import or migrate credentials through a hook.",
+            "No planned downtime and no \"big bang\" switch: a failed step must be reversible within an hour."
+          ],
+          "successCriteria": [
+            "An ordered plan of steps across the quarter, each reversible, with what is true at the end of each.",
+            "How existing users move without a forced password reset, and what happens to users who do not log in during the migration.",
+            "How sessions behave during the transition when both systems are live.",
+            "The point of no return, how it is reached safely, and what is cleaned up afterwards."
+          ],
+          "rubric": [
+            {
+              "id": "sequencing",
+              "weight": 3,
+              "criterion": "Gives an ordered sequence of steps, each with a reversal path, that ends with OIDC in control.",
+              "scale": "0 = no sequence; 1 = steps with no reversal story; 2 = steps each reversible; 3 = steps each reversible, with the state after each and the order justified."
+            },
+            {
+              "id": "credentials",
+              "weight": 3,
+              "criterion": "Explains how bcrypt users migrate without a forced reset, and handles users who never log in during the window.",
+              "scale": "0 = not addressed or forces a reset; 1 = 'import the hashes' with no detail; 2 = a lazy migration at login (verify against the old hash, create in the IdP) with the dormant-user case; 3 = plus how the old hashes are retired and the security implications of the window."
+            },
+            {
+              "id": "dual-run",
+              "weight": 2,
+              "criterion": "Describes how sessions, logout and token validation behave while both systems are live.",
+              "scale": "0 = not addressed; 1 = 'run both'; 2 = a clear rule for which system a session belongs to and how logout works; 3 = plus the edge cases (session expiry mid-switch, API clients, admin accounts)."
+            },
+            {
+              "id": "constraints",
+              "weight": 2,
+              "criterion": "Fits three part-time engineers in one quarter, no downtime, one-hour reversibility.",
+              "scale": "0 = ignores the constraints; 1 = plausibly fits with no estimate; 2 = fits with rough effort per step; 3 = fits, with the step most likely to slip named and buffered."
+            },
+            {
+              "id": "cutover",
+              "weight": 2,
+              "criterion": "Identifies the point of no return and what is decommissioned after it.",
+              "scale": "0 = not addressed; 1 = 'turn off the old system'; 2 = a defined cutover with a criterion for reaching it; 3 = cutover criterion, monitoring for a week after, and the cleanup list."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Claims about OIDC, bcrypt, sessions and what the identity provider can do hold up, and the steps fit together.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
+            }
+          ],
+          "statement": "A product company runs a monolith with its own login: usernames, bcrypt password hashes and server-side sessions, about 40,000 active users. It has bought a hosted identity provider that speaks OIDC and can migrate credentials through a hook at login time. Three engineers have one quarter, alongside their product work, to move authentication to the provider. There may be no planned downtime, no forced password reset, and no step that cannot be undone within an hour if it goes wrong.\n\nPlan the migration: the ordered steps across the quarter and what is true after each, how existing users move over (including users who do not log in during the quarter), how sessions behave while both systems are live, and where the point of no return is and what gets cleaned up after it."
+        },
+        "swarm": {
+          "runId": "01a1e1d5-2cf4-7640-9637-e544eb49fc97",
+          "answer": "Recommendation: migrate authentication to the hosted OIDC provider across the quarter in reversible phases, with no planned downtime and no forced password resets. Each user's password is verified against the existing bcrypt hash at first login through the provider's migration hook; on success the credential is stored in the provider and the user is marked migrated. The legacy login path stays available as the rollback until a single gated cutover to IdP-only login, and legacy code, hashes and session stores are removed only after that cutover.\n\nWeek 1 to 3: confirm the provider accepts the legacy bcrypt format ($2a$, $2b$ or $2y$ with its cost factor) and handles the 72-byte truncation identically to the monolith, using a test set of known passwords. Assumption: the provider's hook can verify against an external bcrypt hash without storing a derived credential the monolith cannot reproduce; this is the first gate and if it fails the plan falls back to a verification service hosted beside the monolith.\n\nWeek 4 to 6: shadow phase. Route a small cohort through the provider while the monolith remains the sole source of truth; compare outcomes and latency, and confirm that a failed hook call leaves the user on the legacy path. Rollback is switching the cohort back to local login, well under an hour.\n\nWeek 7 to 10: general availability with dual-run sessions. The monolith accepts both its own server-side session cookies and provider-issued OIDC tokens, and exchanges a valid legacy session for an OIDC session on first access. Logout is propagated by back-channel invalidation of local sessions. Rollback per phase is re-enabling the legacy route, with the time bound stated and tested before the phase starts.\n\nDormant users who do not log in during the quarter keep their hashes in place and are migrated on first login after cutover through the same hook. Assumption: the provider's hook does not allow unauthenticated bulk import, so dormant accounts are not migrated in advance; leaving them on the legacy path indefinitely is rejected because it keeps the weakest component live. A time-boxed decision is needed on whether a one-off export is worth the security cost of moving hashes.\n\nPoint of no return: the switch to IdP-only mode, which disables local password checks. It is gated on a high share of active users being migrated or bridged and on login error rates staying low, and it can be reverted within an hour to legacy authentication. Assumption: the 95% and 1% thresholds are provisional and must be set from the shadow-phase measurements. Writes made after cutover, such as provider-side credential changes and new sessions, are not fully reversible, so the gate must state how they are handled.\n\nCleanup after the point of no return is phased: remove legacy login code from active paths first, retain the bcrypt column for a retention period (90 days is a placeholder until retention and compliance rules are confirmed), then drop the column and decommission local session stores. Assumption: the retention period is set by the company's compliance owner before cleanup starts; until then the column is kept.\n\nRisks left open: the legacy database remains a live dependency of every login during transition, so its availability must be monitored and its failure mode defined before general availability. The verification bridge's hosting and whether it creates a second credential store are not yet settled and should be resolved in weeks 1 to 3.",
+          "confidence": 0.55,
+          "stage": "final",
+          "writeUp": {
+            "maxOutputTokens": 2702,
+            "wordBudget": 900,
+            "written": true,
+            "costUsd": 0.001646475
+          },
+          "writeUpFailure": null,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 59,
+          "usage": {
+            "inputTokens": 83858,
+            "outputTokens": 18067,
+            "cacheReadTokens": 6132,
+            "cacheWriteTokens": 26394,
+            "reasoningTokens": 0,
+            "costUsd": 0.01713787
+          },
+          "costUsd": 0.01713787,
+          "elapsedMs": 181708
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "b31a8d4230d76c4fab1aeda70af4cff35e9d4173e1cca9dc7636b7842bd91c97",
+          "problemId": "oidc-migration",
+          "modelId": "claude-sonnet-5-5",
+          "capUsd": 0.03,
+          "maxOutputTokens": 2702,
+          "wordBudget": 900,
+          "truncated": false,
+          "answer": "**Recommendation:** Run a lazy, login-time migration behind a feature flag, with the monolith's own login kept as the fallback until the last step. Every step except the final cleanup is a flag flip or a deploy rollback, so each is undoable inside an hour. Passwords move one user at a time via the provider's migration hook; nobody is reset. Users who never log in during the quarter are handled by a deliberate, optional bulk step (below) and are not migrated silently. The only irreversible act is deleting the old hashes, and that happens after the quarter's main work, on evidence.\n\n**Step 1 (weeks 1-2): Provider setup and a seam in the monolith.** Configure the provider tenant, a custom-database migration hook, and a staging environment. In the monolith, put authentication behind one interface (\"authenticate and establish session\") with two implementations: legacy and OIDC. Add a flag, controllable per user cohort. *True at end:* production behaviour is unchanged; the flag is off; rollback is a deploy revert. Also decide the stable identifier now: map each provider account to the monolith's internal user ID (store it as an external-ID column), never to username, since usernames can change or collide.\n\n**Step 2 (weeks 3-4): Build the migration hook and verify in staging.** The hook receives username and password from the provider at first login, calls a monolith endpoint that checks the bcrypt hash, and on success returns the profile so the provider stores the credential in its own hash. On failure it returns a plain 'wrong credentials' so nothing leaks. Rate-limit and authenticate that endpoint (it is a password oracle), log without recording passwords, and test lockout and unknown-user behaviour. Confirm the provider can verify bcrypt-format hashes or, if not, that it re-hashes on first successful login; this is the main technical unknown, so resolve it here. *True at end:* hook works in staging against a copy of production-shaped data; production untouched.\n\n**Step 3 (weeks 5-6): Dual session acceptance, still off for users.** Teach the monolith to accept either its legacy session cookie or an OIDC-derived session, resolving both to the same internal user ID. Do this before sending anyone through OIDC. *True at end:* a user with either kind of session is treated identically; the OIDC path is exercised only by engineers' test accounts. Rollback is disabling the OIDC acceptance code path via flag.\n\n**Step 4 (weeks 7-8): Internal, then 1% canary.** Turn the flag on for employees, then about 1% of users (hash of user ID, so cohorts are stable). Those users log in through the provider; the hook migrates them on success. Watch login success rate, hook latency, support tickets and password-failure rate against the legacy baseline. *True at end:* a small cohort is migrated; everyone else is on legacy. Rollback is flag-off: migrated users can still log in through the provider (their credentials now live there), and the flag simply stops routing new users to it. Crucially, keep the legacy hash untouched, so a user routed back to legacy still logs in with the same password. Note the one divergence: a password changed at the provider after migration would not reach the legacy hash, so during this phase either disable password change at the provider or have the provider's change event write the new bcrypt hash back to the monolith. Decide which in Step 2.\n\n**Step 5 (weeks 9-11): Ramp to 10%, 50%, 100%.** Hold each stage for several days of normal traffic, including a weekend, and move up only if metrics match baseline. *True at end:* all logins go through the provider; legacy login remains deployed and reachable by flag. Active users migrate naturally as they log in; the monolith records a 'migrated' marker per user.\n\n**Sessions while both systems are live.** Existing legacy sessions are never invalidated by the cutover; they live out their normal expiry and are honoured by the dual-acceptance code. When a legacy-session user next authenticates (expiry or re-login), they go through OIDC and receive an OIDC-backed session. Logout must clear both: it destroys the server-side session and, for OIDC users, calls the provider's logout endpoint, so a user cannot be logged out of one system and silently remain in the other. Session lifetimes should be aligned so neither system holds a user far longer than the other. Because sessions are server-side, revocation (for example after a compromise) works on both paths, and you should test that explicitly in Step 3.\n\n**Users who do not log in during the quarter.** Lazy migration leaves them on the legacy hash, still working through the fallback. Do not wait for them indefinitely. In weeks 11-12, look at the unmigrated count. For dormant accounts, choose per segment: (a) bulk-import hashes into the provider if it supports bcrypt import (no password change needed, fully reversible since the legacy copy remains), or (b) leave them and send a gentle 'log in to keep your account' notice, retaining the legacy path for them until a published date. A forced reset is excluded by your constraints, so the fallback for genuinely never-returning users is that their account stays dormant and they use the normal 'forgot password' flow whenever they come back, which is an opt-in recovery, not a forced reset.\n\n**Step 6 (week 12): Soak and decision gate.** Run at 100% for at least two weeks with legacy login still deployed. The gate to proceed: migrated share of active users (say logged in within 60 days) above 98%, error rates at baseline, no open auth incidents, and a tested restore of the legacy hash table from backup.\n\n**Point of no return.** It is the deletion of legacy bcrypt hashes and removal of the legacy login code, because after that, rolling back to the monolith's own login is impossible. Reach it safely: first remove the legacy login path from the UI but keep the code and hashes for 30-60 days; then take a verified, encrypted offline backup of the hash table with restricted access; only then delete. The backup is itself a liability, so give it a retention end date.\n\n**Cleanup afterwards:** drop the hash column and legacy session code, remove the flag and dual-acceptance logic, disable the migration endpoint and rotate its credentials, remove the hook from the provider, and update runbooks and incident procedures. Also document the dormant-user policy.\n\n**Caveats and open questions:** the bcrypt support question (Step 2) could change the dormant-user plan; password-change sync needs an explicit decision; and part-time staffing makes weeks 5-11 the schedule risk, so protect the canary window from slippage rather than compressing the holds.",
+          "usage": {
+            "inputTokens": 1015,
+            "outputTokens": 2175,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.02378
+          },
+          "latencyMs": 21148,
+          "at": "2026-11-16T00:49:45.558Z",
+          "passId": "eval:01a1e1cf-33e8-79d7-b354-b9764f7a85fe"
+        },
+        "baselineCached": false,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "sequencing": {
+                "reason": "Gives week-banded phases (confirm bcrypt compatibility, shadow cohort, GA with dual-run, gated IdP-only cutover, phased cleanup) with rollback mentioned, but the state after each phase is thin and rollbacks are generic ('re-enable the legacy route') rather than step-specific.",
+                "score": 2
+              },
+              "credentials": {
+                "reason": "Describes lazy migration through the hook verifying against the bcrypt hash, 72-byte truncation check, and dormant users migrated on first login after cutover; but the dormant-user decision is left open and there is no concrete treatment of hash retirement beyond a 90-day placeholder retention.",
+                "score": 2
+              },
+              "dual-run": {
+                "reason": "States the monolith accepts both legacy cookies and OIDC tokens, exchanges legacy for OIDC on first access, and uses back-channel logout, which is a clear rule, but offers no edge cases such as mid-switch expiry, API clients, or admin accounts.",
+                "score": 2
+              },
+              "constraints": {
+                "reason": "Week ranges are given and 'well under an hour' is claimed, but there is no effort per step for three part-time engineers and no named step most likely to slip with a buffer.",
+                "score": 1
+              },
+              "cutover": {
+                "reason": "Names IdP-only switch as the point of no return with provisional thresholds (95%/1%) and a phased cleanup list, but internally inconsistent: calls it the point of no return yet says it is revertable within an hour, and offers no post-cutover monitoring window.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Claims are mostly sound and flags assumptions honestly, but the 'point of no return' that is also revertible in an hour muddles the logic, and the plan to migrate dormant users 'after cutover' via a hook that disables local password checks conflicts with its own cutover step.",
+                "score": 1
+              }
+            },
+            "baseline": {
+              "sequencing": {
+                "reason": "Six numbered steps with week ranges, each stating what is true at the end and a specific rollback (deploy revert, flag-off, disable OIDC acceptance), with explicit ordering rationale such as dual-session acceptance before sending any user through OIDC.",
+                "score": 3
+              },
+              "credentials": {
+                "reason": "Details the hook calling an authenticated, rate-limited monolith endpoint that checks bcrypt, provider re-hashing, dormant-user options (bulk import vs notice and retained legacy path), password-change divergence, and a hash deletion path with encrypted backup that itself gets a retention end date.",
+                "score": 3
+              },
+              "dual-run": {
+                "reason": "Gives a rule that legacy sessions live out their expiry and honour dual acceptance, new auth yields OIDC sessions, logout clears both sides, lifetimes are aligned, and revocation is tested; admin accounts and API clients are not covered.",
+                "score": 2
+              },
+              "constraints": {
+                "reason": "Fits the schedule into 12 weeks with flag flips for one-hour reversal and explicitly names weeks 5-11 as the schedule risk to protect, though it lacks per-step effort estimates in person-time.",
+                "score": 2
+              },
+              "cutover": {
+                "reason": "Correctly identifies hash deletion and legacy code removal as the irreversible point, with a gate (98% of 60-day actives, baseline errors, tested restore), staged removal over 30-60 days, backup, and a cleanup list; post-cutover monitoring is implied by the soak and delay rather than an explicit week.",
+                "score": 3
+              },
+              "correctness": {
+                "reason": "Sound and precise: maps to internal user ID not username, notes the hook is a password oracle, handles the legacy-hash divergence after provider password change, and flags the bcrypt-support unknown; slight softness in calling a 'forgot password' recovery non-forced.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "B is more specific and internally consistent, with per-step state and rollback and a properly defined irreversible point, while A conflates its point of no return with a one-hour-reversible switch and leaves dormant users unresolved."
+          },
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "sequencing": {
+                "reason": "Phases are given by week range with rollback mentioned for the shadow and GA phases, but the state after each phase is thin and the 'shadow phase' is loosely defined, with the rollback time bound only 'stated and tested' rather than specified.",
+                "score": 2
+              },
+              "credentials": {
+                "reason": "Describes lazy migration via the hook and the bcrypt version and 72-byte truncation check, but the dormant-user plan is vague ('migrated on first login after cutover' while also rejecting leaving them on legacy) and the hash retirement is a placeholder 90-day retention.",
+                "score": 2
+              },
+              "dual-run": {
+                "reason": "Says the monolith accepts both session types and exchanges legacy sessions for OIDC, with back-channel logout, but gives no clear rule on session ownership, expiry mid-switch, API clients or admins.",
+                "score": 1
+              },
+              "constraints": {
+                "reason": "Gives week ranges that plausibly fit a quarter, but no effort per step and no named slip risk; the plan is internally inconsistent on what the legacy database dependency costs.",
+                "score": 1
+              },
+              "cutover": {
+                "reason": "Names IdP-only mode as the point of no return with provisional thresholds and a phased cleanup, but claims it can be reverted within an hour (contradicting 'point of no return'), and has no post-cutover monitoring period.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Precise on bcrypt prefixes and truncation, but the claim that the point of no return is revertible within an hour is contradictory, and the dormant-user logic conflicts with itself.",
+                "score": 2
+              }
+            },
+            "baseline": {
+              "sequencing": {
+                "reason": "Six numbered steps with week ranges, each stating what is true at the end (e.g. 'flag off; rollback is a deploy revert', 'all logins via provider; legacy reachable by flag') and an explicit reversal mechanism, with a logical order (seam, hook, dual acceptance, canary, ramp, soak).",
+                "score": 3
+              },
+              "credentials": {
+                "reason": "Lazy migration via the hook verifying against the bcrypt hash, with a rate-limited authenticated endpoint treated as a password oracle, a dormant-user plan (bulk bcrypt import vs notice vs forgot-password), and a backup-then-delete retirement of hashes with a retention end date.",
+                "score": 3
+              },
+              "dual-run": {
+                "reason": "States that legacy sessions live out their expiry and are honoured by dual acceptance, logout clears both systems, lifetimes are aligned, and revocation is tested; also handles password-change divergence, but does not address API clients or admin accounts.",
+                "score": 2
+              },
+              "constraints": {
+                "reason": "Fits a 12-week calendar with part-time staffing and names weeks 5-11 as the schedule risk to be protected, but gives no per-step effort estimate in person-days.",
+                "score": 2
+              },
+              "cutover": {
+                "reason": "Defines the point of no return as hash deletion, with a quantified gate (98% of 60-day actives, baseline errors, tested restore), a staged removal and offline backup, and a cleanup list; post-cutover monitoring is only implied through the soak before the gate.",
+                "score": 3
+              },
+              "correctness": {
+                "reason": "Claims are sound and the plan flags the bcrypt-import question as an unknown to resolve; the rollback caveat about provider-side password changes diverging from legacy hashes is precise, though 'forgot password' for dormant users slightly strains the no-reset constraint.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer A is more concrete, internally consistent and complete across sequencing, sessions, dormant users and cutover; Answer B is hedged with unresolved assumptions and contradicts itself on reversibility at the point of no return."
+          }
+        ],
+        "judgeSkipped": [],
+        "judgeUsage": {
+          "inputTokens": 8844,
+          "outputTokens": 2548,
+          "cacheReadTokens": 2197,
+          "cacheWriteTokens": 2197,
+          "reasoningTokens": 0,
+          "costUsd": 0.0490999
+        },
+        "scores": {
+          "swarm": 57.14285714285714,
+          "baseline": 90.47619047619048,
+          "delta": -33.33333333333334,
+          "winner": "baseline",
+          "consistency": 0
+        },
+        "costUsd": 0.09001777
+      },
+      {
+        "problem": {
+          "id": "teen-reading-programme",
+          "title": "A six-week teen reading programme on a $500 budget",
+          "domain": "community-planning",
+          "constraints": [
+            "A public library branch in a mid-sized town; one librarian can give four hours a week, plus volunteers if recruited.",
+            "Budget is $500 in total for the six weeks; the library already has a meeting room and a book collection.",
+            "The target is 13-to-17-year-olds, most of whom do not currently use the library.",
+            "The branch manager wants evidence of the outcome, not only attendance numbers, to decide whether to repeat it."
+          ],
+          "successCriteria": [
+            "A programme design (format, frequency, content) that a non-reading teenager would plausibly turn up to.",
+            "A recruitment plan that reaches teens who do not use the library today.",
+            "A budget that allocates the $500 and shows what it buys.",
+            "Outcome measures beyond attendance, measurable within six weeks, and how they are collected."
+          ],
+          "rubric": [
+            {
+              "id": "design",
+              "weight": 3,
+              "criterion": "Describes a concrete programme (what happens each week) suited to teens who do not read for pleasure.",
+              "scale": "0 = 'a book club'; 1 = a format with no reasoning about the audience; 2 = a format argued from what draws non-readers (choice, social element, media tie-ins, creation); 3 = plus a week-by-week outline."
+            },
+            {
+              "id": "recruitment",
+              "weight": 2,
+              "criterion": "Explains how teens who do not visit the library will hear about it and why they would come.",
+              "scale": "0 = 'put up posters'; 1 = one channel; 2 = channels where teens are (schools, youth groups, social media) with a specific hook; 3 = plus a partner or peer-recruiter mechanism."
+            },
+            {
+              "id": "budget",
+              "weight": 2,
+              "criterion": "Allocates the $500 to specific items that fit the design.",
+              "scale": "0 = no budget; 1 = a total with no breakdown; 2 = a breakdown that fits the design; 3 = a breakdown with a cheaper fallback and what is in kind."
+            },
+            {
+              "id": "outcomes",
+              "weight": 3,
+              "criterion": "Proposes outcome measures beyond attendance (reading behaviour, confidence, library card sign-ups, return visits) and how they are collected in six weeks.",
+              "scale": "0 = attendance only; 1 = outcomes named but not measurable; 2 = measurable outcomes with a collection method (short pre/post survey, borrowing data, retention week to week); 3 = plus what result would justify repeating it."
+            },
+            {
+              "id": "feasibility",
+              "weight": 2,
+              "criterion": "Fits four librarian hours a week and realistic volunteer effort.",
+              "scale": "0 = needs much more staff time; 1 = plausible but unscoped; 2 = time accounted for; 3 = time accounted for with prep done once and reused."
+            },
+            {
+              "id": "correctness",
+              "weight": 2,
+              "criterion": "Practical claims hold up: what $500, four librarian hours a week and volunteers can actually buy, and what teenagers will do.",
+              "scale": "0 = material errors; 1 = one questionable claim; 2 = sound; 3 = sound and precise about limits and about what it does and does not guarantee."
+            }
+          ],
+          "statement": "A public library branch in a mid-sized town wants to run a six-week programme for 13-to-17-year-olds, most of whom do not use the library today. One librarian can give four hours a week; volunteers can be recruited; the budget is $500 for everything beyond the room and the existing collection. The branch manager will repeat the programme only if there is evidence it changed something for the participants, not just that some turned up.\n\nDesign the programme: what happens each week and why teenagers who do not read for pleasure would come, how the library reaches teens who are not already visitors, how the $500 is spent, and how the outcome is measured within the six weeks in a way that goes beyond attendance. Make sure it fits four hours of librarian time a week."
+        },
+        "swarm": {
+          "runId": "01a1e1d8-99a8-79f2-ad06-882011484999",
+          "answer": "Recommendation: run a six-week 'Media Maker Lab' for 13-to-17-year-olds in which teens record short podcasts or zines on their own smartphones and the library's Wi-Fi, in one 4-hour session per week. Each session has three parts: about 30 minutes of check-in and food, about 2.5 hours of workshop and creation, and 30 minutes of showcase and reflection. The format is built on making rather than reading, which is the most plausible hook for teens who do not read for pleasure, and it naturally sends them to library databases and equipment for sources and sound or image work.\n\nRecruitment (design and reach): a 'Buddy Pass' is distributed through existing peer networks such as school student captains, sports teams and youth clubs, so that trust passes from current students to non-users. Passes are handed out at school drop-off and youth-centre visits by volunteers, which takes no librarian time beyond a short initial briefing. Consent uses pre-stamped paper forms that volunteers collect at the door and file immediately, keeping librarian registration and consent work to about 30 minutes a week and avoiding digital barriers for families without smartphones or email. Assumption: the school and club partners will accept passes and paper forms without a sustained relationship-building effort, which the board does not establish; if they do not, the first two weeks should rely on direct sign-up at the branch.\n\nBudget ($500 total): about $240 for bulk tacos or sandwiches, roughly $3 a head for key weeks and the main attendance driver; $150 for six $25 completion gift cards, tied to completing a final artefact rather than attendance alone; $50 for printing zine and podcast handouts, poster stock and recruitment passes; and $60 for survey printing and contingency. The lines sum to $500. Food is prioritised because teen attendance responds most to it, and funds are not spent on transport, which the budget cannot cover at this scale.\n\nTime: the librarian gives 4 hours a week, split as 30 minutes of preparation (consent lists and equipment set-up), about 3 hours of facilitation, and 30 minutes of post-session data entry. Two volunteers handle check-in, material distribution, clean-up and helping small groups with equipment, so the librarian's time goes to teaching and supervision. Assumption: the volunteers are trained in advance and can supervise small groups, and the room has enough devices for groups to produce simultaneously; the board does not confirm device counts, so the first session should check this.\n\nOutcomes beyond attendance: a 3-question pre and post 5-point Likert survey on library self-efficacy (about 3 minutes, volunteer-administered), a count of library card sign-ups and later checkouts, and a simple rubric rating each teen's final podcast or zine for completion and effort. Evidence of change would be a mean self-efficacy gain of more than 1 point, a sign-up rate of at least 40 percent among participants, and a majority of finished artefacts rated as complete. These measures give the branch manager evidence of change rather than turnout alone. Assumption: the 1-point gain and 40 percent sign-up threshold are judgement-based targets, not validated benchmarks, and a comparison with teens who registered but did not attend would strengthen the evidence if the manager accepts it.\n\nCaveats: the claim that podcast or zine production will engage non-readers rests on limited evidence and should be tested in the first two weeks, with the format adjusted if attendance falls. Survey samples will be small, so results indicate direction rather than statistical proof. Confidence is held below 0.8 because the evaluation design and the feasibility of simultaneous device use are not yet confirmed.",
+          "confidence": 0.65,
+          "stage": "final",
+          "writeUp": {
+            "maxOutputTokens": 2709,
+            "wordBudget": 900,
+            "written": true,
+            "costUsd": 0.001924325
+          },
+          "writeUpFailure": null,
+          "rounds": 12,
+          "status": "completed",
+          "reason": "budget_rounds",
+          "entries": 73,
+          "usage": {
+            "inputTokens": 140487,
+            "outputTokens": 31191,
+            "cacheReadTokens": 29396,
+            "cacheWriteTokens": 27732,
+            "reasoningTokens": 0,
+            "costUsd": 0.02562566
+          },
+          "costUsd": 0.02562566,
+          "elapsedMs": 256647
+        },
+        "swarmError": null,
+        "baseline": {
+          "key": "ff9fe5e390f1dfd2435d69af130463ab5d7180011c43f9effbe42ef6f4409ace",
+          "problemId": "teen-reading-programme",
+          "modelId": "claude-sonnet-5-5",
+          "capUsd": 0.03,
+          "maxOutputTokens": 2709,
+          "wordBudget": 900,
+          "truncated": false,
+          "answer": "**Recommendation:** Run a six-week, once-weekly 90-minute \"Make Something\" studio for teens, built around making things (zines, short audio stories, comics, a collaborative game) rather than reading. Books enter as raw material and reference, never as the entry price. Teens co-design the final week's showcase, and the outcome is measured with a short before-and-after survey, a behavioural library-use measure, and a dated portfolio of what each teen made. This gives the branch manager three kinds of evidence beyond headcount.\n\n**Why non-readers would come.** Teens who do not read for pleasure are rarely refusing the library; they are refusing homework-flavoured activities. So the pitch is: free, a place to hang out after school, snacks, a product you keep, and no reading required. A Tuesday or Wednesday slot from 4:00 to 5:30 catches the after-school window. Capping the group at 12-15 keeps it social and manageable for one adult. Choice matters: in week one, teens vote on which project strand they join (zine, audio/podcast, comic, or tabletop game design), which gives ownership from the first session.\n\n**Weekly structure.** Week 1: icebreaker, tour framed as a scavenger hunt, project vote, and teens set two or three ground rules. Week 2: skills session, e.g. layout and cut-and-paste for zines, or recording basics on phones for audio. Week 3: drafting, with an invited local maker (artist, musician, game designer, local journalist) doing a 20-minute \"how I got started\" talk. Week 4: production, with a short, optional, low-pressure moment where the librarian shows how the collection feeds the project (graphic novels for comics, a how-to book on bookbinding, music biographies). Week 5: finishing and rehearsal, with teens planning the showcase themselves. Week 6: a public showcase for family, friends and staff, with work displayed or played in the branch, a copy of each zine or recording catalogued in a local-teen-voices shelf, and the final survey.\n\n**Fitting four hours a week.** Ninety minutes of delivery plus a 30-minute set-up and pack-down is two hours. That leaves two hours for prep, outreach, messages to participants, and data handling. Outreach is heaviest in weeks minus three to zero and tapers; the freed time shifts to follow-up and analysis in the final weeks. Volunteers (aim for two or three) do the heavy lifting on setup, snack duty and one-to-one help; recruit them from local college students, community arts groups, or the library's adult volunteers, and give them a single page of expectations. A guest maker each fortnight, unpaid or on a small honorarium, spreads the content load without demanding more librarian prep.\n\n**Reaching teens who are not visitors.** Do not rely on the library's own noticeboard or newsletter, which reach existing users. Instead, go where teens already are. Ask two or three local schools (head of year, school librarian, pastoral staff) to share a one-page flyer and, ideally, let the librarian give a ten-minute lunchtime pitch. Contact youth clubs, sports clubs, the local skate park or arts group, and any teen-focused services such as youth workers or alternative-education provision, since these staff can personally invite specific teens, which works far better than posters. Add a short Instagram or TikTok post with a teen volunteer or a prior contact fronting it, and ask each participant to bring a friend in week one. Registration should be a simple text or form with no library card needed; the card is offered in week one as a bonus. Start outreach three weeks before launch, and record how each teen heard about it so you can say whether non-users were actually reached.\n\n**Budget ($500).** Materials (paper, printing, staples, markers, scissors, glue, a few cheap USB microphones or pop filters if phones are insufficient, craft supplies): $150. Snacks and drinks for six sessions plus the showcase, roughly $12 per session for the weekly group and $40 for the showcase: $110. Guest maker honoraria, three at $30 each: $90. Outreach printing and a small number of promoted social posts: $50. Incentives: a printed, bound anthology of the group's work, one copy per teen: $60. Contingency, for replacement supplies or a late-added need: $40. Total: $500. The largest lines are deliberately snacks and materials, because they directly shape whether teens show up and whether they leave with something.\n\n**Measuring outcomes beyond attendance.** Use three measures, all collectable in six weeks. First, a five-question survey in week one and week six, on a simple five-point scale: \"I feel welcome in the library\", \"I know how to find something I want in the library\", \"I feel confident making and sharing my own work\", \"I would come back to the library\", and one open question, \"What did you get from this?\" Paper or a phone form takes five minutes in-session, so response should be near-complete. Second, a behavioural measure: how many participants who did not hold a card at the start have one by week six, and how many borrowed or used an item, tracked from the card sign-up and the librarian's tally with the teens' consent. Third, an artefact measure: each teen's finished piece, plus a short written or recorded reflection, which shows concrete skill and engagement. A final optional follow-up text four weeks later asking whether they have visited since gives a rough durability signal, though it falls outside the six weeks.\n\n**Caveats.** With about 12 participants, differences are indicative, not statistically proven; present results as counts and quotes, not percentages alone. Self-reported attitude change can be inflated by wanting to please staff, so the card and borrowing data matter more. There is no comparison group, so you cannot claim the programme caused any change. Retention may dip mid-programme; a reminder text the day before each session helps. Parental consent and safeguarding checks for volunteers and guests must be settled before launch, and they need librarian time that should be booked into the pre-launch weeks.\n\n**Decision rule to agree with the manager now.** Suggested threshold for repeating: at least half the participants non-users at the start, at least 70 percent attending four or more sessions, a visible rise in the welcome and confidence items, and a meaningful number of new card holders. Setting this in advance makes the evidence usable.",
+          "usage": {
+            "inputTokens": 1018,
+            "outputTokens": 2067,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.022706
+          },
+          "latencyMs": 21622,
+          "at": "2026-11-16T00:53:29.521Z",
+          "passId": "eval:01a1e1cf-33e8-79d7-b354-b9764f7a85fe"
+        },
+        "baselineCached": false,
+        "baselineSkipped": null,
+        "judgements": [
+          {
+            "order": {
+              "A": "baseline",
+              "B": "swarm"
+            },
+            "swarm": {
+              "design": {
+                "reason": "Proposes a Media Maker Lab with podcasts and zines and argues making is the hook for non-readers, but the weekly content is just a generic session template with no week-by-week outline, and the 4-hour sessions are long for teens.",
+                "score": 2
+              },
+              "recruitment": {
+                "reason": "The Buddy Pass via student captains, sports teams and youth clubs is a genuine peer-recruiter mechanism, but it is thin on other channels and hooks and relies on unverified partner cooperation, which it acknowledges.",
+                "score": 3
+              },
+              "budget": {
+                "reason": "Gives a breakdown that sums to $500 (food, gift cards tied to artefact completion, printing, surveys and contingency) with a rationale, but no cheaper fallback; the gift cards are a reasonable incentive but not very much of the spend goes on creation.",
+                "score": 2
+              },
+              "outcomes": {
+                "reason": "Three-question pre/post survey, card sign-ups and checkouts, and an artefact rubric, with explicit thresholds (>1 point gain, 40% sign-up, majority complete) that are honestly flagged as judgement-based.",
+                "score": 3
+              },
+              "feasibility": {
+                "reason": "A 4-hour session each week leaves the librarian's 4 hours fully consumed by facilitation, yet the stated split (30 min prep, 3 hours facilitation, 30 min data entry) does not match the 4-hour session and ignores outreach, school visits and volunteer coordination.",
+                "score": 1
+              },
+              "correctness": {
+                "reason": "Contains an internal contradiction (4-hour sessions versus 3 hours facilitation), a stray reference to the board and confidence level, and unrealistic assumptions about devices and volunteer-run recruitment, though it candidly flags uncertainties.",
+                "score": 1
+              }
+            },
+            "baseline": {
+              "design": {
+                "reason": "Gives a clear week-by-week outline (icebreaker and project vote, skills, guest maker, production, finishing, public showcase) argued from what draws non-readers: choice of strand, snacks, social setting, making a product, no reading required.",
+                "score": 3
+              },
+              "recruitment": {
+                "reason": "Goes beyond the library's own channels to schools, youth clubs, skate park, youth workers and a teen-fronted social post, with a bring-a-friend mechanism, no-card registration, and tracking of how each teen heard so non-user reach can be verified.",
+                "score": 3
+              },
+              "budget": {
+                "reason": "Itemised $500 (materials $150, snacks $110, honoraria $90, outreach $50, anthology $60, contingency $40) that fits the design, but there is no cheaper fallback and little on in-kind contributions beyond unpaid guests and volunteers.",
+                "score": 2
+              },
+              "outcomes": {
+                "reason": "Five-item pre/post survey, card sign-ups and borrowing tracked, artefact portfolio with reflection, retention tracking, and an explicit pre-agreed repeat threshold (half non-users, 70% attending 4+ sessions, rises in welcome/confidence, new cardholders).",
+                "score": 3
+              },
+              "feasibility": {
+                "reason": "Accounts for time (2 hours delivery and setup, 2 hours prep/outreach/data), notes outreach front-loading and tapering, and flags safeguarding checks needing booked pre-launch time; reuse of prep is only implicit.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "Claims are sound and limits are explicit: small sample, no comparison group so no causal claim, self-report bias, retention dip, consent and safeguarding needs.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "Answer A is stronger: it has a fuller week-by-week design, a more realistic time budget, and more thorough outcome and repeat criteria. Answer B's peer-pass idea is good, but its time accounting is internally inconsistent."
+          },
+          {
+            "order": {
+              "A": "swarm",
+              "B": "baseline"
+            },
+            "swarm": {
+              "design": {
+                "reason": "A proposes a 'Media Maker Lab' (podcasts/zines on phones) argued from making over reading, but the weekly content is just a generic session template (30min check-in, 2.5hr workshop, 30min showcase) with no week-by-week outline.",
+                "score": 2
+              },
+              "recruitment": {
+                "reason": "A uses a 'Buddy Pass' via school student captains, sports teams and youth clubs, which is a peer-recruiter mechanism with a specific hook, though the hook for why teens would come is thin beyond the pass.",
+                "score": 3
+              },
+              "budget": {
+                "reason": "A breaks down $500 (food $240, gift cards $150, printing $50, survey/contingency $60) and the lines fit the design, but it offers no cheaper fallback or in-kind list, and the lines are slightly muddled (survey printing lumped with contingency).",
+                "score": 2
+              },
+              "outcomes": {
+                "reason": "A gives a 3-item pre/post self-efficacy survey, card sign-ups and checkouts, and an artefact rubric, with explicit repeat thresholds (1-point gain, 40% sign-up) honestly flagged as judgement-based.",
+                "score": 3
+              },
+              "feasibility": {
+                "reason": "A splits the librarian's 4 hours into 30 min prep, 3 hours facilitation and 30 min data entry with two volunteers, but a 4-hour weekly session consumes essentially all the time and leaves no room for outreach, with no reuse of prep.",
+                "score": 2
+              },
+              "correctness": {
+                "reason": "A's four-hour teen session is long and implausible, 'tacos at $3 a head' for $240 across six sessions is shaky, and $25 gift cards for completion are questionable, though it flags assumptions about devices and partner buy-in.",
+                "score": 1
+              }
+            },
+            "baseline": {
+              "design": {
+                "reason": "B gives a 90-minute weekly 'Make Something' studio with a project vote (zine, audio, comic, tabletop game), a week-by-week outline from icebreaker to showcase, and explicit reasoning about why non-readers come (choice, snacks, no reading required, product they keep).",
+                "score": 3
+              },
+              "recruitment": {
+                "reason": "B explicitly avoids library-only channels and targets schools (lunchtime pitch), youth clubs, skate park and youth workers who personally invite teens, adds social media fronted by a teen, bring-a-friend, no-card registration, and tracks how each teen heard about it.",
+                "score": 3
+              },
+              "budget": {
+                "reason": "B allocates $500 across materials, snacks, honoraria, outreach, anthologies and contingency, all fitting the design, with in-kind elements (room, volunteers, unpaid guests) implied and a stated rationale, but no explicit cheaper fallback.",
+                "score": 2
+              },
+              "outcomes": {
+                "reason": "B uses a 5-item pre/post survey, a behavioural measure (new card holders, borrowing with consent), artefacts with reflection, and a pre-agreed decision rule (half non-users, 70% attending four+ sessions, rise in items, new cardholders).",
+                "score": 3
+              },
+              "feasibility": {
+                "reason": "B accounts for 90 min delivery plus 30 min set-up leaving 2 hours for prep and outreach, tapers outreach over time, uses 2-3 volunteers with a one-page brief and guest makers to spread content load, and books safeguarding time pre-launch.",
+                "score": 3
+              },
+              "correctness": {
+                "reason": "B's claims are realistic (12-15 cap, after-school slot, snack costs) and it states limits clearly: no comparison group so no causal claim, social-desirability bias, small-sample caution, and that the follow-up falls outside six weeks.",
+                "score": 3
+              }
+            },
+            "preferred": "baseline",
+            "note": "B is stronger: a concrete week-by-week plan, realistic session length, better-scoped librarian time, and a clearer decision rule with honest limits, whereas A's four-hour session and thin weekly content weaken its design and feasibility."
+          }
+        ],
+        "judgeSkipped": [],
+        "judgeUsage": {
+          "inputTokens": 8852,
+          "outputTokens": 2551,
+          "cacheReadTokens": 2189,
+          "cacheWriteTokens": 2189,
+          "reasoningTokens": 0,
+          "costUsd": 0.049124299999999996
+        },
+        "scores": {
+          "swarm": 71.42857142857143,
+          "baseline": 92.85714285714286,
+          "delta": -21.42857142857143,
+          "winner": "baseline",
+          "consistency": 4.761904761904752
+        },
+        "costUsd": 0.09745595999999998
+      }
+    ],
+    "spentUsd": 0.27433302,
+    "stopped": null,
+    "aggregate": {
+      "problems": 3,
+      "judged": 3,
+      "swarmMean": 69.24603174603175,
+      "baselineMean": 94.44444444444446,
+      "meanDelta": -25.1984126984127,
+      "wins": 0,
+      "losses": 3,
+      "ties": 0,
+      "firstShownPreferred": {
+        "count": 3,
+        "of": 6
+      },
+      "consistency": 2.9761904761904745
+    }
+  }
+}
