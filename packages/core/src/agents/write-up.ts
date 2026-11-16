@@ -205,7 +205,7 @@ export const renderWriteUpPrompt = (
   const lines: string[] = [];
   const problem = view.problem();
   if (problem === undefined) {
-    lines.push('# Problem', '(no problem entry on the board)');
+    lines.push('# Problem', '(no problem statement)');
   } else {
     name(problem);
     lines.push(`# Problem (${h(problem.id)})`, problem.content);
@@ -233,7 +233,7 @@ export const renderWriteUpPrompt = (
   const { sections, staleCritiques } = sectionsOf(view);
   const shown = { full: 0, digested: 0, omitted: 0 };
   let used = 0;
-  lines.push('', '# The board');
+  lines.push('', '# Working notes');
   for (const section of sections) {
     if (section.items.length === 0) continue;
     const body: string[] = [];
@@ -259,7 +259,7 @@ export const renderWriteUpPrompt = (
     while (body.at(-1) === '') body.pop();
     if (body.length > 0) lines.push('', `## ${section.title}`, ...body);
   }
-  if (shown.full + shown.digested === 0) lines.push('(nothing but the problem)');
+  if (shown.full + shown.digested === 0) lines.push('(none: only the problem statement)');
 
   const left: string[] = [];
   if (shown.omitted > 0) {

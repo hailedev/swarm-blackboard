@@ -255,7 +255,7 @@ describe('the final write-up at the end of a run', () => {
     expect(call?.tags).toEqual({ role: WRITE_UP_ROLE, runId: controller.runId, round: 4 });
     expect(call?.system).toBe(testWriteUpPrompt());
     expect(call?.maxOutputTokens).toBe(2_700);
-    expect(call?.prompt).toContain('# The board');
+    expect(call?.prompt).toContain('# Working notes');
     expect(call?.prompt).toContain('## Latest draft of the answer');
     expect(call?.prompt).toContain('you have about 900 words');
 

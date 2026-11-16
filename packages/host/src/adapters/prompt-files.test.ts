@@ -71,7 +71,12 @@ describe('loadWriteUpPrompt', () => {
     expect(text.startsWith('# Final write-up')).toBe(true);
     // What the answer must be (Phase 5, Step 2a): for a reader who has never seen the board,
     // every criterion answered, open points decided and labelled, in the shape core parses.
-    expect(text).toContain('Never mention the board');
+    expect(text).toContain('The answer never refers to where its content came from');
+    expect(text).toContain('The answer never states or discusses how confident you are');
+    expect(text).toContain('must not appear in the answer as it stands');
+    expect(text).toContain('Most of the words should carry concrete figures');
+    // The prompt itself never calls its material "the board": a model echoes the words it is given.
+    expect(text).not.toMatch(/\bthe board\b/i);
     expect(text).toContain('answer every success criterion');
     expect(text).toContain('"Assumption:"');
     for (const field of ['`paragraphs`', '`confidence`', '`cites`']) expect(text).toContain(field);

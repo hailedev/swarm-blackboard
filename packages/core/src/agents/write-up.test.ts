@@ -122,7 +122,7 @@ describe('renderWriteUpPrompt', () => {
 
   it('says so when the board holds nothing but the problem', () => {
     const rendered = renderWriteUpPrompt(freshBoard().fx.view(), WHOLE_BOARD, 900);
-    expect(rendered.prompt).toContain('# The board\n(nothing but the problem)');
+    expect(rendered.prompt).toContain('# Working notes\n(none: only the problem statement)');
     expect(rendered.citeable).toEqual(['P1']);
     expect(rendered.shown).toEqual({ full: 0, digested: 0, omitted: 0 });
   });

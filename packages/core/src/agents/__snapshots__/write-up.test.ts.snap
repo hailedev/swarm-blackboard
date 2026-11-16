@@ -15,7 +15,7 @@ Success criteria:
 # Human notes
 - N1 (priority high): Prefer any option that keeps the three deploy pipelines independent.
 
-# The board
+# Working notes
 
 ## Candidate answers, most confident first
 ### H2 (hypothesis, round 4): confidence=0.75 supportedBy=E1,E2 contradictedBy=-
