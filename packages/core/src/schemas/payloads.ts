@@ -31,13 +31,23 @@ export const SubproblemStatusSchema = z.enum(['open', 'claimed', 'done']);
 export type SubproblemStatus = z.infer<typeof SubproblemStatusSchema>;
 export const SubproblemPayloadSchema = z.object({ status: SubproblemStatusSchema });
 
-export const hypothesisPayloadSchema = (ref: ReferenceSchema) =>
+// `resolves` names the critiques a hypothesis answers: the Solver sets it on the version
+// that supersedes a critiqued hypothesis (docs/PLAN.md §2.3 step 7). It is a record, not a
+// switch: a critique stops being open when its target is superseded, whoever names it; what
+// the field adds is which critiques the new version claims to have answered, so the Critic
+// can check the claim and a reader can count what was answered. `critiqueRef` is what the
+// field may point at: for a model, the live critiques in its view.
+export const hypothesisPayloadSchema = (ref: ReferenceSchema, critiqueRef: ReferenceSchema = ref) =>
   z.object({
     confidence: ConfidenceSchema,
     supportedBy: z.array(ref),
     contradictedBy: z.array(ref),
+    resolves: z.array(critiqueRef).optional(),
   });
-export const HypothesisPayloadSchema = hypothesisPayloadSchema(IdSchema);
+/** As stored: a hypothesis recorded before the field existed, or by a model that left it out, resolves nothing. */
+export const HypothesisPayloadSchema = hypothesisPayloadSchema(IdSchema).extend({
+  resolves: z.array(IdSchema).default([]),
+});
 
 export const evidencePayloadSchema = (ref: ReferenceSchema) =>
   z.object({

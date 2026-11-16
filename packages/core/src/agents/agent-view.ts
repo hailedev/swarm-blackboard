@@ -53,7 +53,11 @@ const list = (h: HandleOf, ids: readonly string[]): string => ids.map(h).join(',
 export const payloadReferences = (entry: Entry): string[] => {
   switch (entry.type) {
     case 'hypothesis':
-      return [...entry.payload.supportedBy, ...entry.payload.contradictedBy];
+      return [
+        ...entry.payload.supportedBy,
+        ...entry.payload.contradictedBy,
+        ...entry.payload.resolves,
+      ];
     case 'evidence':
       return [...entry.payload.supports, ...entry.payload.contradicts];
     case 'critique':
@@ -90,7 +94,8 @@ export const payloadDigest = (view: BoardView, entry: Entry): string => {
     case 'subproblem':
       return `status=${entry.payload.status}`;
     case 'hypothesis':
-      return `confidence=${String(entry.payload.confidence)} supportedBy=${list(h, entry.payload.supportedBy)} contradictedBy=${list(h, entry.payload.contradictedBy)}`;
+      // What it claims to have answered is printed only when it claims something.
+      return `confidence=${String(entry.payload.confidence)} supportedBy=${list(h, entry.payload.supportedBy)} contradictedBy=${list(h, entry.payload.contradictedBy)}${entry.payload.resolves.length === 0 ? '' : ` resolves=${list(h, entry.payload.resolves)}`}`;
     case 'evidence':
       return `source=${entry.payload.source} supports=${list(h, entry.payload.supports)} contradicts=${list(h, entry.payload.contradicts)}`;
     case 'critique':

@@ -43,6 +43,11 @@ export interface BoardView {
   evidenceContradicting(hypothesisId: string): readonly EntryOf<'evidence'>[];
   /** Live blocking critiques that are unresolved and whose target is still live. */
   openBlockingCritiques(): readonly EntryOf<'critique'>[];
+  /**
+   * The hypothesis that names this critique among the critiques it resolves (the latest
+   * one, live or not), or undefined when no version has claimed to answer it.
+   */
+  resolutionOf(critiqueId: string): EntryOf<'hypothesis'> | undefined;
 }
 
 const isType =
@@ -62,6 +67,7 @@ class MaterialisedBoardView implements BoardView {
   readonly #byHandle = new Map<Handle, Entry>();
   readonly #supersededBy = new Map<string, Entry>();
   readonly #children = new Map<string, Entry[]>();
+  readonly #resolutions = new Map<string, EntryOf<'hypothesis'>>();
 
   constructor(runId: string, events: readonly BoardEvent[]) {
     this.runId = runId;
@@ -82,6 +88,9 @@ class MaterialisedBoardView implements BoardView {
       this.#handleById.set(entry.id, handle);
       this.#byHandle.set(handle, entry);
       if (entry.supersedes !== undefined) this.#supersededBy.set(entry.supersedes, entry);
+      if (entry.type === 'hypothesis') {
+        for (const critiqueId of entry.payload.resolves) this.#resolutions.set(critiqueId, entry);
+      }
       for (const parent of entry.parents) {
         const siblings = this.#children.get(parent) ?? [];
         siblings.push(entry);
@@ -164,6 +173,10 @@ class MaterialisedBoardView implements BoardView {
         critique.payload.resolvedBy === undefined &&
         this.isLive(critique.payload.target),
     );
+  }
+
+  resolutionOf(critiqueId: string): EntryOf<'hypothesis'> | undefined {
+    return this.#resolutions.get(critiqueId);
   }
 
   #linkedEvidence(

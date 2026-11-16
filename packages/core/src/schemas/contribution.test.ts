@@ -146,3 +146,47 @@ describe('contributionSchema over handle references', () => {
     }
   });
 });
+
+describe('the critiques a hypothesis may say it resolves', () => {
+  const hypothesis = (resolves?: string[]) => ({
+    type: 'hypothesis',
+    content: 'A new version.',
+    parents: [],
+    payload: {
+      confidence: 0.7,
+      supportedBy: [],
+      contradictedBy: [],
+      ...(resolves === undefined ? {} : { resolves }),
+    },
+  });
+
+  it('are an enum of the live critiques in view', () => {
+    const schema = contributionSchemas({
+      any: z.enum(['P1', 'H1', 'C1', 'C2']),
+      liveOf: { hypothesis: z.enum(['H1']), critique: z.enum(['C2']) },
+      paragraphs: true,
+    }).hypothesis;
+    expect(schema.safeParse(hypothesis(['C2'])).success).toBe(true);
+    expect(schema.safeParse(hypothesis()).success).toBe(true);
+    // C1 is on the board but not live; H1 is not a critique.
+    expect(schema.safeParse(hypothesis(['C1'])).success).toBe(false);
+    expect(schema.safeParse(hypothesis(['H1'])).success).toBe(false);
+    expect(JSON.stringify(z.toJSONSchema(schema))).toContain('"resolves"');
+  });
+
+  it('are not in the schema at all when no critique is in view', () => {
+    const schema = contributionSchemas({
+      any: z.enum(['P1', 'S1']),
+      liveOf: {},
+      paragraphs: true,
+    }).hypothesis;
+    expect(JSON.stringify(z.toJSONSchema(schema))).not.toContain('resolves');
+    const parsed = schema.parse(hypothesis(['S1']));
+    expect('resolves' in parsed.payload).toBe(false);
+  });
+
+  it('stay optional on a contribution, so a model that leaves the field out is valid', () => {
+    const stored = ContributionSchema.parse({ ...hypothesis(), parents: [] });
+    expect(stored.type === 'hypothesis' && stored.payload.resolves).toBeUndefined();
+  });
+});

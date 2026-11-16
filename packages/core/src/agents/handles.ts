@@ -101,6 +101,9 @@ export const resolveHandles = (
             confidence: c.payload.confidence,
             supportedBy: many('payload.supportedBy', c.payload.supportedBy),
             contradictedBy: many('payload.contradictedBy', c.payload.contradictedBy),
+            ...(c.payload.resolves === undefined
+              ? {}
+              : { resolves: many('payload.resolves', c.payload.resolves) }),
           },
         };
       case 'evidence':

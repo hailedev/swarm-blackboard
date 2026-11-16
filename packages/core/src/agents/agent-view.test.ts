@@ -127,6 +127,27 @@ describe('buildAgentView', () => {
     expect(digestLine(view, synthesis)).toContain('version=1 confidence=0.6 cites=H2,E1,E2');
   });
 
+  it('prints what a hypothesis says it resolves, and only then', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const h1 = fx.entry('hypothesis', { confidence: 0.5, supportedBy: [], contradictedBy: [] });
+    const c1 = fx.entry('critique', { target: h1.id, severity: 'major' });
+    const h2 = fx.entry(
+      'hypothesis',
+      { confidence: 0.7, supportedBy: [], contradictedBy: [], resolves: [c1.id] },
+      { supersedes: h1.id },
+    );
+    const view = fx.view();
+    expect(payloadDigest(view, h1)).toBe('confidence=0.5 supportedBy=- contradictedBy=-');
+    expect(payloadDigest(view, h2)).toBe(
+      'confidence=0.7 supportedBy=- contradictedBy=- resolves=C1',
+    );
+    // The critique it names is one of its links: shown to an agent that reads the hypothesis.
+    const solverView = buildAgentView(view, 'solver', [h2.id], bounds());
+    expect(solverView.handles).toContain('C1');
+  });
+
   it('says a synthesis is the final write-up, and leaves a draft as it always printed', () => {
     const fx = new BoardFixture();
     const problem = fx.problem();

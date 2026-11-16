@@ -210,3 +210,79 @@ describe('prepareEntries: schema failures', () => {
     ]);
   });
 });
+
+describe('a hypothesis that names the critiques it resolves', () => {
+  // H1 is critiqued twice; H2 supersedes it and says which critique it answers.
+  const critiqued = () => {
+    const fx = new BoardFixture();
+    const problem = fx.problem();
+    fx.startRound(1);
+    const h1 = fx.entry('hypothesis', { confidence: 0.5, supportedBy: [], contradictedBy: [] });
+    const c1 = fx.entry('critique', { target: h1.id, severity: 'blocking' });
+    const c2 = fx.entry('critique', { target: h1.id, severity: 'major' });
+    return { fx, problem, h1, c1, c2 };
+  };
+
+  it('is committed with the field, which an older or silent hypothesis has empty', () => {
+    const { fx, h1, c1 } = critiqued();
+    expect(h1.payload.resolves).toEqual([]);
+    const batch = prepareEntries({
+      contributions: [
+        hyp({
+          supersedes: h1.id,
+          payload: { confidence: 0.7, supportedBy: [], contradictedBy: [], resolves: [c1.id] },
+        }),
+        hyp(),
+      ],
+      view: fx.view(),
+      ids: new SequentialIdGenerator(900),
+      runId: fx.runId,
+      round: 2,
+      author: 'solver',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      usage: zeroUsage(),
+    });
+    expect(batch.problems).toEqual([]);
+    expect(batch.entries.map((e) => (e.type === 'hypothesis' ? e.payload.resolves : null))).toEqual(
+      [[c1.id], []],
+    );
+  });
+
+  it('may only name critiques, and only ones that exist', () => {
+    const { fx, problem, h1, c1 } = critiqued();
+    const view = fx.view();
+    const naming = (resolves: string[]) =>
+      hyp({ payload: { confidence: 0.5, supportedBy: [], contradictedBy: [], resolves } });
+    expect(linkProblems(naming([c1.id]), view)).toEqual([]);
+    expect(linkProblems(naming([h1.id]), view)).toEqual([
+      `resolves names ${h1.id}, which is a hypothesis, not a critique`,
+    ]);
+    expect(linkProblems(naming([problem.id, unknown]), view)).toEqual([
+      `resolves references unknown entry ${unknown}`,
+      `resolves names ${problem.id}, which is a problem, not a critique`,
+    ]);
+  });
+
+  it('is what the board answers when asked who resolved a critique', () => {
+    const { fx, h1, c1, c2 } = critiqued();
+    expect(fx.view().resolutionOf(c1.id)).toBeUndefined();
+    const h2 = fx.entry(
+      'hypothesis',
+      { confidence: 0.7, supportedBy: [], contradictedBy: [], resolves: [c1.id] },
+      { supersedes: h1.id },
+    );
+    const view = fx.view();
+    expect(view.resolutionOf(c1.id)?.id).toBe(h2.id);
+    // Not named: C2 is no longer open (its target was replaced) but nobody claims to have answered it.
+    expect(view.resolutionOf(c2.id)).toBeUndefined();
+    expect(view.openBlockingCritiques()).toEqual([]);
+    // A later version that names it again is the one the board reports.
+    const h3 = fx.entry(
+      'hypothesis',
+      { confidence: 0.8, supportedBy: [], contradictedBy: [], resolves: [c1.id, c2.id] },
+      { supersedes: h2.id },
+    );
+    expect(fx.view().resolutionOf(c1.id)?.id).toBe(h3.id);
+    expect(fx.view().resolutionOf(c2.id)?.id).toBe(h3.id);
+  });
+});

@@ -17,6 +17,7 @@ const references = (c: Contribution): Reference[] => {
       refs.push(
         { field: 'supportedBy', ids: c.payload.supportedBy },
         { field: 'contradictedBy', ids: c.payload.contradictedBy },
+        { field: 'resolves', ids: c.payload.resolves ?? [] },
       );
       break;
     case 'evidence':
@@ -58,6 +59,15 @@ export const linkProblems = (contribution: Contribution, view: BoardView): strin
       .filter((id) => view.byId(id) === undefined)
       .map((id) => `${field} references unknown entry ${id}`),
   );
+  // A hypothesis can only resolve critiques.
+  if (contribution.type === 'hypothesis') {
+    for (const id of contribution.payload.resolves ?? []) {
+      const named = view.byId(id);
+      if (named !== undefined && named.type !== 'critique') {
+        problems.push(`resolves names ${id}, which is a ${named.type}, not a critique`);
+      }
+    }
+  }
   if (contribution.supersedes !== undefined) {
     const target = view.byId(contribution.supersedes);
     if (target === undefined) {

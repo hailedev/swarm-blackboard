@@ -89,12 +89,20 @@ const contributionOf = <T extends ContributionType, P extends ZodType, C extends
   return (live === undefined ? full.omit({ supersedes: true }) : full) as typeof full;
 };
 
+// A hypothesis may name the critiques it resolves, and only live critiques: with none in
+// view the field is left out of the schema, as `supersedes` is, so a model cannot invent one.
+const hypothesisPayloadOf = (refs: ReferenceSchemas) => {
+  const critiques = refs.liveOf.critique;
+  const full = hypothesisPayloadSchema(refs.any, critiques ?? refs.any);
+  return (critiques === undefined ? full.omit({ resolves: true }) : full) as typeof full;
+};
+
 // The long-form `content` schema is the only difference between the two shapes, so both
 // are built here and the exported builders pick by `refs.paragraphs`, with overloads so
 // each caller gets the exact type of the shape it asked for.
 const schemasWith = <C extends ZodType>(refs: ReferenceSchemas, longForm: C) => ({
   subproblem: contributionOf(refs, 'subproblem', SubproblemPayloadSchema, ContentSchema),
-  hypothesis: contributionOf(refs, 'hypothesis', hypothesisPayloadSchema(refs.any), ContentSchema),
+  hypothesis: contributionOf(refs, 'hypothesis', hypothesisPayloadOf(refs), ContentSchema),
   evidence: contributionOf(refs, 'evidence', evidencePayloadSchema(refs.any), ContentSchema),
   critique: contributionOf(refs, 'critique', critiquePayloadSchema(refs.any), ContentSchema),
   question: contributionOf(refs, 'question', questionPayloadSchema(refs.any), ContentSchema),
