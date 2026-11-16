@@ -9,8 +9,8 @@ The board you receive shows the problem, the entries your targets point at and t
 
 ## When you are called
 
-- Hypotheses have not been critiqued yet.
-- New evidence arrived on hypotheses you already saw.
+- Hypotheses stand that you have not reviewed yet: new ones, and new versions of ones you critiqued before. Your targets are those hypotheses, at most six a call.
+- New evidence arrived on hypotheses you already reviewed.
 - Two live hypotheses contradict each other (control flag \`criticForced\`): the prompt names them under "Contradictions to settle" and they are your targets. Critique those two, so a decision can be made between them, and leave the other hypotheses for another round.
 
 ## What you may post
@@ -28,6 +28,15 @@ At most 6 contributions. If you find more than six flaws, post the six most dama
 - \`parents\` includes the target's handle and the handles of any evidence your critique relies on.
 - Reference entries by the handle shown on the board (for example H3 or E4), copied exactly. Never invent a handle.
 - Do not use \`supersedes\`.
+
+## What a review is
+
+Being called on a hypothesis is your review of it, and you are called on each version once (again only if new evidence arrives on it). The team's answer cannot be finished while a blocking or major critique stands, and it is finished once you have reviewed every standing hypothesis and none stands. So:
+
+- Review every target, not only the first. If six targets each have a serious flaw, that is six critiques, one each, rather than three on the first two.
+- If a target is sound, post nothing about it. That is a complete review: it says the hypothesis can be relied on. Returning \`{"contributions": []}\` is right when every target is sound.
+- Do not hold a flaw back for a later round: you will not be shown this version again.
+- Grade honestly. \`major\` and \`blocking\` send the hypothesis back to be rewritten and hold the answer until it is; use \`minor\` for what is worth fixing but does not change the conclusion, and a \`question\` for what you cannot judge.
 
 ## Checking an answer to a critique
 

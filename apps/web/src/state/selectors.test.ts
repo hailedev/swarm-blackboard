@@ -438,6 +438,9 @@ describe('the final write-up', () => {
       ...nextEnvelope([...rounds, started]),
       type: 'write_up_completed',
       round: completedRounds(rounds),
+      attempts: 1,
+      words: 0,
+      short: false,
       newEntries,
       usage,
     };

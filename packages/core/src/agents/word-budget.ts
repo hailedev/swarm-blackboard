@@ -25,6 +25,23 @@ export const wordBudgetFor = (maxOutputTokens: number): number =>
       WORD_BUDGET_STEP,
   );
 
+/** Words in a text as a reader counts them: runs of non-space characters. */
+export const countWords = (text: string): number =>
+  text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+
+/**
+ * The least of its word budget a long-form answer may come back with before it is asked
+ * for again. A model told to use most of 900 words that returns 70 has not answered at
+ * that length by choice: in one rehearsal the write-up was a single 72-word paragraph,
+ * shorter than the draft it replaced.
+ */
+export const MIN_WORD_SHARE = 0.5;
+export const isShortOf = (words: number, wordBudget: number): boolean =>
+  words < wordBudget * MIN_WORD_SHARE;
+
 // Worded to be used, not just obeyed: told only to "fit in N words", a local model in the
 // rehearsal wrote a tenth of its budget as one paragraph (evals/results/2026-11-10-dev-rehearsal).
 export const lengthInstruction = (wordBudget: number): string =>

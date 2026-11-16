@@ -49,7 +49,14 @@ const swarmOutcome = (
   writeUp:
     answer === null
       ? null
-      : { maxOutputTokens: 2_048, wordBudget: 650, written: true, costUsd: 0.004 },
+      : {
+          maxOutputTokens: 2_048,
+          wordBudget: 650,
+          written: true,
+          costUsd: 0.004,
+          attempts: 1,
+          short: false,
+        },
   writeUpFailure: null,
   loop: {
     critiques: {
@@ -519,6 +526,8 @@ describe('report: what each arm wrote, and where the swarm scored low', () => {
                       wordBudget: 650,
                       written: false,
                       costUsd: 0.001,
+                      attempts: 1,
+                      short: false,
                     },
                     writeUpFailure: 'invalid_output: cites.0: Invalid option',
                   })
@@ -528,6 +537,8 @@ describe('report: what each arm wrote, and where the swarm scored low', () => {
                       wordBudget: 300,
                       written: true,
                       costUsd: 0.002,
+                      attempts: 1,
+                      short: false,
                     },
                   }),
             ),
@@ -545,6 +556,38 @@ describe('report: what each arm wrote, and where the swarm scored low', () => {
     expect(report).toContain(
       "`two`: the arms were asked for different lengths, the swarm's write-up for about 300 words and the baseline for about 650.",
     );
+  });
+
+  it('says when a write-up needed a second attempt, and when it is still short', async () => {
+    const pass = await runPass(
+      options({ problems: [problem('one'), problem('two')] }),
+      deps({
+        runSwarm: (p, cap) =>
+          Promise.resolve(
+            ok(
+              swarmOutcome(p.id, Math.min(0.02, cap), 'One two three four five six seven.', {
+                writeUp: {
+                  maxOutputTokens: 2_048,
+                  wordBudget: 650,
+                  written: true,
+                  costUsd: 0.006,
+                  attempts: 2,
+                  short: p.id === 'one',
+                },
+              }),
+            ),
+          ),
+      }),
+    );
+    const report = renderReport(pass, meta);
+    expect(report).toContain(
+      '| one | final write-up, **short** after a second attempt | 7 / 650 | $0.0060 |',
+    );
+    expect(report).toContain('| two | final write-up, on the second attempt | 7 / 650 | $0.0060 |');
+    expect(report).toContain(
+      "`one`: the swarm's write-up came back under half its word budget twice; the longer attempt, 7 words of about 650 asked for, was judged.",
+    );
+    expect(report).not.toContain("`two`: the swarm's write-up came back under half");
   });
 
   it('lists every criterion a judgement gave the swarm 0 or 1 on, with the reason', async () => {

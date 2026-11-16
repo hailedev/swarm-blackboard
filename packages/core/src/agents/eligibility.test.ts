@@ -5,15 +5,18 @@ import {
   boardIsNew,
   evidenceWithoutHypothesis,
   hypothesesLackingEvidence,
+  hypothesesToReview,
   hypothesesWithNewEvidence,
   hypothesesWithoutCritique,
   latestSynthesis,
+  openContestingCritiques,
   openCritiquesOf,
   openSubproblems,
   rejectedHypothesisIds,
   standingHypotheses,
   subproblemStatus,
   synthesisCandidates,
+  synthesisIsCurrent,
 } from './eligibility';
 
 const hypothesisPayload = { confidence: 0.5, supportedBy: [], contradictedBy: [] };
@@ -181,5 +184,88 @@ describe('subproblemStatus: where a subproblem stands, read off the board', () =
     const view = fx.view();
     expect(subproblemStatus(view, claimed)).toBe('claimed');
     expect(subproblemStatus(view, done)).toBe('done');
+  });
+});
+
+describe('what the Critic has left to review, and whether a synthesis is current', () => {
+  it('owes a review to every standing version no Critic call was pointed at', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const first = fx.entry('hypothesis', hypothesisPayload);
+    const second = fx.entry('hypothesis', hypothesisPayload);
+    fx.completeRound({ solver: [] });
+    expect(hypothesesToReview(fx.view()).map((h) => h.id)).toEqual([first.id, second.id]);
+    fx.startRound(2);
+    fx.completeRound({ critic: [first.id] });
+    expect(hypothesesToReview(fx.view()).map((h) => h.id)).toEqual([second.id]);
+    // A new version is a new thing to review; the version it replaced is not.
+    fx.startRound(3);
+    const again = fx.entry('hypothesis', hypothesisPayload, { supersedes: first.id });
+    fx.completeRound({ solver: [first.id] });
+    expect(hypothesesToReview(fx.view()).map((h) => h.id)).toEqual([second.id, again.id]);
+    // Nor is a hypothesis a decision rejected.
+    fx.entry('decision', { chosen: again.id, rejected: [second.id], rationale: 'r' });
+    expect(hypothesesToReview(fx.view()).map((h) => h.id)).toEqual([again.id]);
+  });
+
+  it('owes another review when evidence lands in or after the round of the last one', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypothesis = fx.entry('hypothesis', hypothesisPayload);
+    fx.entry('evidence', { source: 'before', supports: [hypothesis.id], contradicts: [] });
+    fx.completeRound({ solver: [] });
+    fx.startRound(2);
+    fx.completeRound({ critic: [hypothesis.id] });
+    // The evidence of round 1 was there to be read: nothing is owed.
+    expect(hypothesesToReview(fx.view())).toEqual([]);
+    // Posted in the round of the review, beside it: the Critic has not read this.
+    fx.entry('evidence', { source: 'beside', supports: [], contradicts: [hypothesis.id] });
+    expect(hypothesesToReview(fx.view()).map((h) => h.id)).toEqual([hypothesis.id]);
+  });
+
+  it('calls a synthesis current only when it was written after the last hypothesis and critique', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    expect(synthesisIsCurrent(fx.view())).toBe(false);
+    fx.startRound(1);
+    const hypothesis = fx.entry('hypothesis', hypothesisPayload);
+    fx.entry('synthesis', { version: 1, confidence: 0.9, cites: [hypothesis.id] });
+    // Same round: written beside the hypothesis, not after it.
+    expect(synthesisIsCurrent(fx.view())).toBe(false);
+    fx.startRound(2);
+    fx.entry('synthesis', { version: 2, confidence: 0.9, cites: [hypothesis.id] });
+    expect(synthesisIsCurrent(fx.view())).toBe(true);
+    // Evidence and questions do not make it stale; a critique does, of any severity.
+    fx.entry('evidence', { source: 's', supports: [hypothesis.id], contradicts: [] });
+    fx.entry('question', {});
+    expect(synthesisIsCurrent(fx.view())).toBe(true);
+    fx.entry('critique', { target: hypothesis.id, severity: 'minor' });
+    expect(synthesisIsCurrent(fx.view())).toBe(false);
+  });
+
+  it('takes the later of two live syntheses with one version number as the latest', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    fx.entry('synthesis', { version: 1, confidence: 0.4, cites: [] });
+    fx.startRound(2);
+    const later = fx.entry('synthesis', { version: 1, confidence: 0.9, cites: [] });
+    expect(latestSynthesis(fx.view())?.id).toBe(later.id);
+  });
+
+  it('counts blocking and major critiques that stand as what a run may not end with', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const standing = fx.entry('hypothesis', hypothesisPayload);
+    const replaced = fx.entry('hypothesis', hypothesisPayload);
+    const blocking = fx.entry('critique', { target: standing.id, severity: 'blocking' });
+    const major = fx.entry('critique', { target: standing.id, severity: 'major' });
+    fx.entry('critique', { target: standing.id, severity: 'minor' });
+    fx.entry('critique', { target: replaced.id, severity: 'major' });
+    fx.entry('hypothesis', hypothesisPayload, { supersedes: replaced.id });
+    expect(openContestingCritiques(fx.view()).map((c) => c.id)).toEqual([blocking.id, major.id]);
   });
 });

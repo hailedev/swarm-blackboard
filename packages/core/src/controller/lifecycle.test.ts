@@ -280,7 +280,9 @@ describe('force synthesis', () => {
 
     const forced = await controller.runRound();
     expect(forced.ok && forced.value.selected).toEqual(['synthesizer', 'solver']);
-    expect(forced.ok && forced.value.eligible.find((e) => e.agentId === 'synthesizer')).toEqual({
+    expect(
+      forced.ok && forced.value.eligible.find((e) => e.agentId === 'synthesizer'),
+    ).toMatchObject({
       agentId: 'synthesizer',
       priority: 100,
       reason: 'forced by the user',
@@ -304,17 +306,22 @@ describe('force synthesis', () => {
     expect(next.ok && next.value.selected).toEqual(['critic', 'researcher']);
   });
 
-  it('ends the run on a forced synthesis that clears the usual threshold', async () => {
-    // The scripted Synthesizer answers at 0.9 with nothing blocking, which completes a run.
+  it('ends the run on a forced synthesis only when the termination rules say so', async () => {
+    // The scripted Synthesizer answers at 0.9, which clears the threshold. But the forced
+    // synthesis of round 2 is written beside the hypothesis it should rest on, and the
+    // Critic has not seen that hypothesis: the run goes on until both are settled.
     const { controller } = scripted();
     await controller.start({ content: 'P' });
     await controller.runRound();
     await controller.forceSynthesis();
+    const forced = await controller.runRound();
+    expect(forced.ok && forced.value.selected).toEqual(['synthesizer', 'solver']);
+    expect(forced.ok && forced.value.ended).toBeNull();
     const result = await controller.run();
     expect(result.ok && [result.value.status, result.value.reason, result.value.rounds]).toEqual([
       'completed',
       'completed',
-      2,
+      6,
     ]);
   });
 
@@ -593,6 +600,9 @@ describe('rehydrate', () => {
       round: 1,
       newEntries: 0,
       usage: spent(0.003),
+      attempts: 1,
+      words: 0,
+      short: false,
     };
     const terminated: BoardEvent = {
       ...at(7),

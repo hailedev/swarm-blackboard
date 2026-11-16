@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { zeroUsage } from '../schemas/common';
 import { BoardFixture } from '../testing/board-fixture';
 import { buildBoardView } from './board-view';
 
@@ -166,5 +167,79 @@ describe('buildBoardView', () => {
     const view = fx.view();
     expect(view.openBlockingCritiques().map((c) => c.id)).toEqual([onH3.id]);
     expect(view.critiquesOf(h1.id).map((c) => c.payload.resolvedBy)).toEqual([undefined, fix.id]);
+  });
+});
+
+describe('callsOf: what the log says an agent was called on', () => {
+  it('lists a call once its round has completed, with the targets it was pointed at', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypothesis = fx.entry('hypothesis', {
+      confidence: 0.5,
+      supportedBy: [],
+      contradictedBy: [],
+    });
+    fx.completeRound({ solver: [] });
+    expect(fx.view().callsOf('critic')).toEqual([]);
+    fx.startRound(2);
+    // Selected and not yet returned: nothing to say about it.
+    fx.completeRound({ critic: [hypothesis.id], researcher: [hypothesis.id] });
+    const view = fx.view();
+    expect(view.callsOf('critic')).toEqual([{ round: 2, targetIds: [hypothesis.id] }]);
+    expect(view.callsOf('researcher')).toEqual([{ round: 2, targetIds: [hypothesis.id] }]);
+    expect(view.callsOf('solver')).toEqual([{ round: 1, targetIds: [] }]);
+    expect(view.callsOf('planner')).toEqual([]);
+  });
+
+  it('leaves out a call that failed, and keeps one whose output was only cut or partly kept', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    fx.failedCall('critic', ['x']);
+    expect(fx.view().callsOf('critic')).toEqual([]);
+    fx.startRound(2);
+    const at = fx.events.length;
+    fx.completeRound({ critic: ['y'] });
+    // An over-limit note between the selection and the end of the round: the call returned.
+    fx.events.splice(at + 1, 0, {
+      id: fx.ids.next(),
+      runId: fx.runId,
+      seq: at + 1,
+      at: '2026-11-17T00:00:00.000Z',
+      type: 'agent_failed',
+      round: 2,
+      agentId: 'critic',
+      reason: 'over_limit',
+      detail: 'kept 6 of 8 contributions, the most severe first; 2 dropped',
+    });
+    expect(fx.view().callsOf('critic')).toEqual([{ round: 2, targetIds: ['y'] }]);
+  });
+
+  it('knows nothing of a round the host did not live to finish, or of a log with no targets', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    fx.events.push({
+      id: fx.ids.next(),
+      runId: fx.runId,
+      seq: fx.events.length,
+      at: '2026-11-17T00:00:00.000Z',
+      type: 'agents_selected',
+      round: 1,
+      selected: ['critic'],
+      eligible: [{ agentId: 'critic', priority: 80, reason: 'r', targetIds: ['x'] }],
+    });
+    fx.events.push({
+      id: fx.ids.next(),
+      runId: fx.runId,
+      seq: fx.events.length,
+      at: '2026-11-17T00:00:00.000Z',
+      type: 'round_abandoned',
+      round: 1,
+      newEntries: 0,
+      usage: zeroUsage(),
+    });
+    expect(fx.view().callsOf('critic')).toEqual([]);
   });
 });

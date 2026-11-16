@@ -227,6 +227,8 @@ export const writeUpOf = (events: readonly BoardEvent[]): SwarmWriteUp | null =>
     wordBudget: started.wordBudget,
     written: (done?.newEntries ?? 0) > 0,
     costUsd: done?.usage.costUsd ?? 0,
+    attempts: done?.attempts ?? 1,
+    short: done?.short ?? false,
   };
 };
 

@@ -815,8 +815,9 @@ describe('createController', () => {
     };
     const liveHypotheses = () => controller.currentView().liveOfType('hypothesis');
     // One agent plays every part, a round at a time: A; B contradicting A; a critique of A
-    // (the conflict is now "critiqued", so a decision is required); a confident synthesis
-    // that must not end the run; the decision that lets it.
+    // (the conflict is now "critiqued", so a decision is required; a minor one, which does
+    // not hold a run by itself); a confident synthesis that must not end the run; the
+    // decision that lets it.
     const { controller } = harness(
       [
         stubAgent('all', {
@@ -852,7 +853,7 @@ describe('createController', () => {
                         type: 'critique',
                         content: 'C',
                         parents: [a.id],
-                        payload: { target: a.id, severity: 'major' },
+                        payload: { target: a.id, severity: 'minor' },
                       },
                     ];
               case 4:
@@ -1212,12 +1213,12 @@ describe('a contradiction between hypotheses, from evidence to decision', () => 
       // The Critic has spoken: a decision is owed, and the Synthesizer outranks everyone.
       ['synthesizer', 'solver'],
     ]);
-    expect(selections[3]?.eligible.find((e) => e.agentId === 'critic')).toEqual({
+    expect(selections[3]?.eligible.find((e) => e.agentId === 'critic')).toMatchObject({
       agentId: 'critic',
       priority: 100,
       reason: 'forced: live hypotheses contradict each other',
     });
-    expect(selections[4]?.eligible.find((e) => e.agentId === 'synthesizer')).toEqual({
+    expect(selections[4]?.eligible.find((e) => e.agentId === 'synthesizer')).toMatchObject({
       agentId: 'synthesizer',
       priority: 90,
       reason: 'contradicting hypotheses critiqued: decide, then synthesise',
@@ -1292,27 +1293,28 @@ describe('one answer per subproblem, and a declared rival decided', () => {
         },
       }),
       researcher: createFakeModel({ script: () => none }),
-      // One objection to the first answer; and, when forced onto the rivals, one to the second.
+      // A major objection to the first answer; and, when forced onto the rivals, a minor one
+      // to the second: nothing that would hold the run once the first answer is rejected.
       critic: createFakeModel({
         script: (request) => {
           const [left, right] = handles('hypothesis');
-          const critique = (target: string, content: string) => ({
+          const critique = (target: string, content: string, severity: string) => ({
             object: {
               contributions: [
                 {
                   type: 'critique',
                   content,
                   parents: [target],
-                  payload: { target, severity: 'major' },
+                  payload: { target, severity },
                 },
               ],
             },
           });
           if (request.prompt.includes('criticForced') && right !== undefined) {
-            return critique(right, 'The right road is closed.');
+            return critique(right, 'The right road is the longer one.', 'minor');
           }
           return left !== undefined && handles('critique').length === 0
-            ? critique(left, 'No reason is given for the left road.')
+            ? critique(left, 'The left road is closed.', 'major')
             : none;
         },
       }),
@@ -1322,7 +1324,7 @@ describe('one answer per subproblem, and a declared rival decided', () => {
           const [draft] = handles('synthesis');
           const synthesis = (confidence: number) => ({
             type: 'synthesis',
-            content: [confidence > 0.8 ? 'Go left.' : 'Left or right, undecided.'],
+            content: [confidence > 0.8 ? 'Go right.' : 'Left or right, undecided.'],
             parents: left === undefined ? [] : [left],
             ...(draft === undefined ? {} : { supersedes: draft }),
             payload: {
@@ -1343,12 +1345,12 @@ describe('one answer per subproblem, and a declared rival decided', () => {
               contributions: [
                 {
                   type: 'decision',
-                  content: 'Left over right.',
+                  content: 'Right over left.',
                   parents: [left, right],
                   payload: {
-                    chosen: left,
-                    rejected: [right],
-                    rationale: 'The right road is closed.',
+                    chosen: right,
+                    rejected: [left],
+                    rationale: 'The left road is closed.',
                   },
                 },
                 synthesis(0.9),
@@ -1396,14 +1398,177 @@ describe('one answer per subproblem, and a declared rival decided', () => {
     expect(models.critic.calls.at(-1)?.request.prompt).toContain(named);
     expect(models.synthesizer.calls.at(-1)?.request.prompt).toContain(named);
 
-    // The decision settles it: one answer stands for the subproblem.
+    // The decision settles it: one answer stands for the subproblem. The major objection
+    // to the rejected answer no longer holds the run, and the minor one to the answer that
+    // was kept never did.
     expect(view.liveOfType('decision')[0]?.payload).toMatchObject({
-      chosen: left.id,
-      rejected: [right.id],
+      chosen: right.id,
+      rejected: [left.id],
     });
     expect(standingAnswers(view, subproblem).map((answerEntry) => answerEntry.id)).toEqual([
-      left.id,
+      right.id,
     ]);
+    expect(view.liveOfType('critique').map((c) => c.payload.severity)).toEqual(['major', 'minor']);
     expect(h.controller.flags).toMatchObject({ criticForced: false, decisionRequired: false });
+  });
+});
+
+describe('a confident synthesis written beside critiques it never saw', () => {
+  it('does not end the run: the Solver answers, the Critic reviews, and a later synthesis does', async () => {
+    const ref: { controller: Controller | undefined } = { controller: undefined };
+    const handles = (type: 'hypothesis' | 'subproblem' | 'synthesis' | 'critique') => {
+      if (ref.controller === undefined) throw new Error('controller not ready');
+      const view = ref.controller.currentView();
+      return view.liveOfType(type).map((entry) => view.handleOf(entry.id) ?? '?');
+    };
+    const none: FakeResponse = { object: { contributions: [] } };
+    const models = {
+      planner: createFakeModel({
+        script: () => ({
+          object: {
+            contributions: [
+              { type: 'subproblem', content: 'How?', parents: ['P1'], payload: { status: 'open' } },
+            ],
+          },
+        }),
+      }),
+      // A first answer; then, sent back to it by the critique, a new version that answers it.
+      solver: createFakeModel({
+        script: () => {
+          const [subproblem] = handles('subproblem');
+          const [standing] = handles('hypothesis');
+          const [critique] = handles('critique');
+          if (standing === undefined) {
+            return {
+              object: {
+                contributions: [
+                  {
+                    type: 'hypothesis',
+                    answers: subproblem,
+                    content: 'Like this.',
+                    parents: [],
+                    payload: { confidence: 0.7, supportedBy: [], contradictedBy: [] },
+                  },
+                ],
+              },
+            };
+          }
+          return critique === undefined || handles('hypothesis').length !== 1 || standing !== 'H1'
+            ? none
+            : {
+                object: {
+                  contributions: [
+                    {
+                      type: 'hypothesis',
+                      answers: subproblem,
+                      relation: `new version of ${standing}`,
+                      content: 'Like this, with a rollback.',
+                      parents: [],
+                      payload: {
+                        confidence: 0.8,
+                        supportedBy: [],
+                        contradictedBy: [],
+                        resolves: [critique],
+                      },
+                    },
+                  ],
+                },
+              };
+        },
+      }),
+      researcher: createFakeModel({ script: () => none }),
+      // One major objection to the first version; nothing to raise against the second.
+      critic: createFakeModel({
+        script: () => {
+          const [standing] = handles('hypothesis');
+          return standing !== 'H1' || handles('critique').length > 0
+            ? none
+            : {
+                object: {
+                  contributions: [
+                    {
+                      type: 'critique',
+                      content: 'There is no rollback.',
+                      parents: [standing],
+                      payload: { target: standing, severity: 'major' },
+                    },
+                  ],
+                },
+              };
+        },
+      }),
+      // Always confident: it is the board, not the model's caution, that has to hold the run.
+      synthesizer: createFakeModel({
+        script: () => {
+          const [standing] = handles('hypothesis');
+          const [draft] = handles('synthesis');
+          return {
+            object: {
+              contributions: [
+                {
+                  type: 'synthesis',
+                  content: ['Do it like this.'],
+                  parents: standing === undefined ? [] : [standing],
+                  ...(draft === undefined ? {} : { supersedes: draft }),
+                  payload: {
+                    version: draft === undefined ? 1 : Number(draft.slice(1)) + 1,
+                    confidence: 0.9,
+                    cites: standing === undefined ? [] : [standing],
+                  },
+                },
+              ],
+            },
+          };
+        },
+      }),
+    };
+    // No Researcher in this roster, so the Critic and the Synthesizer share a round, as
+    // they did in the rehearsal run this is drawn from.
+    const h = harness(
+      createDefaultAgents(models, testRolePrompts()).filter((a) => a.role !== 'researcher'),
+    );
+    ref.controller = h.controller;
+    await h.controller.start({ content: 'P' });
+    const result = await h.controller.run();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const selections = ofType(h.events, 'agents_selected').map((e) => e.selected);
+    expect(selections).toEqual([
+      ['planner'],
+      ['solver'],
+      // The Critic objects (major) while the Synthesizer, beside it, writes at 0.9.
+      ['critic', 'synthesizer'],
+      // Not the end: a major critique is open and the synthesis never read it. The Solver
+      // answers; the Synthesizer writes again, beside the new version this time.
+      ['solver', 'synthesizer'],
+      // The Critic reviews the new version and raises nothing. (The Synthesizer has run two
+      // rounds in a row and sits this one out.)
+      ['critic'],
+      // The first synthesis written after everything landed and was reviewed ends the run.
+      ['synthesizer'],
+    ]);
+    expect([result.value.reason, result.value.rounds]).toEqual(['completed', 6]);
+
+    const view = result.value.view;
+    const [critique] = view.liveOfType('critique');
+    const [standing] = view.liveOfType('hypothesis');
+    expect(critique === undefined ? undefined : view.resolutionOf(critique.id)?.id).toBe(
+      standing?.id,
+    );
+    expect(view.callsOf('critic')).toEqual([
+      { round: 3, targetIds: [view.byHandle('H1')?.id] },
+      { round: 5, targetIds: [standing?.id] },
+    ]);
+    // What each selected agent was pointed at is on the log.
+    const review = ofType(h.events, 'agents_selected').find((e) => e.round === 5);
+    expect(review?.eligible.find((e) => e.agentId === 'critic')).toMatchObject({
+      reason: 'hypotheses not yet reviewed, or with new evidence',
+      targetIds: [standing?.id],
+    });
+    // Three drafts, each at 0.9: only the third had read everything, and it ended the run.
+    expect(
+      ofType(h.events, 'entry_committed').filter((e) => e.entry.type === 'synthesis'),
+    ).toHaveLength(3);
   });
 });

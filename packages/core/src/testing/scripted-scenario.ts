@@ -21,13 +21,32 @@ import type { AgentRole } from '../schemas/role';
 //   1 planner → two subproblems
 //   2 solver (a hypothesis parented on both, which answers them) + researcher (evidence)
 //   3 critic (major critique + question) + solver (a stronger version that supersedes it)
-//   4 critic (minor critique) + synthesizer (synthesis at 0.9) → completed
-// Ten entries: the problem, two subproblems, two hypotheses, one evidence, two critiques,
-// a question and the synthesis.
+//   4 critic (reviews the new version: a question, no critique) + synthesizer (synthesis
+//     at 0.9) → completed: nothing is open, the Critic has seen the standing version, and
+//     the synthesis was written after the last hypothesis and critique landed
+// Ten entries: the problem, two subproblems, two hypotheses, one evidence, one critique,
+// two questions and the synthesis.
 // and, when the controller is given the Synthesizer's model for the final write-up, one
 // more call after the last round: the answer written from the whole board.
 
 export const SCENARIO_TOKENS: FakeUsage = { inputTokens: 1200, outputTokens: 300 };
+
+// The scripted final answer, written out at the length a write-up is asked for: about 750
+// words, more than half of the default budget (900) and of the eval's (1,350), so the
+// length guard (agents/word-budget.ts) has nothing to ask for on the canonical run.
+export const SCRIPTED_ANSWER: readonly string[] = [
+  'Adopt a single pnpm monorepo, migrating one team per quarter and keeping deploys independent.',
+  'Duplicated build tooling and drifting dependency versions are the main cost today; one repository with shared tooling removes both, for about a quarter of one engineer during the migration.',
+  'Quarter one moves the platform team, because it owns the build scripts everyone else copies. Its repository is imported with full history, its lint, test and build configuration become the shared presets, and its pipeline is rewritten to build only what a change touches. The work is budgeted at twelve engineer-days spread over the quarter, with one engineer as owner and a second reviewing. The quarter ends with a written checklist for the teams that follow and a measured baseline: build time, time to a green pipeline and the number of dependency versions in use.',
+  'Quarter two moves the payments team, the one with the most duplicated tooling and so the most to gain. It follows the checklist, deletes its copies of the shared presets and keeps its own deploy pipeline and release calendar. Budget ten engineer-days. Two checks decide whether the migration continues: the pipeline for a typical change must finish within ten minutes, and no payments release may be delayed by a change that belongs to another team. If either fails, the third team waits until it is fixed.',
+  'Quarters three and four move the two remaining teams in order of release frequency, the busier one last so that it inherits the most settled setup. Each is budgeted at eight engineer-days, less than the first two because the presets and the checklist exist by then. During these quarters dependency upgrades are done once for the whole repository, on the first Tuesday of the month, by whoever is on the tooling rota, and a version that breaks one team is pinned for that team for at most thirty days.',
+  'Deploys stay independent throughout. Every team keeps its own pipeline, its own release schedule and its own rollback, and a change is built, tested and shipped only for the packages it touches. Ownership is explicit: each directory has named owners whose review is required, and a change that crosses a team boundary needs a review from both sides. This is the main protection against the usual complaint about a shared repository, that one team in a hurry becomes an outage for every team.',
+  'The costs are small and mostly up front. The migration takes about thirty-eight engineer-days over the year, a little under a quarter of one engineer, and remote caching for the shared pipeline costs about forty dollars a month. Against that, each team now spends roughly two days a quarter keeping its own copy of the tooling alive and another day chasing version drift, about forty-eight engineer-days a year across four teams, so the move pays for itself within the first year if the estimates hold.',
+  'Three risks deserve a named response. Pipeline time creeping up as the repository grows: watched monthly against the ten-minute limit, with caching and affected-only builds as the remedy. A big-bang cut-over that blocks everyone: ruled out by moving one team a quarter, each of them able to stay where it is for another quarter. Loss of autonomy: answered by the ownership rules and the separate release calendars. If two of the three checks fail after the second team, the remaining teams stay in their own repositories and share only the presets, published as a package.',
+  'Success is measured the same way each quarter: the number of distinct versions of the ten most used dependencies, which should fall from fourteen to ten after the first team and to no more than three at the end; the median time from push to a green pipeline; and the hours each team reports spending on tooling. The figures are reviewed at the end of every quarter by the four team leads, and the decision to move the next team is taken in that review, not before.',
+  'Nothing in this plan depends on a tool the teams do not already use. The package manager, the test runner and the pipelines stay the same; what changes is where the code lives and who maintains the configuration. That keeps the first quarter reversible: until the second team moves, the platform team can return to its own repository in a day by restoring its old pipeline file.',
+  'Assumption: the payback period holds as estimated. Check it once the first team has moved, before the second starts.',
+];
 
 // A flat, round-number rate card so test arithmetic stays readable: $1 in, $5 out.
 export const SCENARIO_PRICING: ModelPricing = {
@@ -200,12 +219,15 @@ export const createScriptedModels = (
             },
           ]);
         }
+        // Reviewing the stronger version it finds nothing to object to, only something to
+        // ask. A run may end on a synthesis only when no critique landed beside it
+        // (controller/termination.ts), and this is the round the scripted run ends in.
         return respond([
           {
-            type: 'critique',
-            content: 'Payback period is still an estimate; revisit after the first migration.',
+            type: 'question',
+            content: 'Is the payback period still an estimate once the first team has migrated?',
             parents: [handle],
-            payload: { target: handle, severity: 'minor' },
+            payload: {},
           },
         ]);
       },
@@ -232,11 +254,7 @@ export const createScriptedModels = (
             object:
               cites.length > 0
                 ? {
-                    paragraphs: [
-                      'Adopt a single pnpm monorepo, migrating one team per quarter and keeping deploys independent.',
-                      'Duplicated build tooling and drifting dependency versions are the main cost today; one repository with shared tooling removes both, for about a quarter of one engineer during the migration.',
-                      'Assumption: the payback period holds as estimated. Check it once the first team has moved, before the second starts.',
-                    ],
+                    paragraphs: SCRIPTED_ANSWER,
                     confidence: 0.9,
                     cites,
                   }

@@ -76,6 +76,10 @@ export interface SwarmWriteUp {
   written: boolean;
   /** What its calls cost, repairs included; part of the run's cost. */
   costUsd: number;
+  /** 2 when the first answer came back under half its word budget and was asked for again. */
+  attempts: number;
+  /** The answer that was kept is still under half its word budget. */
+  short: boolean;
 }
 
 export interface MonthGuard {
@@ -246,7 +250,7 @@ const wouldBeAllowance = (
 const describeAnswer = (swarm: SwarmOutcome): string => {
   if (swarm.answer === null) return ', no synthesis';
   if (swarm.stage === 'final' && swarm.writeUp !== null) {
-    return `; final write-up asked for about ${String(swarm.writeUp.wordBudget)} words, $${swarm.writeUp.costUsd.toFixed(4)}`;
+    return `; final write-up asked for about ${String(swarm.writeUp.wordBudget)} words, $${swarm.writeUp.costUsd.toFixed(4)}${swarm.writeUp.short ? ', STILL SHORT after a second attempt' : swarm.writeUp.attempts > 1 ? ', on the second attempt' : ''}`;
   }
   return `; the answer is a DRAFT${swarm.writeUpFailure === null ? '' : ` (${swarm.writeUpFailure})`}`;
 };
@@ -331,7 +335,7 @@ const runProblem = async (
   result.swarm = swarm.value;
   budget.charge(swarm.value.costUsd);
   deps.log(
-    `   swarm: ${swarm.value.status}/${swarm.value.reason} after ${String(swarm.value.rounds)} rounds, ${String(swarm.value.entries)} entries, ${swarm.value.costUsd.toFixed(4)}${describeAnswer(swarm.value)}`,
+    `   swarm: ${swarm.value.status}/${swarm.value.reason} after ${String(swarm.value.rounds)} rounds, ${String(swarm.value.entries)} entries, $${swarm.value.costUsd.toFixed(4)}${describeAnswer(swarm.value)}`,
   );
   const loop = swarm.value.loop;
   deps.log(

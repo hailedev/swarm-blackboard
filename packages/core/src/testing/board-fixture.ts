@@ -76,6 +76,69 @@ export class BoardFixture {
     return parsed as EntryOf<T>;
   }
 
+  /**
+   * Ends the current round on the log: which agents were selected on which targets, and
+   * that the round completed. This is all the log holds of a call that posted nothing, and
+   * what tells "the Critic looked at it" from "nobody has" (board-view.ts, `callsOf`).
+   */
+  completeRound(calls: Readonly<Record<string, readonly string[]>> = {}): void {
+    this.#selected(calls);
+    this.events.push({
+      id: this.ids.next(),
+      runId: this.runId,
+      seq: this.events.length,
+      at: isoFromMs(TEST_EPOCH_MS + this.events.length),
+      type: 'round_completed',
+      round: this.round,
+      newEntries: 0,
+      usage: zeroUsage(),
+    });
+  }
+
+  /** A round in which the one agent selected was called and its call failed. */
+  failedCall(agentId: string, targetIds: readonly string[]): void {
+    this.#selected({ [agentId]: targetIds });
+    this.events.push({
+      id: this.ids.next(),
+      runId: this.runId,
+      seq: this.events.length,
+      at: isoFromMs(TEST_EPOCH_MS + this.events.length),
+      type: 'agent_failed',
+      round: this.round,
+      agentId,
+      reason: 'invalid_output',
+      detail: 'fixture: the call failed',
+    });
+    this.events.push({
+      id: this.ids.next(),
+      runId: this.runId,
+      seq: this.events.length,
+      at: isoFromMs(TEST_EPOCH_MS + this.events.length),
+      type: 'round_completed',
+      round: this.round,
+      newEntries: 0,
+      usage: zeroUsage(),
+    });
+  }
+
+  #selected(calls: Readonly<Record<string, readonly string[]>>): void {
+    this.events.push({
+      id: this.ids.next(),
+      runId: this.runId,
+      seq: this.events.length,
+      at: isoFromMs(TEST_EPOCH_MS + this.events.length),
+      type: 'agents_selected',
+      round: this.round,
+      selected: Object.keys(calls),
+      eligible: Object.entries(calls).map(([agentId, targetIds]) => ({
+        agentId,
+        priority: 0,
+        reason: 'fixture',
+        targetIds: [...targetIds],
+      })),
+    });
+  }
+
   problem(content = 'Should we adopt a monorepo?'): EntryOf<'problem'> {
     return this.entry(
       'problem',

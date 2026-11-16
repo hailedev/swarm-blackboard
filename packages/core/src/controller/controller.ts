@@ -9,7 +9,9 @@ import type {
 } from '../agents/agent';
 import { callWithRepair, noControlFlags } from '../agents/agent';
 import { boardIsNew } from '../agents/eligibility';
+import { countWords, isShortOf } from '../agents/word-budget';
 import {
+  renderShortfallPrompt,
   resolveWriteUp,
   WRITE_UP_AUTHOR,
   WRITE_UP_ROLE,
@@ -440,21 +442,66 @@ export const createController = (
       maxOutputTokens: sized.fit.maxOutputTokens,
       tags: { role: WRITE_UP_ROLE, runId, round },
     };
-    let outcome: Result<ResolvedWriteUp, CallError | AgentException>;
-    try {
-      outcome = await callWithRepair(
-        gatewayFor(tracker, runConfig, WRITE_UP_AUTHOR, round, settled),
-        writer,
-        request,
-        (output) => resolveWriteUp(output, board),
-      );
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'the write-up threw a non-Error';
-      outcome = err({ kind: 'exception', message });
+    const attempt = async (
+      attempted: ModelRequest<WriteUpOutput>,
+    ): Promise<Result<ResolvedWriteUp, CallError | AgentException>> => {
+      try {
+        return await callWithRepair(
+          gatewayFor(tracker, runConfig, WRITE_UP_AUTHOR, round, settled),
+          writer,
+          attempted,
+          (output) => resolveWriteUp(output, board),
+        );
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'the write-up threw a non-Error';
+        return err({ kind: 'exception', message });
+      }
+    };
+    const describeFailure = (error: CallError | AgentException) =>
+      error.kind === 'exception'
+        ? { reason: 'exception' as const, detail: error.message }
+        : { reason: error.kind, detail: describeCallError(error) };
+    const wordsOf = (resolved: ResolvedWriteUp): number =>
+      countWords(resolved.paragraphs.join(' '));
+
+    let outcome = await attempt(request);
+    // The length guard: an answer under half the words it was asked for is asked for once
+    // more, with the shortfall stated, on what the run has left; the longer of the two is
+    // the answer. A second attempt that fails leaves the first in place.
+    let attempts = 1;
+    if (outcome.ok && isShortOf(wordsOf(outcome.value), sized.wordBudget)) {
+      const first = outcome.value;
+      attempts = 2;
+      deps.logger.warn('final write-up under half its word budget: asking once more', {
+        runId,
+        round,
+        words: wordsOf(first),
+        wordBudget: sized.wordBudget,
+      });
+      const second = await attempt({
+        ...request,
+        prompt: renderShortfallPrompt(request.prompt, {
+          words: wordsOf(first),
+          wordBudget: sized.wordBudget,
+          paragraphs: first.paragraphs,
+        }),
+      });
+      if (second.ok) {
+        if (wordsOf(second.value) > wordsOf(first)) outcome = second;
+      } else {
+        const failure = describeFailure(second.error);
+        const noted = await notWritten(
+          failure.reason,
+          `second attempt at the final write-up failed; the first, ${String(wordsOf(first))} words of about ${String(sized.wordBudget)}, is kept: ${failure.detail}`,
+        );
+        if (!noted.ok) return noted;
+      }
     }
 
     let newEntries = 0;
+    let words = 0;
     if (outcome.ok) {
+      words = wordsOf(outcome.value);
       const batch = prepareEntries({
         contributions: [writeUpContribution(view, outcome.value)],
         view,
@@ -476,18 +523,29 @@ export const createController = (
         if (!failed.ok) return failed;
       }
     } else {
-      const failure =
-        outcome.error.kind === 'exception'
-          ? { reason: 'exception' as const, detail: outcome.error.message }
-          : { reason: outcome.error.kind, detail: describeCallError(outcome.error) };
+      const failure = describeFailure(outcome.error);
       const failed = await notWritten(failure.reason, failure.detail);
       if (!failed.ok) return failed;
+    }
+    if (newEntries === 0) words = 0;
+    const short = newEntries > 0 && isShortOf(words, sized.wordBudget);
+    if (short) {
+      deps.logger.warn('final write-up still under half its word budget', {
+        runId,
+        round,
+        words,
+        wordBudget: sized.wordBudget,
+        attempts,
+      });
     }
     const completed = await emit({
       type: 'write_up_completed',
       round,
       newEntries,
       usage: sumUsage(settled),
+      attempts,
+      words,
+      short,
     });
     return completed.ok ? ok(undefined) : completed;
   };
@@ -783,6 +841,7 @@ export const createController = (
         agentId: e.agent.id,
         priority: e.trigger.priority,
         reason: e.trigger.reason,
+        targetIds: [...e.trigger.targetIds],
       }));
 
     // 4. Selection (rule-based priority; bidding is Phase 5).
@@ -923,6 +982,21 @@ export const createController = (
         deps.logger.info('stall detected, allowing one reframe', { runId, round });
       }
     }
+    // Whether the Critic still has something to review on the board as this round left
+    // it: its own trigger, with the flags the next round will see. A run does not end on a
+    // synthesis while it has (controller/termination.ts).
+    const criticPending = deps.agents.some(
+      (agent) =>
+        agent.role === 'critic' &&
+        agent.trigger(view, {
+          runId,
+          round: round + 1,
+          config: runConfig,
+          flags: { ...flags },
+          targetIds: [],
+          models: unusedGateway,
+        }).eligible,
+    );
     const failureKinds = new Set(failures.map((f) => f.reason));
     const starved =
       selectedAgents.length > 0 &&
@@ -940,9 +1014,15 @@ export const createController = (
         stalled,
         eligibleCount: eligible.length,
         decisionRequired: flags.decisionRequired,
+        criticPending,
       });
     if (reason === null && flags.decisionRequired && synthesisReady(view, runConfig)) {
       deps.logger.info('synthesis held back: a contradiction between hypotheses is undecided', {
+        runId,
+        round,
+      });
+    } else if (reason === null && criticPending && synthesisReady(view, runConfig)) {
+      deps.logger.info('synthesis held back: the Critic has standing versions left to review', {
         runId,
         round,
       });

@@ -10,11 +10,7 @@ import {
   type RoleDefinition,
 } from '../agent';
 import { contradictingHypothesisIds } from '../conflicts';
-import {
-  hypothesesWithNewEvidence,
-  hypothesesWithoutCritique,
-  SEVERITY_RANK,
-} from '../eligibility';
+import { hypothesesToReview, SEVERITY_RANK } from '../eligibility';
 
 // Structurally unable to propose: the schema admits critiques and questions only (ADR-0005).
 export const criticOutputSchema = (refs: ModelReferenceSchemas) => {
@@ -31,6 +27,13 @@ export const criticOutputSchema = (refs: ModelReferenceSchemas) => {
 const QUESTION_RANK = 3;
 const importance = (contribution: Contribution): number =>
   contribution.type === 'critique' ? SEVERITY_RANK[contribution.payload.severity] : QUESTION_RANK;
+
+/**
+ * How many hypotheses one call reviews. The call counts as a review of every target, so the
+ * targets have to be what the view shows in full (RunConfig.view) and what six contributions
+ * can cover; the rest wait for the next call.
+ */
+export const MAX_REVIEWS_PER_CALL = 6;
 
 export const critic: RoleDefinition = {
   role: 'critic',
@@ -51,10 +54,15 @@ export const critic: RoleDefinition = {
         'forced: live hypotheses contradict each other',
       );
     }
-    const uncritiqued = hypothesesWithoutCritique(view).map((h) => h.id);
-    if (uncritiqued.length > 0) return eligible(80, uncritiqued, 'hypotheses without critique');
-    const refreshed = hypothesesWithNewEvidence(view, Math.max(0, ctx.round - 1)).map((h) => h.id);
-    if (refreshed.length > 0) return eligible(80, refreshed, 'new evidence on hypotheses');
-    return notEligible('every hypothesis has been critiqued');
+    // Otherwise the versions it has not looked at yet, or that have had evidence since it
+    // did. Being called on a hypothesis is what counts as reviewing it, whether or not it
+    // finds anything to raise, so a clean hypothesis is reviewed once, not every other
+    // round, and "nothing left to review" is something the board can say.
+    const toReview = hypothesesToReview(view)
+      .slice(0, MAX_REVIEWS_PER_CALL)
+      .map((h) => h.id);
+    return toReview.length > 0
+      ? eligible(80, toReview, 'hypotheses not yet reviewed, or with new evidence')
+      : notEligible('every standing hypothesis has been reviewed');
   },
 };

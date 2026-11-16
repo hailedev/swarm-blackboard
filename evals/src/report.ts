@@ -89,7 +89,7 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
 
   lines.push('## Answers', '');
   lines.push(
-    'What each arm wrote against what it was asked for. The swarm’s answer is its final write-up, written from the whole board when the run ended and given the baseline’s output allowance; where that call failed, its last draft.',
+    'What each arm wrote against what it was asked for. The swarm’s answer is its final write-up, written from the whole board when the run ended and given the baseline’s output allowance; where that call failed, its last draft. A write-up that comes back under half the words asked for is asked for once more and the longer of the two is kept.',
     '',
   );
   lines.push(
@@ -185,7 +185,13 @@ const answerRow = (r: ProblemResult): string => {
       : swarm.answer === null
         ? 'none'
         : swarm.stage === 'final'
-          ? 'final write-up'
+          ? `final write-up${
+              swarm.writeUp?.short === true
+                ? ', **short** after a second attempt'
+                : (swarm.writeUp?.attempts ?? 1) > 1
+                  ? ', on the second attempt'
+                  : ''
+            }`
           : `**draft** (${cell(swarm.writeUpFailure ?? 'no final write-up')})`;
   const swarmWords =
     swarm === null || swarm.answer === null
@@ -299,6 +305,14 @@ export const honestyNotes = (pass: PassResult): string[] => {
   for (const r of drafts) {
     notes.push(
       `\`${r.problem.id}\`: the swarm's answer is a draft, not its final write-up (${r.swarm?.writeUpFailure ?? 'no final write-up'}); the judge scored the draft.`,
+    );
+  }
+  // A write-up under half the words it was asked for is asked for once more; when the
+  // longer of the two is still under half, the judge scored a short answer.
+  for (const r of pass.results) {
+    if (r.swarm?.writeUp?.short !== true || r.swarm.answer === null) continue;
+    notes.push(
+      `\`${r.problem.id}\`: the swarm's write-up came back under half its word budget twice; the longer attempt, ${String(wordCount(r.swarm.answer))} words of about ${String(r.swarm.writeUp.wordBudget)} asked for, was judged.`,
     );
   }
   const unequal = pass.results.filter(

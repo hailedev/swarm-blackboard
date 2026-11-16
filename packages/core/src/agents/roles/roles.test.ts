@@ -11,7 +11,7 @@ import { BoardFixture } from '../../testing/board-fixture';
 import { createRoleAgent } from '../agent';
 import { boardChangedSinceLastSynthesis } from '../eligibility';
 import { renderAgentPrompt } from '../prompt';
-import { critic } from './critic';
+import { critic, MAX_REVIEWS_PER_CALL } from './critic';
 import { planner } from './planner';
 import { researcher } from './researcher';
 import { MAX_CONTESTED_PER_CALL, solver } from './solver';
@@ -73,19 +73,48 @@ describe('role triggers', () => {
     expect(synthesizer.trigger(fx.view(), agentContext()).priority).toBe(50);
   });
 
-  it('critic returns for new evidence on an already critiqued hypothesis', () => {
+  it('critic returns for new evidence on a hypothesis it has reviewed, and not otherwise', () => {
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
     const h = fx.entry('hypothesis', hypothesisPayload);
-    fx.entry('critique', { target: h.id, severity: 'minor' });
-    expect(critic.trigger(fx.view(), agentContext({ round: 2 })).eligible).toBe(false);
+    fx.completeRound({ solver: [] });
+    // Its call on the hypothesis is the review, whatever it raised: here, nothing at all.
     fx.startRound(2);
+    fx.completeRound({ critic: [h.id] });
+    expect(critic.trigger(fx.view(), agentContext({ round: 3 }))).toMatchObject({
+      eligible: false,
+      reason: 'every standing hypothesis has been reviewed',
+    });
+    fx.startRound(3);
     fx.entry('evidence', { source: 's', supports: [h.id], contradicts: [] });
-    const trigger = critic.trigger(fx.view(), agentContext({ round: 3 }));
-    expect(trigger.eligible).toBe(true);
-    expect(trigger.reason).toBe('new evidence on hypotheses');
+    fx.completeRound({ researcher: [h.id] });
+    const trigger = critic.trigger(fx.view(), agentContext({ round: 4 }));
+    expect(trigger).toMatchObject({
+      eligible: true,
+      priority: 80,
+      targetIds: [h.id],
+      reason: 'hypotheses not yet reviewed, or with new evidence',
+    });
+    // It stays owed however many rounds pass, until the Critic has been back.
+    expect(critic.trigger(fx.view(), agentContext({ round: 6 })).eligible).toBe(true);
+    fx.startRound(4);
+    fx.completeRound({ critic: [h.id] });
     expect(critic.trigger(fx.view(), agentContext({ round: 5 })).eligible).toBe(false);
+  });
+
+  it('critic reviews at most six hypotheses a call, and never one a decision rejected', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypotheses = Array.from({ length: 8 }, () => fx.entry('hypothesis', hypothesisPayload));
+    const [kept, dropped] = hypotheses;
+    if (kept === undefined || dropped === undefined) throw new Error('no hypotheses');
+    fx.entry('decision', { chosen: kept.id, rejected: [dropped.id], rationale: 'Better backed.' });
+    const trigger = critic.trigger(fx.view(), agentContext({ round: 2 }));
+    expect(trigger.targetIds).toHaveLength(MAX_REVIEWS_PER_CALL);
+    expect(trigger.targetIds).not.toContain(dropped.id);
+    expect(trigger.targetIds[0]).toBe(kept.id);
   });
 
   it('critic is forced to top priority on conflict, only when hypotheses exist', () => {

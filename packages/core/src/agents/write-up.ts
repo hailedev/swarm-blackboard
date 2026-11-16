@@ -10,7 +10,7 @@ import type { WriteUpConfig } from '../schemas/run-config';
 import { digestLine, handleOf, payloadDigest, payloadReferences } from './agent-view';
 import { latestSynthesis, rejectedHypothesisIds, SEVERITY_RANK } from './eligibility';
 import { PARAGRAPH_SEPARATOR } from './handles';
-import { lengthInstruction } from './word-budget';
+import { lengthInstruction, MIN_WORD_SHARE } from './word-budget';
 
 // The final write-up (docs/PLAN.md §2.3 step 8). When a run ends, the Synthesizer's model
 // writes the answer once more, and this time it reads the whole live board rather than the
@@ -307,6 +307,27 @@ export const renderWriteUpPrompt = (
 };
 
 /** A write-up with its cited handles mapped back to entry ids, each once. */
+/**
+ * The second and last attempt at a write-up that came back under half its word budget
+ * (word-budget.ts): the same prompt, what was wrong with the answer, and the answer itself
+ * to build on.
+ */
+export const renderShortfallPrompt = (
+  prompt: string,
+  shortfall: { words: number; wordBudget: number; paragraphs: readonly string[] },
+): string =>
+  [
+    prompt,
+    '',
+    '# Your previous answer was too short',
+    `It had ${String(shortfall.words)} words. You were asked for about ${String(shortfall.wordBudget)}, and anything under ${String(Math.ceil(shortfall.wordBudget * MIN_WORD_SHARE))} leaves out what the reader needs: each step with its dates and duration, the effort and cost of each, the thresholds and checks, each risk with what is done about it, and an answer to every success criterion with its specifics. All of it is in the working notes above.`,
+    '',
+    'Previous answer:',
+    ...shortfall.paragraphs,
+    '',
+    'Write the whole answer again, complete, at the length you were asked for. Do not mention the previous answer or this request.',
+  ].join('\n');
+
 export interface ResolvedWriteUp {
   paragraphs: readonly string[];
   confidence: number;

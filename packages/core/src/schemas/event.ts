@@ -19,10 +19,16 @@ const EventBaseSchema = z.object({
   at: IsoDateSchema,
 });
 
+// `targetIds` is what the agent's trigger pointed it at: the entries it is shown in full
+// and asked to act on. On the log because a call that posts nothing leaves no other trace,
+// and "the Critic looked at this version and raised nothing" is something the run has to
+// know before it may end (controller/termination.ts). A log recorded before the field
+// existed reads as no targets.
 export const EligibilityRecordSchema = z.object({
   agentId: z.string().min(1),
   priority: z.number(),
   reason: z.string(),
+  targetIds: z.array(IdSchema).default([]),
 });
 export type EligibilityRecord = z.infer<typeof EligibilityRecordSchema>;
 
@@ -142,11 +148,19 @@ export const WriteUpStartedEventSchema = EventBaseSchema.extend({
   maxOutputTokens: z.int().positive(),
   wordBudget: z.int().positive(),
 });
+// `attempts`, `words` and `short` record the length guard: a write-up that comes back
+// under half the words it was asked for is asked for once more, the longer of the two is
+// kept, and `short` says that even that one is under half. `words` counts the answer
+// that was committed, 0 when none was. A log recorded before the guard reads as one
+// attempt, not short.
 export const WriteUpCompletedEventSchema = EventBaseSchema.extend({
   type: z.literal('write_up_completed'),
   round: RoundSchema,
   newEntries: z.int().nonnegative(),
   usage: UsageSchema,
+  attempts: z.int().min(1).default(1),
+  words: z.int().nonnegative().default(0),
+  short: z.boolean().default(false),
 });
 export const RunTerminatedEventSchema = EventBaseSchema.extend({
   type: z.literal('run_terminated'),

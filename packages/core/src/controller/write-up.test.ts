@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { eligible, notEligible, type Agent } from '../agents/agent';
 import { latestSynthesis } from '../agents/eligibility';
 import { createDefaultAgents } from '../agents/roster';
-import { wordBudgetFor } from '../agents/word-budget';
+import { countWords, isShortOf, wordBudgetFor } from '../agents/word-budget';
 import { WRITE_UP_ROLE } from '../agents/write-up';
 import { InMemoryBoardStore } from '../board/in-memory-board-store';
 import { createFakeModel, type FakeModel, type FakeResponse } from '../model/fake-model';
@@ -25,6 +25,7 @@ import {
   SCENARIO_CALL_COST_USD,
   SCENARIO_PRICING,
   SCENARIO_TOKENS,
+  SCRIPTED_ANSWER,
   type ScenarioPricing,
 } from '../testing/scripted-scenario';
 import { SequentialIdGenerator } from '../testing/sequential-id-generator';
@@ -142,8 +143,11 @@ const oneHypothesis = (): Agent => {
   };
 };
 
-const written = (cites: readonly string[] = ['H1']) => ({
-  paragraphs: ['Adopt it.', 'Assumption: the estimate holds.'],
+// An answer at the length a write-up is asked for: over half of the default 900 words, so
+// the length guard has nothing to ask for. BODY is the middle paragraph that carries it.
+const BODY = Array.from({ length: 500 }, (_, i) => `word${String(i + 1)}`).join(' ');
+const written = (cites: readonly string[] = ['H1'], body: string = BODY) => ({
+  paragraphs: ['Adopt it.', body, 'Assumption: the estimate holds.'],
   confidence: 0.8,
   cites,
 });
@@ -274,7 +278,7 @@ describe('the final write-up at the end of a run', () => {
     expect(final?.type === 'synthesis' && final.parents).toEqual(
       final?.type === 'synthesis' ? final.payload.cites : null,
     );
-    expect(final?.content.split('\n\n').length).toBe(3);
+    expect(final?.content.split('\n\n')).toEqual(SCRIPTED_ANSWER);
     expect(view.handleOf(final?.id ?? '')).toBe('A2');
     expect(latestSynthesis(view)?.id).toBe(final?.id);
     expect(view.isLive(draft?.id ?? '')).toBe(false);
@@ -433,7 +437,7 @@ describe('the final write-up at the end of a run', () => {
     expect(ofType(events, 'write_up_started')[0]?.reason).toBe('no_eligible_agents');
     expect(model.calls.length).toBe(1);
     const final = result.ok ? latestSynthesis(result.value.view) : undefined;
-    expect(final?.content).toBe('Adopt it.\n\nAssumption: the estimate holds.');
+    expect(final?.content).toBe(`Adopt it.\n\n${BODY}\n\nAssumption: the estimate holds.`);
     expect(final?.payload).toMatchObject({ version: 1, stage: 'final', confidence: 0.8 });
     expect(result.ok && result.value.totals.usage.costUsd).toBeCloseTo(SCENARIO_CALL_COST_USD, 10);
   });
@@ -793,5 +797,102 @@ describe('an end the host did not live to finish', () => {
     expect(resumed.summary.totals.usage.outputTokens).toBe(summary.totals.usage.outputTokens);
     expect(resumed.summary.totals.usage.costUsd).toBeCloseTo(summary.totals.usage.costUsd, 10);
     expect(latestSynthesis(resumed.summary.view)?.payload.stage).toBe('final');
+  });
+});
+
+describe('a write-up that comes back under half its word budget', () => {
+  // 900 words asked for by default: under 450 is short.
+  const words = (count: number): string =>
+    Array.from({ length: count }, (_, i) => `w${String(i + 1)}`).join(' ');
+  const sized = (count: number): FakeResponse => ({
+    // Two short paragraphs around the body: six words more than the body has.
+    object: written(['H1'], words(count)),
+    usage: SCENARIO_TOKENS,
+  });
+  const run = async (script: readonly FakeResponse[]) => {
+    const model = writerModel(script);
+    const h = harness([oneHypothesis()], { writeUp: { model, prompt: testWriteUpPrompt() } });
+    await h.controller.start({ content: 'P' });
+    const result = await h.controller.run();
+    if (!result.ok) throw new Error('run failed');
+    return { ...h, model, view: result.value.view, totals: result.value.totals };
+  };
+
+  it('is asked for once more, with the shortfall stated and the answer to build on', async () => {
+    const { model, events, view } = await run([sized(60), sized(700)]);
+    expect(model.calls.map((call) => call.outcome)).toEqual(['ok', 'ok']);
+    const second = model.calls[1]?.request.prompt ?? '';
+    expect(second.startsWith(model.calls[0]?.request.prompt ?? '?')).toBe(true);
+    expect(second).toContain('# Your previous answer was too short');
+    expect(second).toContain(
+      'It had 66 words. You were asked for about 900, and anything under 450',
+    );
+    expect(second).toContain(
+      `Previous answer:\nAdopt it.\n${words(60)}\nAssumption: the estimate holds.`,
+    );
+    // The longer answer is the one committed, once, and the log says how it went.
+    expect(countWords(latestSynthesis(view)?.content ?? '')).toBe(706);
+    expect(view.liveOfType('synthesis')).toHaveLength(1);
+    expect(ofType(events, 'write_up_completed')[0]).toMatchObject({
+      newEntries: 1,
+      attempts: 2,
+      words: 706,
+      short: false,
+      usage: { costUsd: 2 * SCENARIO_CALL_COST_USD },
+    });
+    expect(ofType(events, 'agent_failed')).toEqual([]);
+  });
+
+  it('keeps the longer of the two when the second is short as well, and says it is short', async () => {
+    const longerFirst = await run([sized(200), sized(100)]);
+    expect(countWords(latestSynthesis(longerFirst.view)?.content ?? '')).toBe(206);
+    expect(ofType(longerFirst.events, 'write_up_completed')[0]).toMatchObject({
+      attempts: 2,
+      words: 206,
+      short: true,
+    });
+    const longerSecond = await run([sized(100), sized(300)]);
+    expect(ofType(longerSecond.events, 'write_up_completed')[0]).toMatchObject({
+      attempts: 2,
+      words: 306,
+      short: true,
+    });
+  });
+
+  it('keeps the first answer when the second attempt fails, and notes why', async () => {
+    // The script has one answer: the second call finds it exhausted.
+    const { model, events, view } = await run([sized(60)]);
+    expect(model.calls.map((call) => call.outcome)).toEqual(['ok', 'script_exhausted']);
+    expect(latestSynthesis(view)?.payload).toMatchObject({ stage: 'final' });
+    expect(ofType(events, 'write_up_completed')[0]).toMatchObject({
+      newEntries: 1,
+      attempts: 2,
+      words: 66,
+      short: true,
+    });
+    expect(ofType(events, 'agent_failed')[0]).toMatchObject({
+      agentId: 'synthesizer',
+      reason: 'script_exhausted',
+    });
+    expect(ofType(events, 'agent_failed')[0]?.detail).toContain(
+      'second attempt at the final write-up failed; the first, 66 words of about 900, is kept',
+    );
+  });
+
+  it('is left alone at half the budget or more', async () => {
+    const { model, events } = await run([sized(444)]);
+    expect(model.calls).toHaveLength(1);
+    expect(ofType(events, 'write_up_completed')[0]).toMatchObject({
+      attempts: 1,
+      words: 450,
+      short: false,
+    });
+  });
+
+  it('counts words the way a reader would, and knows half a budget', () => {
+    expect(countWords('One two  three.\n\nFour, five!')).toBe(5);
+    expect(countWords('   ')).toBe(0);
+    expect(isShortOf(449, 900)).toBe(true);
+    expect(isShortOf(450, 900)).toBe(false);
   });
 });

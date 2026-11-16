@@ -48,7 +48,22 @@ export interface BoardView {
    * one, live or not), or undefined when no version has claimed to answer it.
    */
   resolutionOf(critiqueId: string): EntryOf<'hypothesis'> | undefined;
+  /**
+   * The calls an agent has made that returned, oldest first: the round, and the entries its
+   * trigger had pointed it at. A call that failed, or whose round the host did not live to
+   * finish, is not here. An agent that was called on an entry and posted nothing about it
+   * has still looked at it, and this is the only place the log says so.
+   */
+  callsOf(agentId: string): readonly AgentCall[];
 }
+
+export interface AgentCall {
+  round: number;
+  targetIds: readonly string[];
+}
+
+// `agent_failed` reasons that do not mean the call failed: its output was kept, in part.
+const PARTIAL_OUTPUT: ReadonlySet<string> = new Set(['over_limit', 'invalid_links']);
 
 const isType =
   <T extends EntryType>(type: T) =>
@@ -68,6 +83,7 @@ class MaterialisedBoardView implements BoardView {
   readonly #supersededBy = new Map<string, Entry>();
   readonly #children = new Map<string, Entry[]>();
   readonly #resolutions = new Map<string, EntryOf<'hypothesis'>>();
+  readonly #calls = new Map<string, AgentCall[]>();
 
   constructor(runId: string, events: readonly BoardEvent[]) {
     this.runId = runId;
@@ -76,8 +92,30 @@ class MaterialisedBoardView implements BoardView {
     // never changes when a later entry supersedes or dismisses one before it.
     const committedOfType = new Map<EntryType, number>();
     let round = 0;
+    // The round in flight: who was selected on what, and whose call failed. Settled into
+    // `#calls` when the round completes; dropped when it was abandoned.
+    let selected = new Map<string, readonly string[]>();
     for (const event of events) {
       if (event.type === 'round_started') round = Math.max(round, event.round);
+      if (event.type === 'agents_selected') {
+        selected = new Map(
+          event.eligible
+            .filter((record) => event.selected.includes(record.agentId))
+            .map((record) => [record.agentId, record.targetIds]),
+        );
+      }
+      if (event.type === 'agent_failed' && !PARTIAL_OUTPUT.has(event.reason)) {
+        selected.delete(event.agentId);
+      }
+      if (event.type === 'round_abandoned') selected = new Map();
+      if (event.type === 'round_completed') {
+        for (const [agentId, targetIds] of selected) {
+          const calls = this.#calls.get(agentId) ?? [];
+          calls.push({ round: event.round, targetIds });
+          this.#calls.set(agentId, calls);
+        }
+        selected = new Map();
+      }
       if (event.type !== 'entry_committed') continue;
       const entry = event.entry;
       entries.push(entry);
@@ -106,6 +144,10 @@ class MaterialisedBoardView implements BoardView {
 
   byId(id: string): Entry | undefined {
     return this.#byId.get(id);
+  }
+
+  callsOf(agentId: string): readonly AgentCall[] {
+    return this.#calls.get(agentId) ?? [];
   }
 
   handleOf(id: string): Handle | undefined {

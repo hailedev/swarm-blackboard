@@ -458,7 +458,7 @@ describe('POST /runs/:id/synthesize', () => {
     const requested = log.events.find((e) => e.type === 'synthesis_requested');
     expect(requested).toMatchObject({ round: 1 });
     const selections = log.events.flatMap((e) => (e.type === 'agents_selected' ? [e] : []));
-    expect(selections.map((e) => e.selected)).toEqual([
+    expect(selections.slice(0, 3).map((e) => e.selected)).toEqual([
       ['planner'],
       ['solver', 'researcher'],
       ['synthesizer', 'critic'],
@@ -466,13 +466,14 @@ describe('POST /runs/:id/synthesize', () => {
     expect(selections[2]?.eligible.find((e) => e.agentId === 'synthesizer')?.reason).toBe(
       'forced by the user',
     );
-    // The scripted Synthesizer is confident and nothing blocks, so the run ends a round
-    // earlier than it would have: the usual termination rules, not the request, decide.
-    expect(await body<RunRecord>(await app.request(`/runs/${started.id}`))).toMatchObject({
-      status: 'completed',
-      reason: 'completed',
-      totals: { rounds: 3 },
-    });
+    // The usual termination rules, not the request, decide when the run ends. The forced
+    // synthesis is confident, but it was written in the round the Critic posted its
+    // critique, so the run goes on until that is answered and reviewed (the path is pinned
+    // round by round in core, controller/lifecycle.test.ts).
+    const record = await body<RunRecord>(await app.request(`/runs/${started.id}`));
+    expect(record).toMatchObject({ status: 'completed', reason: 'completed' });
+    expect(record.totals.rounds).toBe(selections.length);
+    expect(record.totals.rounds).toBeGreaterThan(3);
     expect(log.events.map((e) => e.seq)).toEqual(log.events.map((_, i) => i));
 
     const late = await post(app, `/runs/${started.id}/synthesize`);

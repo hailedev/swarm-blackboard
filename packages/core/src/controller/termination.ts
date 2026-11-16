@@ -1,4 +1,8 @@
-import { latestSynthesis } from '../agents/eligibility';
+import {
+  latestSynthesis,
+  openContestingCritiques,
+  synthesisIsCurrent,
+} from '../agents/eligibility';
 import type { BoardView } from '../board/board-view';
 import type { RunConfig } from '../schemas/run-config';
 import type { RunBudgetReason, RunEndReason } from '../schemas/run-end';
@@ -17,15 +21,40 @@ export interface TerminationInput {
    * stands, however confident the Synthesizer is.
    */
   decisionRequired: boolean;
+  /**
+   * The Critic would be eligible on the board as this round left it: a standing version it
+   * has not looked at, or one that has had evidence since (its trigger, agents/roles/critic.ts).
+   * False for a roster with no Critic.
+   */
+  criticPending: boolean;
 }
 
-/** The latest synthesis is confident and no blocking critique is open. */
+/**
+ * A synthesis may end the run when all of this holds:
+ *
+ * - it is confident (`synthesisThreshold`);
+ * - no blocking or major critique is open: the same set the Solver is sent back for and
+ *   that keeps a subproblem from counting as done;
+ * - it was written after the last hypothesis or critique landed, so its confidence was set
+ *   with everything in view;
+ *
+ * and, checked beside it in `checkTermination`, the Critic has nothing left to review on
+ * the standing versions and no contradiction is undecided.
+ *
+ * Until 2026-11-17 only a blocking critique held a run. A rehearsal run then completed in
+ * four rounds on a draft at 0.85 written in the very round the Critic raised six major
+ * critiques against the versions it rested on: none was ever answered. Waiting for the
+ * majors alone would have ended it one round later on that same stale draft, once the
+ * Solver had replaced the hypotheses; hence the last two conditions. A run that never
+ * gets there ends on a budget, and is written up all the same.
+ */
 export const synthesisReady = (view: BoardView, config: RunConfig): boolean => {
   const synthesis = latestSynthesis(view);
   return (
     synthesis !== undefined &&
     synthesis.payload.confidence >= config.synthesisThreshold &&
-    view.openBlockingCritiques().length === 0
+    openContestingCritiques(view).length === 0 &&
+    synthesisIsCurrent(view)
   );
 };
 
@@ -38,8 +67,9 @@ export const checkTermination = ({
   stalled,
   eligibleCount,
   decisionRequired,
+  criticPending,
 }: TerminationInput): RunEndReason | null => {
-  if (synthesisReady(view, config) && !decisionRequired) return 'completed';
+  if (synthesisReady(view, config) && !decisionRequired && !criticPending) return 'completed';
   if (budget !== null) return budget;
   if (starved) return 'budget_cost';
   if (stalled) return 'stalled';

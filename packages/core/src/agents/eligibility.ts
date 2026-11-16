@@ -176,6 +176,59 @@ export const evidenceWithoutHypothesis = (view: BoardView): readonly EntryOf<'ev
     );
 };
 
+/**
+ * Standing hypotheses the Critic still has to look at: versions no Critic call that returned
+ * has been pointed at, and versions that have received evidence in or after the round of
+ * their last review (evidence of that same round was posted beside the review, unseen by
+ * it). A review that raised nothing counts: what the Critic was pointed at is on the log
+ * (`agents_selected`), so "reviewed, nothing to raise" can be told from "never reviewed",
+ * which the board's entries alone cannot do. When this is empty the Critic has nothing
+ * left to review, and a run may end (controller/termination.ts).
+ */
+export const hypothesesToReview = (view: BoardView): readonly EntryOf<'hypothesis'>[] => {
+  const lastReview = new Map<string, number>();
+  for (const call of view.callsOf(CRITIC_ID)) {
+    for (const id of call.targetIds) lastReview.set(id, call.round);
+  }
+  return standingHypotheses(view).filter((hypothesis) => {
+    const reviewed = lastReview.get(hypothesis.id);
+    if (reviewed === undefined) return true;
+    return [
+      ...view.evidenceSupporting(hypothesis.id),
+      ...view.evidenceContradicting(hypothesis.id),
+    ].some((evidence) => evidence.round >= reviewed);
+  });
+};
+
+/** The Critic's agent id: the role name (agents/agent.ts, `createRoleAgent`). */
+const CRITIC_ID = 'critic';
+
+/**
+ * Whether the latest synthesis was written after everything it should have read: after the
+ * last hypothesis or critique landed. Every agent of a round reads the board as it stood
+ * when the round began, so a synthesis has seen only what landed in earlier rounds; one
+ * written in the round a critique was posted has not seen that critique.
+ */
+export const synthesisIsCurrent = (view: BoardView): boolean => {
+  const synthesis = latestSynthesis(view);
+  if (synthesis === undefined) return false;
+  return view.entries.every(
+    (entry) =>
+      (entry.type !== 'hypothesis' && entry.type !== 'critique') || entry.round < synthesis.round,
+  );
+};
+
+/** The open blocking and major critiques: what a run may not end with (rejected targets aside). */
+export const openContestingCritiques = (view: BoardView): readonly EntryOf<'critique'>[] => {
+  const rejected = rejectedHypothesisIds(view);
+  return view
+    .liveOfType('critique')
+    .filter(
+      (critique) =>
+        CONTESTING.includes(critique.payload.severity) && critiqueStands(view, critique, rejected),
+    );
+};
+
 export const hypothesesWithoutCritique = (view: BoardView): readonly EntryOf<'hypothesis'>[] =>
   view.liveOfType('hypothesis').filter((h) => view.critiquesOf(h.id).length === 0);
 
@@ -220,11 +273,15 @@ export const boardChangedSinceLastSynthesis = (view: BoardView): boolean => {
   );
 };
 
-/** The live synthesis with the highest version, if any. */
+/**
+ * The live synthesis with the highest version, if any; of two with the same version, the
+ * one committed later. A model that forgets to supersede leaves several drafts live under
+ * one version number, and the newest is the one that read the most of the board.
+ */
 export const latestSynthesis = (view: BoardView): EntryOf<'synthesis'> | undefined =>
   view
     .liveOfType('synthesis')
     .reduce<EntryOf<'synthesis'> | undefined>(
-      (best, s) => (best === undefined || s.payload.version > best.payload.version ? s : best),
+      (best, s) => (best === undefined || s.payload.version >= best.payload.version ? s : best),
       undefined,
     );
