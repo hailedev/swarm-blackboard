@@ -101,7 +101,7 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
 
   lines.push('## Closing the loop', '');
   lines.push(
-    'How far each swarm run got with its own objections, counted from its board, its event log and its model calls. A critique is resolved when a hypothesis names it among the critiques it answers; replaced when what it attacked was superseded or rejected without anybody naming it; open when it still stood against a live entry at the end. A call is rejected when its reply did not match the schema; a reply over its role’s limit is trimmed to the limit, not rejected. None of this is judged: it says that an objection was replied to, not that the reply was good.',
+    'How far each swarm run got with its own objections, counted from its board, its event log and its model calls. A critique is resolved when it no longer stands and a hypothesis named it among the critiques it answers; replaced when what it attacked was superseded or rejected without anybody naming it; open when it still stood against a live entry at the end, whatever a hypothesis claimed. A call is rejected when its reply did not match the schema; a reply over its role’s limit is trimmed to the limit, not rejected. None of this is judged: it says that an objection was replied to, not that the reply was good.',
     '',
   );
   lines.push(
@@ -166,7 +166,7 @@ const loopRow = (r: ProblemResult): string => {
   const swarm = r.swarm;
   if (swarm === null) return `| ${r.problem.id} | — | — | — | — | — | — | — | — | — | — |`;
   const { critiques, calls, subproblems } = swarm.loop;
-  return `| ${r.problem.id} | ${String(swarm.rounds)} | ${swarm.reason} | ${String(critiques.resolved)} / ${String(critiques.raised)} | ${String(critiques.replaced)} | ${describeOpenCritiques(critiques.open)} | ${String(calls.rejected)} / ${String(calls.made)} | ${String(swarm.loop.trimmedReplies)} | ${String(swarm.loop.decisions)} (${String(swarm.loop.rejectedHypotheses)}) | ${String(swarm.loop.drafts)} | ${String(subproblems.done)} / ${String(subproblems.claimed)} / ${String(subproblems.open)} |`;
+  return `| ${r.problem.id} | ${String(swarm.rounds)} | ${swarm.reason} | ${String(critiques.resolved)} / ${String(critiques.raised)} | ${String(critiques.replaced)} | ${describeOpenCritiques(critiques)} | ${String(calls.rejected)} / ${String(calls.made)} | ${String(swarm.loop.trimmedReplies)} | ${String(swarm.loop.decisions)} (${String(swarm.loop.rejectedHypotheses)}) | ${String(swarm.loop.drafts)} | ${String(subproblems.done)} / ${String(subproblems.claimed)} / ${String(subproblems.open)} |`;
 };
 
 /** Words in an answer as a reader would count them: runs of non-space characters. */

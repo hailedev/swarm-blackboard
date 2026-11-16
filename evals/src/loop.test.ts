@@ -44,10 +44,11 @@ describe('loopFigures', () => {
       resolved: 1,
       replaced: 2,
       open: { blocking: 0, major: 1, minor: 1 },
+      namedStillOpen: 0,
     });
     expect(figures.decisions).toBe(1);
     expect(figures.rejectedHypotheses).toBe(1);
-    expect(describeOpenCritiques(figures.critiques.open)).toBe('1 major, 1 minor');
+    expect(describeOpenCritiques(figures.critiques)).toBe('1 major, 1 minor');
   });
 
   it('counts a critique that carries its own resolution as resolved', () => {
@@ -63,7 +64,34 @@ describe('loopFigures', () => {
     fx.entry('critique', { target: hypothesis.id, severity: 'major', resolvedBy: evidence.id });
     const figures = loopFigures(fx.view(), [], []);
     expect(figures.critiques.resolved).toBe(1);
-    expect(describeOpenCritiques(figures.critiques.open)).toBe('none');
+    expect(describeOpenCritiques(figures.critiques)).toBe('none');
+  });
+
+  it('keeps a critique open when a hypothesis names it without replacing what it attacks', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const target = fx.entry('hypothesis', { confidence: 0.5, supportedBy: [], contradictedBy: [] });
+    const critique = fx.entry('critique', { target: target.id, severity: 'blocking' });
+    fx.startRound(2);
+    // A new hypothesis beside the old one: it claims the critique, but the target still stands.
+    fx.entry('hypothesis', {
+      confidence: 0.7,
+      supportedBy: [],
+      contradictedBy: [],
+      resolves: [critique.id],
+    });
+    const figures = loopFigures(fx.view(), [], []);
+    expect(figures.critiques).toEqual({
+      raised: 1,
+      resolved: 0,
+      replaced: 0,
+      open: { blocking: 1, major: 0, minor: 0 },
+      namedStillOpen: 1,
+    });
+    expect(describeOpenCritiques(figures.critiques)).toBe(
+      '1 blocking (1 named as resolved, target not replaced)',
+    );
   });
 
   it('reads subproblems off the board and counts drafts, rejected calls and trimmed replies', () => {

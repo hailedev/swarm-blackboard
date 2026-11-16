@@ -52,7 +52,13 @@ const swarmOutcome = (
       : { maxOutputTokens: 2_048, wordBudget: 650, written: true, costUsd: 0.004 },
   writeUpFailure: null,
   loop: {
-    critiques: { raised: 5, resolved: 2, replaced: 1, open: { blocking: 0, major: 1, minor: 1 } },
+    critiques: {
+      raised: 5,
+      resolved: 2,
+      replaced: 1,
+      open: { blocking: 0, major: 1, minor: 1 },
+      namedStillOpen: 1,
+    },
     calls: { made: 8, rejected: 1 },
     trimmedReplies: 2,
     decisions: 1,
@@ -458,7 +464,7 @@ describe('report: what each arm wrote, and where the swarm scored low', () => {
     const report = renderReport(pass, meta);
     expect(report).toContain('## Closing the loop');
     expect(report).toContain(
-      '| one | 4 | completed | 2 / 5 | 1 | 1 major, 1 minor | 1 / 8 | 2 | 1 (1) | 1 | 2 / 1 / 0 |',
+      '| one | 4 | completed | 2 / 5 | 1 | 1 major, 1 minor (1 named as resolved, target not replaced) | 1 / 8 | 2 | 1 (1) | 1 | 2 / 1 / 0 |',
     );
     // A run that never happened has nothing to count.
     expect(report).toContain('| two | — | — | — | — | — | — | — | — | — | — |');

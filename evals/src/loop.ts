@@ -17,7 +17,10 @@ export interface LoopFigures {
   critiques: {
     /** Every critique the run posted. */
     raised: number;
-    /** Named by a hypothesis among the critiques it resolves, or marked resolved itself. */
+    /**
+     * No longer standing, and named by a hypothesis among the critiques it resolves (or
+     * marked resolved itself).
+     */
     resolved: number;
     /**
      * Gone without anybody claiming to answer it: what it attacked was replaced, or
@@ -26,6 +29,11 @@ export interface LoopFigures {
     replaced: number;
     /** Still standing against a live entry when the run ended, by severity. */
     open: Record<CritiqueSeverity, number>;
+    /**
+     * Of those still open, the ones a hypothesis named as resolved without replacing what
+     * they attack: a claim to have answered that changed nothing on the board.
+     */
+    namedStillOpen: number;
   };
   /** The run's model calls, repairs and the write-up included; rejected = invalid output. */
   calls: { made: number; rejected: number };
@@ -48,7 +56,13 @@ export const loopFigures = (
 ): LoopFigures => {
   const rejected = rejectedHypothesisIds(view);
   const figures: LoopFigures = {
-    critiques: { raised: 0, resolved: 0, replaced: 0, open: { blocking: 0, major: 0, minor: 0 } },
+    critiques: {
+      raised: 0,
+      resolved: 0,
+      replaced: 0,
+      open: { blocking: 0, major: 0, minor: 0 },
+      namedStillOpen: 0,
+    },
     calls: {
       made: calls.length,
       rejected: calls.filter((call) => call.outcome === 'invalid_output').length,
@@ -68,14 +82,20 @@ export const loopFigures = (
     }
     if (entry.type !== 'critique') continue;
     figures.critiques.raised += 1;
-    if (entry.payload.resolvedBy !== undefined || view.resolutionOf(entry.id) !== undefined) {
-      figures.critiques.resolved += 1;
-    } else if (
+    // Open exactly as the controller reads it (`openCritiquesOf`): unresolved, live, and
+    // against a live entry no decision rejected. Being named by a hypothesis does not close
+    // a critique; replacing what it attacks does.
+    const named = view.resolutionOf(entry.id) !== undefined;
+    const stands =
+      entry.payload.resolvedBy === undefined &&
       view.isLive(entry.id) &&
       view.isLive(entry.payload.target) &&
-      !rejected.has(entry.payload.target)
-    ) {
+      !rejected.has(entry.payload.target);
+    if (stands) {
       figures.critiques.open[entry.payload.severity] += 1;
+      if (named) figures.critiques.namedStillOpen += 1;
+    } else if (named || entry.payload.resolvedBy !== undefined) {
+      figures.critiques.resolved += 1;
     } else {
       figures.critiques.replaced += 1;
     }
@@ -83,10 +103,18 @@ export const loopFigures = (
   return figures;
 };
 
-/** "3 blocking, 1 major" for the critiques still standing; "none" when there are none. */
-export const describeOpenCritiques = (open: LoopFigures['critiques']['open']): string => {
+/**
+ * "3 blocking, 1 major" for the critiques still standing, "none" when there are none; with
+ * how many of them a hypothesis claimed to have answered without replacing their target.
+ */
+export const describeOpenCritiques = (critiques: LoopFigures['critiques']): string => {
   const parts = (['blocking', 'major', 'minor'] as const)
-    .filter((severity) => open[severity] > 0)
-    .map((severity) => `${String(open[severity])} ${severity}`);
-  return parts.length === 0 ? 'none' : parts.join(', ');
+    .filter((severity) => critiques.open[severity] > 0)
+    .map((severity) => `${String(critiques.open[severity])} ${severity}`);
+  if (parts.length === 0) return 'none';
+  const claimed =
+    critiques.namedStillOpen === 0
+      ? ''
+      : ` (${String(critiques.namedStillOpen)} named as resolved, target not replaced)`;
+  return `${parts.join(', ')}${claimed}`;
 };

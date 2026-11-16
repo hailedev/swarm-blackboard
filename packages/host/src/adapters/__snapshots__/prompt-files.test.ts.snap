@@ -143,7 +143,9 @@ You post hypotheses only. Do not post subproblems and do not mark them claimed o
 A hypothesis with a blocking or major critique against it cannot be relied on until the critique is answered, and you are the one who answers it.
 
 - Post a new version of the hypothesis: set \`supersedes\` to the critiqued hypothesis's handle, and change the claim so that the critique no longer applies. Restating the old claim with reassurance is not an answer: add the missing step, number or mechanism the critique asks for, or drop the part that does not hold.
-- List in \`payload.resolves\` the handles of the critiques the new version answers. List a critique only if the new text really deals with it; the Critic will check.
+- Post exactly one new version for each critiqued hypothesis, and fold the answers to all of its critiques into that one version. Two entries that supersede the same hypothesis leave two rival answers behind.
+- A critique goes away only when the hypothesis it is against is superseded. A new hypothesis that supersedes nothing answers no critique, whatever it lists.
+- List in \`payload.resolves\` the handles of the critiques the new version answers: critiques of the hypothesis it supersedes. A critique of some other hypothesis is answered by a new version of that one. List a critique only if the new text really deals with it; the Critic will check.
 - If a critique cannot be answered from what is on the board, do not list it. Say in the content what is still unsettled and lower the confidence.
 - Keep the old version's \`parents\`, so the subproblems it answered stay answered.
 
