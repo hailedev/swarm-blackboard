@@ -1,0 +1,21 @@
+{
+  "key": "47cb33806aae8ac3f9997f91055dc2e88f8e91f5fbadf7883821c81dd54b3e43",
+  "problemId": "teen-reading-programme",
+  "modelId": "qwen3.6:35b-mlx",
+  "capUsd": 0.03,
+  "maxOutputTokens": 4096,
+  "wordBudget": 1350,
+  "truncated": false,
+  "answer": "The core concept for this six-week programme is 'The Escape Room Challenge,' a gamified series where teens solve puzzles using library resources to 'escape' a themed scenario each week. This format directly addresses the success criterion of attracting non-reading teenagers by framing information literacy and resource navigation as a game mechanic rather than an academic task. The weekly sessions follow a consistent four-hour block: the first hour introduces the theme and rules, the next two hours are dedicated to collaborative puzzle-solving where participants must locate specific items in the stacks or online databases to get clues, the third hour involves team debriefing and strategy adjustment, and the final hour is for reflection, light snacks, and sign-ups for the next week. This structure ensures that every participant engages with the physical collection and digital tools, not just passively attending. By making the library a place of action and competition rather than quiet study, we lower the barrier to entry for teens who find traditional library environments intimidating or boring.",
+  "usage": {
+    "inputTokens": 554,
+    "outputTokens": 207,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0,
+    "costUsd": 0
+  },
+  "latencyMs": 3446,
+  "at": "2026-11-16T00:35:28.420Z",
+  "passId": "eval:01a1e1bd-fd31-76e7-86b9-e1c3fe24d138"
+}
