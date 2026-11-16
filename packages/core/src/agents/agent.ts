@@ -103,7 +103,61 @@ export type AgentError = { kind: 'model'; error: CallError };
 /** What an agent hands the controller: contributions whose references are entry ids. */
 export interface AgentResult {
   contributions: readonly Contribution[];
+  /** Set when the model returned more than the role may post and the rest was dropped. */
+  trimmed?: Trimmed;
 }
+
+export interface Trimmed {
+  kept: number;
+  dropped: number;
+  /** The contributions were ranked before the cut (the Critic's: most severe first). */
+  ranked: boolean;
+}
+
+/**
+ * How many contributions a role may post in one call, and which to keep when a model
+ * returns more. A reply over the limit is not rejected: the first `max` are kept, after
+ * ranking when the role has an order of importance. Rejecting it threw away the whole
+ * call, repair and fallback included: Anthropic's structured output drops `maxItems` from
+ * the schema, so the model never saw the limit, and 16 of the 27 Critic calls of the
+ * step2a runs were lost that way.
+ */
+export interface RoleLimit {
+  max: number;
+  /** Most important first. Ties keep the model's own order. */
+  rank?: (a: Contribution, b: Contribution) => number;
+}
+
+/**
+ * The bound a role's schema puts on its array instead of the role's own limit: generous
+ * enough that an over-long reply still validates and can be trimmed, finite so that a
+ * local model decoding against the schema's grammar cannot run on for ever.
+ */
+export const CONTRIBUTIONS_SCHEMA_MAX = 24;
+
+/** The first `limit.max` contributions, ranked first if the role ranks, and what was cut. */
+export const keepWithinLimit = (
+  limit: RoleLimit | undefined,
+  contributions: readonly Contribution[],
+): AgentResult => {
+  if (limit === undefined || contributions.length <= limit.max) return { contributions };
+  const rank = limit.rank;
+  const ordered =
+    rank === undefined
+      ? contributions
+      : contributions
+          .map((contribution, index) => ({ contribution, index }))
+          .sort((a, b) => rank(a.contribution, b.contribution) || a.index - b.index)
+          .map(({ contribution }) => contribution);
+  return {
+    contributions: ordered.slice(0, limit.max),
+    trimmed: {
+      kept: limit.max,
+      dropped: contributions.length - limit.max,
+      ranked: rank !== undefined,
+    },
+  };
+};
 
 // An agent is a function of (boardView, config) → contributions (ADR-0005).
 // It never sees another agent; its models are bound at construction from the roster.
@@ -118,6 +172,8 @@ export interface Agent {
 // built per call from the references the agent's view names (agents/handles.ts).
 export interface RoleDefinition {
   readonly role: AgentRole;
+  /** Absent for a role whose schema already fixes the count (the Synthesizer's one synthesis). */
+  readonly limit?: RoleLimit;
   outputSchema(refs: ModelReferenceSchemas): ZodType<AgentOutput>;
   trigger(view: BoardView, ctx: AgentContext): Trigger;
 }
@@ -204,6 +260,6 @@ export const createRoleAgent = (
     const result = await callWithRepair(ctx.models, models, request, (object) =>
       resolveHandles(object.contributions, view),
     );
-    return result.ok ? ok({ contributions: result.value }) : reject(result.error);
+    return result.ok ? ok(keepWithinLimit(definition.limit, result.value)) : reject(result.error);
   },
 });

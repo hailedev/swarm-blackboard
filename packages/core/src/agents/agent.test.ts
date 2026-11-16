@@ -5,7 +5,13 @@ import { ok } from '../ports/result';
 import { agentContext } from '../testing/agent-context';
 import { BoardFixture } from '../testing/board-fixture';
 import { testRolePrompts } from '../testing/role-prompts';
-import { createRoleAgent, type ModelGateway } from './agent';
+import {
+  CONTRIBUTIONS_SCHEMA_MAX,
+  createRoleAgent,
+  keepWithinLimit,
+  type ModelGateway,
+} from './agent';
+import { critic } from './roles/critic';
 import { planner } from './roles/planner';
 
 const PROMPT = testRolePrompts().planner;
@@ -192,5 +198,119 @@ describe('createRoleAgent: repair → fallback → discard', () => {
     );
     expect(!result.ok && result.error.error.kind).toBe('invalid_request');
     expect(model.calls.length).toBe(0);
+  });
+});
+
+describe('createRoleAgent: a reply over the role’s limit keeps its first contributions', () => {
+  // A board with one hypothesis for the Critic to attack.
+  const critiqued = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypothesis = fx.entry('hypothesis', {
+      confidence: 0.6,
+      supportedBy: [],
+      contradictedBy: [],
+    });
+    return { fx, hypothesis };
+  };
+  const critique = (severity: string, content: string) => ({
+    type: 'critique',
+    content,
+    parents: ['H1'],
+    payload: { target: 'H1', severity },
+  });
+  const question = (content: string) => ({
+    type: 'question',
+    content,
+    parents: ['H1'],
+    payload: {},
+  });
+
+  it('keeps the Critic’s six most severe, in one call, and says what it dropped', async () => {
+    const { fx, hypothesis } = critiqued();
+    const model = createFakeModel({
+      script: [
+        {
+          object: {
+            contributions: [
+              critique('minor', 'm1'),
+              critique('major', 'M1'),
+              question('q1'),
+              critique('blocking', 'B1'),
+              critique('minor', 'm2'),
+              critique('major', 'M2'),
+              question('q2'),
+              critique('blocking', 'B2'),
+              critique('major', 'M3'),
+            ],
+          },
+        },
+      ],
+    });
+    const agent = createRoleAgent(critic, { model }, PROMPT);
+    const result = await agent.act(
+      fx.view(),
+      agentContext({ runId: fx.runId, round: 2, targetIds: [hypothesis.id] }),
+    );
+    // Blocking first, then major, then minor; the model's own order within a severity;
+    // questions come last and here fall past the sixth place.
+    expect(result.ok && result.value.contributions.map((c) => c.content)).toEqual([
+      'B1',
+      'B2',
+      'M1',
+      'M2',
+      'M3',
+      'm1',
+    ]);
+    expect(result.ok && result.value.trimmed).toEqual({ kept: 6, dropped: 3, ranked: true });
+    // Not a schema failure: no repair call, nothing thrown away but the overflow.
+    expect(model.calls.map((c) => c.outcome)).toEqual(['ok']);
+  });
+
+  it('keeps another role’s first ones in the order the model gave them', async () => {
+    const { fx } = board();
+    const subproblems = Array.from({ length: 10 }, (_, i) => ({
+      type: 'subproblem',
+      content: `Part ${String(i + 1)}`,
+      parents: ['P1'],
+      payload: { status: 'open' },
+    }));
+    const model = createFakeModel({ script: [{ object: { contributions: subproblems } }] });
+    const result = await createRoleAgent(planner, { model }, PROMPT).act(
+      fx.view(),
+      agentContext({ runId: fx.runId, round: 1 }),
+    );
+    expect(result.ok && result.value.contributions.map((c) => c.content)).toEqual(
+      subproblems.slice(0, 8).map((s) => s.content),
+    );
+    expect(result.ok && result.value.trimmed).toEqual({ kept: 8, dropped: 2, ranked: false });
+  });
+
+  it('says nothing was trimmed when the reply is within the limit', async () => {
+    const { fx } = board();
+    const model = createFakeModel({ script: [valid] });
+    const result = await createRoleAgent(planner, { model }, PROMPT).act(
+      fx.view(),
+      agentContext({ runId: fx.runId, round: 1 }),
+    );
+    expect(result.ok && 'trimmed' in result.value).toBe(false);
+    expect(keepWithinLimit(undefined, [])).toEqual({ contributions: [] });
+  });
+
+  it('still rejects a reply past the bound the schema itself carries', async () => {
+    const { fx, hypothesis } = critiqued();
+    const flood = Array.from({ length: CONTRIBUTIONS_SCHEMA_MAX + 1 }, (_, i) =>
+      critique('minor', `c${String(i)}`),
+    );
+    const model = createFakeModel({
+      script: [{ object: { contributions: flood } }, { object: { contributions: flood } }],
+    });
+    const result = await createRoleAgent(critic, { model }, PROMPT).act(
+      fx.view(),
+      agentContext({ runId: fx.runId, round: 2, targetIds: [hypothesis.id] }),
+    );
+    expect(!result.ok && result.error.error.kind).toBe('invalid_output');
+    expect(model.calls.map((c) => c.outcome)).toEqual(['invalid_output', 'invalid_output']);
   });
 });

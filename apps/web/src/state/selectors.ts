@@ -245,7 +245,8 @@ export const agentStatesOf = (events: readonly BoardEvent[]): AgentState[] => {
         }
         break;
       case 'agent_failed': {
-        if (!isRole(event.agentId)) break;
+        // Over its limit is not a failure: the agent's first contributions were committed.
+        if (!isRole(event.agentId) || event.reason === 'over_limit') break;
         const state = states.get(event.agentId);
         if (state !== undefined) {
           state.failure = { round: event.round, reason: event.reason, detail: event.detail };
@@ -369,6 +370,10 @@ export const feedOf = (events: readonly BoardEvent[], view: BoardView): FeedLine
         );
       }
       case 'agent_failed':
+        // The agent answered and its first contributions are on the board: a note, not a failure.
+        if (event.reason === 'over_limit') {
+          return feedLine(event, 'warning', `${event.agentId} went over its limit`, event.detail);
+        }
         return feedLine(
           event,
           event.reason === 'invalid_links' ? 'warning' : 'critical',

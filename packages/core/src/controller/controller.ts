@@ -849,6 +849,20 @@ export const createController = (
         committed.push(entry);
         if (entry.type === 'critique') critiqueTargets.add(entry.payload.target);
       }
+      // More than the role may post: the first ones were kept (agents/agent.ts, RoleLimit).
+      // On the log so a reader sees that something was cut, and how much.
+      const trimmed = result.value.trimmed;
+      if (trimmed !== undefined) {
+        const failure: AgentFailure = {
+          agentId: agent.id,
+          reason: 'over_limit',
+          detail: `kept ${String(trimmed.kept)} of ${String(trimmed.kept + trimmed.dropped)} contributions${trimmed.ranked ? ', the most severe first' : ''}; ${String(trimmed.dropped)} dropped`,
+        };
+        failures.push(failure);
+        deps.logger.warn('agent output over its limit', { runId, round, ...failure });
+        const noted = await emit({ type: 'agent_failed', round, ...failure });
+        if (!noted.ok) return noted;
+      }
       if (batch.problems.length > 0) {
         const failure: AgentFailure = {
           agentId: agent.id,

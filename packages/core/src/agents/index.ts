@@ -8,12 +8,16 @@ export type {
   ControlFlags,
   ModelGateway,
   RoleDefinition,
+  RoleLimit,
   RoleModels,
   Trigger,
+  Trimmed,
 } from './agent';
 export {
   callWithRepair,
+  CONTRIBUTIONS_SCHEMA_MAX,
   createRoleAgent,
+  keepWithinLimit,
   eligible,
   mandatory,
   MANDATORY_PRIORITY,

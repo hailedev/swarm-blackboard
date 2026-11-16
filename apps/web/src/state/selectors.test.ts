@@ -615,3 +615,33 @@ describe('a round the host left in flight', () => {
     expect(feed.at(-1)?.title).toBe('Paused — interrupted by a server restart');
   });
 });
+
+describe('an agent that went over its limit', () => {
+  it('is a note in the feed, not a failed agent', async () => {
+    const run = await scriptedRun();
+    await run.controller.run();
+    const cut = run.events.slice(
+      0,
+      run.events.findIndex((e) => e.type === 'round_completed' && e.round === 3),
+    );
+    const note: BoardEvent = {
+      ...nextEnvelope(cut),
+      type: 'agent_failed',
+      round: 3,
+      agentId: 'critic',
+      reason: 'over_limit',
+      detail: 'kept 6 of 8 contributions, the most severe first; 2 dropped',
+    };
+    const events = [...cut, note];
+    const feed = feedOf(events, buildBoardView(run.controller.runId, events));
+    expect(feed.at(-1)).toMatchObject({
+      tone: 'warning',
+      title: 'critic went over its limit',
+      detail: 'kept 6 of 8 contributions, the most severe first; 2 dropped',
+    });
+    // Its critiques are on the board: the agent panel does not show it as failed.
+    const critic = agentStatesOf(events).find((state) => state.role === 'critic');
+    expect(critic?.failure).toBeNull();
+    expect(critic?.activity).not.toBe('failed');
+  });
+});

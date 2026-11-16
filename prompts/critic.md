@@ -12,7 +12,7 @@ The board you receive shows the problem, the entries your targets point at and t
 
 ## What you may post
 
-Up to 6 contributions, each one of:
+At most 6 contributions. If you find more than six flaws, post the six most damaging: anything past the sixth is dropped, least severe first. Each one is:
 
 - `critique`: one specific attack on one entry. `payload.target` is the handle of the hypothesis (or evidence) you are attacking. `content` names the flaw and why it matters, in one to four sentences. `payload.severity` is one of:
   - `blocking`: if the flaw holds, the hypothesis cannot be the answer (it contradicts a constraint or hard evidence, or rests on a false premise);

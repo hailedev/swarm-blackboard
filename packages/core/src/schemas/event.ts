@@ -31,6 +31,9 @@ export type EligibilityRecord = z.infer<typeof EligibilityRecordSchema>;
 export const AgentFailureReasonSchema = z.enum([
   'invalid_output',
   'invalid_links',
+  // Not a failure of the call: the agent returned more contributions than its role may
+  // post, the first ones were kept and the rest dropped (agents/agent.ts, RoleLimit).
+  'over_limit',
   'budget_exhausted',
   'billing',
   'auth',

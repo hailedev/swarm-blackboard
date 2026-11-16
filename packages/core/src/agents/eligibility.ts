@@ -8,6 +8,13 @@ import type { CritiqueSeverity, SubproblemStatus } from '../schemas/payloads';
 export const boardIsNew = (view: BoardView): boolean =>
   view.live.every((entry) => entry.type === 'problem' || entry.type === 'human_note');
 
+/** Most severe first: the order in which critiques are kept, shown and answered. */
+export const SEVERITY_RANK: Readonly<Record<CritiqueSeverity, number>> = {
+  blocking: 0,
+  major: 1,
+  minor: 2,
+};
+
 /** Critique severities that contest a hypothesis: it cannot be relied on until they are answered. */
 export const CONTESTING: readonly CritiqueSeverity[] = ['blocking', 'major'];
 

@@ -88,6 +88,7 @@ export const STATUS_LABEL: Record<RunRecordStatus, string> = {
 export const FAILURE_LABEL: Record<AgentFailureReason, string> = {
   invalid_output: 'invalid output',
   invalid_links: 'invalid links',
+  over_limit: 'over its limit',
   budget_exhausted: 'no budget left for the call',
   billing: 'billing error',
   auth: 'API key rejected',

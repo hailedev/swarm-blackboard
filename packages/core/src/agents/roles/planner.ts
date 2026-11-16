@@ -1,14 +1,16 @@
 import { z } from 'zod';
 
 import { contributionSchemas, type ModelReferenceSchemas } from '../../schemas/contribution';
-import { eligible, notEligible, type RoleDefinition } from '../agent';
+import { CONTRIBUTIONS_SCHEMA_MAX, eligible, notEligible, type RoleDefinition } from '../agent';
 import { boardIsNew } from '../eligibility';
 
-/** Up to 8 subproblems or questions, linking only through `refs`. */
+/** Subproblems or questions, linking only through `refs`; the role keeps the first 8. */
 export const plannerOutputSchema = (refs: ModelReferenceSchemas) => {
   const s = contributionSchemas(refs);
   return z.object({
-    contributions: z.array(z.discriminatedUnion('type', [s.subproblem, s.question])).max(8),
+    contributions: z
+      .array(z.discriminatedUnion('type', [s.subproblem, s.question]))
+      .max(CONTRIBUTIONS_SCHEMA_MAX),
   });
 };
 
@@ -17,6 +19,7 @@ export const plannerOutputSchema = (refs: ModelReferenceSchemas) => {
 export const planner: RoleDefinition = {
   role: 'planner',
   outputSchema: plannerOutputSchema,
+  limit: { max: 8 },
   trigger(view, ctx) {
     const problem = view.problem();
     if (problem !== undefined && boardIsNew(view)) {

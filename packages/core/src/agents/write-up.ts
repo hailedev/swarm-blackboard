@@ -6,10 +6,9 @@ import { ConfidenceSchema } from '../schemas/common';
 import type { ContributionOf } from '../schemas/contribution';
 import type { Entry, EntryOf } from '../schemas/entry';
 import { compareHandles, HANDLE_LEGEND, type Handle } from '../schemas/handle';
-import type { CritiqueSeverity } from '../schemas/payloads';
 import type { WriteUpConfig } from '../schemas/run-config';
 import { digestLine, handleOf, payloadDigest, payloadReferences } from './agent-view';
-import { latestSynthesis } from './eligibility';
+import { latestSynthesis, SEVERITY_RANK } from './eligibility';
 import { PARAGRAPH_SEPARATOR } from './handles';
 import { lengthInstruction } from './word-budget';
 
@@ -59,18 +58,12 @@ export interface RenderedWriteUp {
   staleCritiques: number;
 }
 
-const SEVERITY_ORDER: Readonly<Record<CritiqueSeverity, number>> = {
-  blocking: 0,
-  major: 1,
-  minor: 2,
-};
-
 /** A critique that still stands: unresolved, against an entry that is still live. */
 const stands = (view: BoardView, critique: EntryOf<'critique'>): boolean =>
   critique.payload.resolvedBy === undefined && view.isLive(critique.payload.target);
 
 const bySeverity = (a: EntryOf<'critique'>, b: EntryOf<'critique'>): number =>
-  SEVERITY_ORDER[a.payload.severity] - SEVERITY_ORDER[b.payload.severity];
+  SEVERITY_RANK[a.payload.severity] - SEVERITY_RANK[b.payload.severity];
 
 // One entry of the layout. A `block` gets a heading of its own (a decision, a candidate
 // answer, the draft); a `bullet` is a list item, nested under the hypothesis it belongs to

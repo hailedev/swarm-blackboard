@@ -915,3 +915,81 @@ describe('createController: exhausted scripts', () => {
     expect(report.ok && report.value.ended).toBeNull();
   });
 });
+
+describe('a reply over the role’s limit', () => {
+  it('commits the Critic’s six most severe critiques and notes the rest on the log', async () => {
+    // The scripted swarm, with a Critic that writes eight critiques of the live hypothesis.
+    const ref: { controller: Controller | undefined } = { controller: undefined };
+    const scriptedModels = createScriptedModels(() => {
+      if (ref.controller === undefined) throw new Error('controller not ready');
+      return ref.controller.currentView();
+    });
+    const verbose = createFakeModel({
+      id: 'fake-verbose-critic',
+      script: () => {
+        const view = ref.controller?.currentView();
+        const target = view?.liveOfType('hypothesis')[0];
+        const handle = target === undefined ? undefined : view?.handleOf(target.id);
+        if (handle === undefined) return { object: { contributions: [] } };
+        const severities = [
+          'minor',
+          'major',
+          'minor',
+          'blocking',
+          'major',
+          'minor',
+          'major',
+          'minor',
+        ];
+        return {
+          object: {
+            contributions: severities.map((severity, i) => ({
+              type: 'critique',
+              content: `${severity} flaw ${String(i + 1)}`,
+              parents: [handle],
+              payload: { target: handle, severity },
+            })),
+          },
+          usage: SCENARIO_TOKENS,
+        };
+      },
+    });
+    const h = harness(
+      createDefaultAgents({ ...scriptedModels, critic: verbose }, testRolePrompts()),
+    );
+    ref.controller = h.controller;
+    await h.controller.start({ content: 'P' }, { maxRounds: 3 });
+    const result = await h.controller.run();
+    expect(result.ok).toBe(true);
+
+    // Round 3 is the Critic's first: one call, six critiques on the board, most severe first.
+    expect(verbose.calls.map((c) => c.outcome)).toEqual(['ok']);
+    const critiques = ofType(h.events, 'entry_committed')
+      .map((e) => e.entry)
+      .filter((entry) => entry.type === 'critique');
+    expect(critiques.map((c) => c.content)).toEqual([
+      'blocking flaw 4',
+      'major flaw 2',
+      'major flaw 5',
+      'major flaw 7',
+      'minor flaw 1',
+      'minor flaw 3',
+    ]);
+    expect(ofType(h.events, 'agent_failed')).toEqual([
+      expect.objectContaining({
+        round: 3,
+        agentId: 'critic',
+        reason: 'over_limit',
+        detail: 'kept 6 of 8 contributions, the most severe first; 2 dropped',
+      }),
+    ]);
+    // The note follows the entries it is about, inside the round.
+    const types = h.events.filter((e) => e.type === 'agent_failed' || e.type === 'round_completed');
+    expect(types.map((e) => [e.type, 'round' in e ? e.round : null]).slice(-2)).toEqual([
+      ['agent_failed', 3],
+      ['round_completed', 3],
+    ]);
+    // It is not a failure that ends or pauses anything.
+    expect(result.ok && result.value.reason).toBe('budget_rounds');
+  });
+});
