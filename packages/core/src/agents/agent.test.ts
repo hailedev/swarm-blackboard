@@ -13,6 +13,7 @@ import {
 } from './agent';
 import { critic } from './roles/critic';
 import { planner } from './roles/planner';
+import { solver } from './roles/solver';
 
 const PROMPT = testRolePrompts().planner;
 
@@ -312,5 +313,78 @@ describe('createRoleAgent: a reply over the role’s limit keeps its first contr
     );
     expect(!result.ok && result.error.error.kind).toBe('invalid_output');
     expect(model.calls.map((c) => c.outcome)).toEqual(['invalid_output', 'invalid_output']);
+  });
+});
+
+describe('createRoleAgent: links a model leaves out or should not set', () => {
+  // H1 with a blocking critique C1 against it; the Solver is sent back to it.
+  const contested = () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypothesis = fx.entry('hypothesis', {
+      confidence: 0.6,
+      supportedBy: [],
+      contradictedBy: [],
+    });
+    fx.startRound(2);
+    const critique = fx.entry('critique', { target: hypothesis.id, severity: 'blocking' });
+    return { fx, hypothesis, critique };
+  };
+
+  it('reads supersedes off resolves when the Solver names the critiques and no more', async () => {
+    const { fx, hypothesis, critique } = contested();
+    const model = createFakeModel({
+      script: [
+        {
+          object: {
+            contributions: [
+              {
+                type: 'hypothesis',
+                content: 'The same plan, with a rollback at every step.',
+                parents: ['P1'],
+                payload: { confidence: 0.7, supportedBy: [], contradictedBy: [], resolves: ['C1'] },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const result = await createRoleAgent(solver, { model }, PROMPT).act(
+      fx.view(),
+      agentContext({ runId: fx.runId, round: 3, targetIds: [hypothesis.id] }),
+    );
+    const posted = result.ok ? result.value.contributions[0] : undefined;
+    expect(posted?.supersedes).toBe(hypothesis.id);
+    expect(posted?.type === 'hypothesis' && posted.payload.resolves).toEqual([critique.id]);
+  });
+
+  it('drops a resolvedBy the Critic sets on its own new critique', async () => {
+    const { fx, hypothesis } = contested();
+    const model = createFakeModel({
+      script: [
+        {
+          object: {
+            contributions: [
+              {
+                type: 'critique',
+                content: 'The budget line is missing.',
+                parents: ['H1'],
+                payload: { target: 'H1', severity: 'major', resolvedBy: 'H1' },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const result = await createRoleAgent(critic, { model }, PROMPT).act(
+      fx.view(),
+      agentContext({ runId: fx.runId, round: 3, targetIds: [hypothesis.id] }),
+    );
+    const posted = result.ok ? result.value.contributions[0] : undefined;
+    expect(posted?.type === 'critique' && posted.payload).toEqual({
+      target: hypothesis.id,
+      severity: 'major',
+    });
   });
 });

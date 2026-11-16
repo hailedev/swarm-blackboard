@@ -11,6 +11,7 @@ import type {
 import type { AgentRole } from '../schemas/role';
 import type { RunConfig } from '../schemas/run-config';
 import { buildAgentRequest, resolveHandles } from './handles';
+import { withImpliedSupersedes } from './implied-supersedes';
 import { renderRepairPrompt } from './prompt';
 
 // Controller-owned flags the triggers may read (docs/PLAN.md §2.3 steps 7–8).
@@ -264,6 +265,9 @@ export const createRoleAgent = (
     const result = await callWithRepair(ctx.models, models, request, (object) =>
       resolveHandles(object.contributions, view),
     );
-    return result.ok ? ok(keepWithinLimit(definition.limit, result.value)) : reject(result.error);
+    if (!result.ok) return reject(result.error);
+    const kept = keepWithinLimit(definition.limit, result.value);
+    // A hypothesis that names the critiques of one hypothesis is its new version.
+    return ok({ ...kept, contributions: withImpliedSupersedes(view, kept.contributions) });
   },
 });

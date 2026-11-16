@@ -84,6 +84,28 @@ describe('contributionSchema over handle references', () => {
     expect(stored.type === 'synthesis' && 'stage' in stored.payload).toBe(false);
   });
 
+  it('gives no model a way to post a critique that is already resolved', () => {
+    // A critique closes when what it attacks is replaced, not on its author's say-so.
+    const modelFacing = contributionSchemas(refs({})).critique;
+    expect(JSON.stringify(z.toJSONSchema(modelFacing))).not.toContain('resolvedBy');
+    const parsed = modelFacing.parse({
+      type: 'critique',
+      content: 'No rollback path.',
+      parents: ['H1'],
+      payload: { target: 'H1', severity: 'blocking', resolvedBy: 'H1' },
+    });
+    // A model that sends the field anyway loses it; the critique itself is kept.
+    expect(parsed.payload).toEqual({ target: 'H1', severity: 'blocking' });
+    // The stored shape keeps it, for the logs written before this.
+    const stored = ContributionSchema.parse({
+      type: 'critique',
+      content: 'No rollback path.',
+      parents: [],
+      payload: { target: id(2), severity: 'blocking', resolvedBy: id(3) },
+    });
+    expect(stored.type === 'critique' && stored.payload.resolvedBy).toBe(id(3));
+  });
+
   it('accepts only the handles in the enum', () => {
     const schema = contributionSchema(refs({ hypothesis: ['H1'] }));
     const ok = schema.safeParse({

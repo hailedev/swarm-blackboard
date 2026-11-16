@@ -44,7 +44,7 @@ An append-only log of typed **entries**, plus a materialised "current view". Not
 | `subproblem` | One step of a decomposition | `status: open \| claimed \| done` as posted; where it stands is read off the board (below) |
 | `hypothesis` | Candidate answer or approach | `confidence 0–1`, `supportedBy[]`, `contradictedBy[]`, `resolves[]` (the critiques this version answers) |
 | `evidence` | A fact or finding with its source | `source`, `supports[]`, `contradicts[]` |
-| `critique` | An attack on a specific entry | `target`, `severity: blocking \| major \| minor`, `resolvedBy?` |
+| `critique` | An attack on a specific entry | `target`, `severity: blocking \| major \| minor`, `resolvedBy?` (in logs written before Step 2b; no agent can set it now, see below) |
 | `question` | Something the board can't yet answer | `answeredBy?` |
 | `decision` | A resolved conflict between hypotheses | `chosen`, `rejected[]`, `rationale` |
 | `synthesis` | The answer: drafts during the run, the final write-up when it ends (§2.3 step 9) | `version`, `confidence`, `cites[]`, `stage: draft \| final` (stamped by the controller, never by a model) |
@@ -55,7 +55,9 @@ An append-only log of typed **entries**, plus a materialised "current view". Not
 **State that is derived, not posted** (Phase 5, Step 2b). The runs of 2026-11-16 showed that no model keeps books on the board: subproblems were claimed and never finished, and critiques were replaced without anybody saying which had been answered. So:
 
 - **A subproblem's status is read off the board** (`subproblemStatus` in core). It is *done* when a live hypothesis that no decision has rejected names it among its parents and has no open blocking or major critique; *claimed* when every such hypothesis is contested; otherwise what was stored, which for a new subproblem is `open`. Supersede chains are followed on both sides. No agent posts a status change, and the Solver posts hypotheses only.
-- **`resolves` is a record, not a switch.** A critique stops being open when its target is superseded, as it always did. What `resolves` adds is the claim of which critiques the new version answers: the Critic is told to check each claim against the new version and to critique again if it does not hold, and the eval report counts a critique as resolved only when it was named this way.
+- **A critique closes when what it attacks is replaced, and in no other way.** The schema a model answers against has no `resolvedBy`: in the rehearsals of 2026-11-16 the local Critic set it on 44 of 125 new critiques, most often to the very hypothesis under attack, and a critique born resolved is never open, so nobody was sent back to it and it held no synthesis up.
+- **`resolves` is a record, not a switch.** What it adds is the claim of which critiques a new version answers: the Critic is told to check each claim against the new version and to critique again if it does not hold, and the eval report counts a critique as resolved only when it was named this way and no longer stands.
+- **`supersedes` is read off `resolves` when a model leaves it out** (`withImpliedSupersedes` in core). Models name the critiques they answer reliably and the hypothesis they replace not: in one rehearsal the local Solver named critiques on 13 hypotheses that superseded nothing, the critiques stayed open, and it was sent back to write the same answers again. So a hypothesis that names critiques of one and the same standing hypothesis, and says nothing of what it supersedes, supersedes that one. With two targets, none standing, or one the same reply already replaces, nothing is added.
 - **A hypothesis a live `decision` rejected is out of the running**: not a candidate for a synthesis, not sent back to the Solver, not counted as answering a subproblem, and shown to the final write-up apart from the candidates.
 
 ### 2.2 Agents (knowledge sources)

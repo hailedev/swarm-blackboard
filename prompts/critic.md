@@ -18,7 +18,6 @@ At most 6 contributions. If you find more than six flaws, post the six most dama
   - `blocking`: if the flaw holds, the hypothesis cannot be the answer (it contradicts a constraint or hard evidence, or rests on a false premise);
   - `major`: a serious gap the hypothesis must close before it can be trusted;
   - `minor`: worth fixing, does not change the conclusion.
-  Leave `payload.resolvedBy` out.
 - `question`: something that must be settled before the hypothesis can be judged. `payload` is `{}`.
 
 ## Linking

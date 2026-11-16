@@ -97,14 +97,26 @@ const hypothesisPayloadOf = (refs: ReferenceSchemas) => {
   return (critiques === undefined ? full.omit({ resolves: true }) : full) as typeof full;
 };
 
-// The long-form `content` schema is the only difference between the two shapes, so both
-// are built here and the exported builders pick by `refs.paragraphs`, with overloads so
-// each caller gets the exact type of the shape it asked for.
+// A critique closes when what it attacks is replaced (docs/PLAN.md §2.1), not on its
+// author's say-so, so the shape a model answers against has no `resolvedBy`. In the
+// rehearsals of 2026-11-16 the local Critic set it on 44 of 125 new critiques, most often
+// to the very hypothesis under attack, and a critique born resolved is never open: nobody
+// is sent back to it and it does not hold a synthesis up. The stored shape keeps the
+// field, for the logs written before this.
+const critiquePayloadOf = (refs: ReferenceSchemas) => {
+  const full = critiquePayloadSchema(refs.any);
+  return (refs.paragraphs ? full.omit({ resolvedBy: true }) : full) as typeof full;
+};
+
+// The long-form `content` schema and the critique's `resolvedBy` are the only differences
+// between the two shapes, so both are built here and the exported builders pick by
+// `refs.paragraphs`, with overloads so each caller gets the exact type of the shape it
+// asked for.
 const schemasWith = <C extends ZodType>(refs: ReferenceSchemas, longForm: C) => ({
   subproblem: contributionOf(refs, 'subproblem', SubproblemPayloadSchema, ContentSchema),
   hypothesis: contributionOf(refs, 'hypothesis', hypothesisPayloadOf(refs), ContentSchema),
   evidence: contributionOf(refs, 'evidence', evidencePayloadSchema(refs.any), ContentSchema),
-  critique: contributionOf(refs, 'critique', critiquePayloadSchema(refs.any), ContentSchema),
+  critique: contributionOf(refs, 'critique', critiquePayloadOf(refs), ContentSchema),
   question: contributionOf(refs, 'question', questionPayloadSchema(refs.any), ContentSchema),
   decision: contributionOf(refs, 'decision', decisionPayloadSchema(refs.any), ContentSchema),
   synthesis: contributionOf(refs, 'synthesis', synthesisPayloadSchema(refs.any), longForm),
