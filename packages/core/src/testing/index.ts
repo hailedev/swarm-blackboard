@@ -2,7 +2,7 @@ export { agentContext, directGateway, type AgentContextOverrides } from './agent
 export { BoardFixture, type EntryOverrides } from './board-fixture';
 export { FakeSpendLedger } from './fake-spend-ledger';
 export { ManualClock, TEST_EPOCH_MS } from './manual-clock';
-export { testRolePrompts } from './role-prompts';
+export { testRolePrompts, testWriteUpPrompt } from './role-prompts';
 export type { SampleBoard } from './sample-boards';
 export { decomposedBoard, freshBoard, lateBoard, midRunBoard } from './sample-boards';
 export {

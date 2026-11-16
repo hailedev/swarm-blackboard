@@ -7,7 +7,16 @@ import type {
   ControlFlags,
   ModelGateway,
 } from '../agents/agent';
-import { noControlFlags } from '../agents/agent';
+import { callWithRepair, noControlFlags } from '../agents/agent';
+import { boardIsNew } from '../agents/eligibility';
+import {
+  resolveWriteUp,
+  WRITE_UP_AUTHOR,
+  WRITE_UP_ROLE,
+  writeUpContribution,
+  type ResolvedWriteUp,
+  type WriteUpOutput,
+} from '../agents/write-up';
 import { buildBoardView, type BoardView } from '../board/board-view';
 import type { BoardStore, StoreError } from '../ports/board-store';
 import { isoFromMs, type Clock } from '../ports/clock';
@@ -46,10 +55,11 @@ import { BudgetTracker } from './budgets';
 import { prepareEntries } from './commit';
 import { ConflictTracker } from './conflict';
 import { calendarMonth } from './period';
-import type { RehydratedState, RunEndState } from './rehydrate';
+import type { PendingEnd, RehydratedState, RunEndState } from './rehydrate';
 import { estimateInputTokens, estimateUndershot, fitCall } from './reservation';
 import { selectAgents } from './selection';
 import { checkTermination, synthesisReady } from './termination';
+import { sizeWriteUp, writeUpHoldUsd, type WriteUpDeps } from './write-up';
 
 export interface ProblemInput {
   content: string;
@@ -70,6 +80,12 @@ export interface ControllerDeps {
   agents: readonly Agent[];
   /** Month-to-date guard for paid profiles. Omit for the dev profile: it spends nothing. */
   periodBudget?: PeriodBudget;
+  /**
+   * The final write-up (docs/PLAN.md §2.3 step 8): the Synthesizer's models and the prompt
+   * the answer is written with when the run ends. Its worst-case cost is held back from the
+   * cap from the start. Omit it and a run ends on its last draft, with nothing held back.
+   */
+  writeUp?: WriteUpDeps;
   /** Recorded on run_started so the run stays reproducible after agents.yaml changes. */
   profile?: RunProfile;
   /** Called synchronously after every event is stored (CLI printing now, SSE later). */
@@ -229,15 +245,27 @@ export const createController = (
   const conflicts = resumed?.conflicts ?? new ConflictTracker();
   let view = buildBoardView(runId, events);
   let config: RunConfig | undefined = resumed?.config;
+  // What the final write-up may cost at worst, held back from the cap (controller/write-up.ts).
+  const holdFor = (runConfig: RunConfig): number =>
+    deps.writeUp === undefined ? 0 : writeUpHoldUsd(deps.writeUp, runConfig.writeUp);
+  // An end a previous host began and did not finish: the resumed run finishes it first.
+  let pendingEnd: PendingEnd | null = resumed?.ending ?? null;
   let budgets: BudgetTracker | undefined =
     resumed === undefined
       ? undefined
-      : new BudgetTracker(resumed.config, deps.clock, {
-          usage: resumed.usage,
-          rounds: resumed.completedRounds,
-          elapsedMs: resumed.elapsedMs,
-          running: resumed.ended === null,
-        });
+      : new BudgetTracker(
+          resumed.config,
+          deps.clock,
+          {
+            usage: resumed.usage,
+            rounds: resumed.completedRounds,
+            elapsedMs: resumed.elapsedMs,
+            running: resumed.ended === null,
+          },
+          // A resumed run is never refused for its hold: the tracker clamps it to the cap.
+          // Nothing is held for a write-up that has already been paid for.
+          resumed.ending?.writtenUp === true ? 0 : holdFor(resumed.config),
+        );
   let completedRounds = resumed?.completedRounds ?? 0;
   let consecutiveEmptyRounds = resumed?.consecutiveEmptyRounds ?? 0;
   let reframeUsed = resumed?.reframeUsed ?? false;
@@ -313,13 +341,168 @@ export const createController = (
     }
   };
 
+  // The final write-up (docs/PLAN.md §2.3 step 8): the last thing a run does once it is
+  // ending for good. The Synthesizer's model writes the answer one more time from the whole
+  // live board, and the controller commits it as the synthesis that supersedes the last
+  // draft, stage `final`. It is not a round: `write_up_started` and `write_up_completed`
+  // bracket it on the log, between the last round and `run_terminated`. The held-back
+  // dollars are released for it, and the call is fitted, reserved, settled and traced
+  // through the same gateway as any agent's. When it cannot be made or fails, the reason is
+  // on the log as an `agent_failed` of the Synthesizer and the last draft stays the answer.
+  const writeUp = async (
+    tracker: BudgetTracker,
+    round: number,
+    reason: TerminalReason,
+  ): Promise<Result<void, ControllerError>> => {
+    const writer = deps.writeUp;
+    const runConfig = config;
+    const owed = pendingEnd;
+    pendingEnd = null;
+    if (writer === undefined || runConfig === undefined) return ok(undefined);
+    // Held for the write-up or for nothing: handed back here, whatever happens next.
+    tracker.releaseHold();
+    // The provider has just refused this run; another call would only be refused again.
+    if (reason === 'billing' || reason === 'auth') return ok(undefined);
+    // A host that died after the call returned left it on the log: it is not paid for twice.
+    if (owed?.writtenUp === true) return ok(undefined);
+    // Nothing to write from: the board holds the problem and, at most, the user's notes.
+    if (view.problem() === undefined || boardIsNew(view)) return ok(undefined);
+
+    const notWritten = async (
+      failure: AgentFailureReason,
+      detail: string,
+    ): Promise<Result<void, ControllerError>> => {
+      deps.logger.warn('final write-up not written', { runId, round, reason: failure, detail });
+      const failed = await emit({
+        type: 'agent_failed',
+        round,
+        agentId: WRITE_UP_AUTHOR,
+        reason: failure,
+        detail,
+      });
+      return failed.ok ? ok(undefined) : failed;
+    };
+
+    // A paid call needs the month to have room, as every round does (budget-guardrails §3).
+    // The monthly limit is the harder limit: a spent month gets no write-up.
+    if (writer.model.pricing !== null) {
+      const month = await monthToDate();
+      if (!month.ok) {
+        return notWritten(
+          'budget_exhausted',
+          'final write-up skipped: the month-to-date spend could not be read',
+        );
+      }
+      if (month.value !== null && month.value.spentUsd >= month.value.budget.limitUsd) {
+        return notWritten(
+          'budget_exhausted',
+          `final write-up skipped: the month's budget is spent (${usd(month.value.spentUsd)} of ${usd(month.value.budget.limitUsd)})`,
+        );
+      }
+    }
+
+    // Fit first, then word the prompt for the allowance that fits (controller/write-up.ts).
+    const board = view;
+    const sized = sizeWriteUp(writer, board, runConfig.writeUp, tracker.remainingUsd());
+    if (!sized.fit.fits) {
+      return notWritten(
+        'budget_exhausted',
+        `final write-up skipped: ${describeCallError({
+          kind: 'budget_exhausted',
+          remainingUsd: sized.fit.remainingUsd,
+          worstCaseUsd: sized.fit.worstCaseUsd,
+        })}`,
+      );
+    }
+    const started = await emit({
+      type: 'write_up_started',
+      round,
+      reason,
+      maxOutputTokens: sized.fit.maxOutputTokens,
+      wordBudget: sized.wordBudget,
+    });
+    if (!started.ok) return started;
+    deps.logger.info('final write-up started', {
+      runId,
+      round,
+      reason,
+      maxOutputTokens: sized.fit.maxOutputTokens,
+      wordBudget: sized.wordBudget,
+      entriesShown: sized.rendered.shown.full + sized.rendered.shown.digested,
+      entriesOmitted: sized.rendered.shown.omitted,
+    });
+
+    const settled: SettledCall[] = [];
+    const request: ModelRequest<WriteUpOutput> = {
+      schema: sized.schema,
+      system: writer.prompt,
+      prompt: sized.rendered.prompt,
+      maxOutputTokens: sized.fit.maxOutputTokens,
+      tags: { role: WRITE_UP_ROLE, runId, round },
+    };
+    let outcome: Result<ResolvedWriteUp, CallError | AgentException>;
+    try {
+      outcome = await callWithRepair(
+        gatewayFor(tracker, runConfig, WRITE_UP_AUTHOR, round, settled),
+        writer,
+        request,
+        (output) => resolveWriteUp(output, board),
+      );
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'the write-up threw a non-Error';
+      outcome = err({ kind: 'exception', message });
+    }
+
+    let newEntries = 0;
+    if (outcome.ok) {
+      const batch = prepareEntries({
+        contributions: [writeUpContribution(view, outcome.value)],
+        view,
+        ids: deps.ids,
+        runId,
+        round,
+        author: WRITE_UP_AUTHOR,
+        createdAt: isoFromMs(deps.clock.nowMs()),
+        usage: sumUsage(settled),
+        synthesisStage: 'final',
+      });
+      for (const entry of batch.entries) {
+        const stored = await emit({ type: 'entry_committed', round, entry });
+        if (!stored.ok) return stored;
+        newEntries += 1;
+      }
+      if (batch.problems.length > 0) {
+        const failed = await notWritten('invalid_links', batch.problems.join(' | '));
+        if (!failed.ok) return failed;
+      }
+    } else {
+      const failure =
+        outcome.error.kind === 'exception'
+          ? { reason: 'exception' as const, detail: outcome.error.message }
+          : { reason: outcome.error.kind, detail: describeCallError(outcome.error) };
+      const failed = await notWritten(failure.reason, failure.detail);
+      if (!failed.ok) return failed;
+    }
+    const completed = await emit({
+      type: 'write_up_completed',
+      round,
+      newEntries,
+      usage: sumUsage(settled),
+    });
+    return completed.ok ? ok(undefined) : completed;
+  };
+
   const terminate = async (
     tracker: BudgetTracker,
     round: number,
     reason: TerminalReason,
   ): Promise<Result<void, ControllerError>> => {
     const status = terminalStatusFor(reason);
+    // Ended from here on: while the write-up's call is in flight a second stop, a resume,
+    // a note or a forced synthesis is refused, as it is on any run that is over.
     ended = { status, reason };
+    const written = await writeUp(tracker, round, reason);
+    if (!written.ok) return written;
     tracker.pause();
     deps.logger.info('run terminated', { runId, round, status, reason });
     const result = await emit({
@@ -485,8 +668,21 @@ export const createController = (
       }
     }
 
+    // The final write-up is paid from the cap, and its worst case is held back from the
+    // first round on. A cap that cannot cover even that would end the run with no answer,
+    // so it is refused here, with both figures (docs/budget-guardrails.md §2).
+    const holdUsd = holdFor(parsedConfig.data);
+    if (holdUsd > 0 && holdUsd >= parsedConfig.data.maxCostUsd) {
+      return err({
+        kind: 'invalid_config',
+        issues: [
+          `maxCostUsd: a cap of ${usd(parsedConfig.data.maxCostUsd)} does not cover the final write-up, which may cost up to ${usd(holdUsd)} and is held back from the cap; raise the cap, or lower writeUp.maxBoardChars or writeUp.maxOutputTokens`,
+        ],
+      });
+    }
+
     config = parsedConfig.data;
-    budgets = new BudgetTracker(config, deps.clock);
+    budgets = new BudgetTracker(config, deps.clock, undefined, holdUsd);
     const started = await emit({
       type: 'run_started',
       problemEntry: parsedProblem.data,
@@ -524,6 +720,13 @@ export const createController = (
       usage: zeroUsage(),
       ended: end,
     });
+
+    // An end the previous host began and did not finish (rehydrate's `ending`) is finished
+    // before anything else: the run was already over, for the reason on the log.
+    if (pendingEnd !== null) {
+      const finished = await terminate(tracker, completedRounds, pendingEnd.reason);
+      return finished.ok ? ok(emptyReport(ended)) : finished;
+    }
 
     // The user's wishes come first: a stop or pause asked for between rounds happens now.
     if (requested.stop()) {

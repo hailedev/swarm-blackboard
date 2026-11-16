@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderWriteUpPrompt > lays the whole live board out for the writer 1`] = `
+"# Problem (P1)
+Should our four-person team move its three Node services into one pnpm monorepo, or keep separate repositories?
+
+Constraints:
+- No more than two weeks of migration effort
+- CI must stay under 10 minutes
+
+Success criteria:
+1. A recommendation that names the main risk
+2. Evidence cited for the effort estimate
+
+# Human notes
+- N1 (priority high): Prefer any option that keeps the three deploy pipelines independent.
+
+# The board
+
+## Candidate answers, most confident first
+### H2 (hypothesis, round 4): confidence=0.75 supportedBy=E1,E2 contradictedBy=-
+Consolidate into one pnpm workspace, migrating one service per sprint, but keep the three deploy pipelines separate and add task-level remote caching so CI only rebuilds what changed. This answers the CI-time critique and respects the human note.
+
+- E1 (evidence, round 2; supports it): source=repository audit, October 2026 supports=H1 contradicts=-
+  Two of the three services pin different TypeScript majors and duplicate 14 ESLint rules; dependency upgrades were applied to all three on separate dates in each of the last four months.
+- E2 (evidence, round 3; supports it): source=general knowledge supports=H1 contradicts=-
+  pnpm workspaces with task-level remote caching commonly keep CI under ten minutes for repositories of a few services, because unchanged packages are not rebuilt or retested.
+- C2 (critique, round 4; critique that stands): target=H2 severity=minor
+  The two-week effort figure is asserted, not estimated; a per-service breakdown would make it checkable.
+
+## Open questions
+- Q1 (question, round 1): open
+  Which of the three services releases most often, and does it share code with the others?
+
+## Subproblems
+- S2 (subproblem, round 1): status=open
+  Estimate the migration effort and the CI-time impact of a pnpm workspace against the two-week and ten-minute constraints.
+- S4 (subproblem, round 4): status=done
+  Inventory the shared tooling and dependency drift across the three services and say what duplication costs today.
+
+## Latest draft of the answer
+### A1 (synthesis, round 4): version=1 confidence=0.6 cites=H2,E1,E2
+Recommendation: move to a single pnpm workspace one service per sprint, keeping the deploy pipelines independent and adding remote caching. Main risk: the effort estimate is unverified. Open: release cadence per service.
+
+Not shown: 1 critique is left out because it was resolved or what it attacks has been replaced.
+
+# What to return
+Length: you have about 900 words for the whole answer, all paragraphs together. Use most of them: a thorough answer that fills the room beats a terse one, and anything past the limit is cut off.
+
+Return JSON matching the schema. \`cites\` are the handles (P problem, S subproblem, H hypothesis, E evidence, C critique, Q question, D decision, A synthesis, N human note) of the entries above that the answer rests on, copied exactly. Handles belong in \`cites\` only: the text of the answer must not contain one."
+`;

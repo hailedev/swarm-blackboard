@@ -45,6 +45,15 @@ export { researcher, researcherOutputSchema } from './roles/researcher';
 export { solver, solverOutputSchema } from './roles/solver';
 export { synthesizer, synthesizerOutputSchema } from './roles/synthesizer';
 export { createDefaultAgents, roleDefinitions } from './roster';
+export type { RenderedWriteUp, ResolvedWriteUp, WriteUpOutput } from './write-up';
+export {
+  renderWriteUpPrompt,
+  resolveWriteUp,
+  WRITE_UP_AUTHOR,
+  WRITE_UP_ROLE,
+  writeUpContribution,
+  writeUpOutputSchema,
+} from './write-up';
 export {
   JSON_HEADROOM,
   lengthInstruction,

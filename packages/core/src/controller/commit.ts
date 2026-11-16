@@ -3,6 +3,7 @@ import type { IdGenerator } from '../ports/ids';
 import { zeroUsage, type Usage } from '../schemas/common';
 import type { Contribution } from '../schemas/contribution';
 import { EntrySchema, type Entry } from '../schemas/entry';
+import type { SynthesisStage } from '../schemas/payloads';
 
 interface Reference {
   field: string;
@@ -80,6 +81,11 @@ export interface PrepareInput {
   createdAt: string;
   /** Usage of the model call that produced the batch; attributed to its first accepted entry. */
   usage: Usage;
+  /**
+   * The stage to stamp on a synthesis in the batch. Only the controller's final write-up
+   * passes `final`; an agent's synthesis has no stage of its own and is stored as a draft.
+   */
+  synthesisStage?: SynthesisStage;
 }
 
 export interface PreparedBatch {
@@ -98,8 +104,12 @@ export const prepareEntries = (input: PrepareInput): PreparedBatch => {
       problems.push(`contribution ${String(index)} (${contribution.type}): ${links.join('; ')}`);
       return;
     }
+    const stamped =
+      contribution.type === 'synthesis' && input.synthesisStage !== undefined
+        ? { ...contribution, payload: { ...contribution.payload, stage: input.synthesisStage } }
+        : contribution;
     const parsed = EntrySchema.safeParse({
-      ...contribution,
+      ...stamped,
       id: input.ids.next(),
       runId: input.runId,
       round: input.round,

@@ -1,4 +1,5 @@
 import { openSubproblems } from '../agents/eligibility';
+import { WRITE_UP_ROLE } from '../agents/write-up';
 import type { BoardView } from '../board/board-view';
 import {
   createFakeModel,
@@ -20,6 +21,8 @@ import type { AgentRole } from '../schemas/role';
 //   2 solver (hypothesis, closes subproblem 1) + researcher (evidence)
 //   3 critic (major critique + question) + solver (stronger hypothesis, closes subproblem 2)
 //   4 critic (minor critique) + synthesizer (synthesis at 0.9) → completed
+// and, when the controller is given the Synthesizer's model for the final write-up, one
+// more call after the last round: the answer written from the whole board.
 
 export const SCENARIO_TOKENS: FakeUsage = { inputTokens: 1200, outputTokens: 300 };
 
@@ -211,12 +214,43 @@ export const createScriptedModels = (
     synthesizer: createFakeModel({
       id: 'fake-synthesizer',
       pricing: priced('synthesizer'),
-      script: () => {
+      script: (request) => {
         const view = getView();
         const cites = handlesOf(view, [
           ...view.liveOfType('hypothesis'),
           ...view.liveOfType('evidence'),
         ]);
+        // The final write-up is the Synthesizer's model under another role tag and another
+        // schema (agents/write-up.ts). The answer is valid on any board the controller
+        // writes up: with no hypothesis yet it cites the subproblems, or the problem.
+        if (request.tags.role === WRITE_UP_ROLE) {
+          const thin = handlesOf(view, [...view.liveOfType('subproblem')]);
+          const problem = view.problem();
+          const fallback =
+            thin.length > 0 || problem === undefined ? thin : handlesOf(view, [problem]);
+          return {
+            object:
+              cites.length > 0
+                ? {
+                    paragraphs: [
+                      'Adopt a single pnpm monorepo, migrating one team per quarter and keeping deploys independent.',
+                      'Duplicated build tooling and drifting dependency versions are the main cost today; one repository with shared tooling removes both, for about a quarter of one engineer during the migration.',
+                      'Assumption: the payback period holds as estimated. Check it once the first team has moved, before the second starts.',
+                    ],
+                    confidence: 0.9,
+                    cites,
+                  }
+                : {
+                    paragraphs: [
+                      'No recommendation can be made yet: the work stopped before a candidate answer was reached.',
+                      'Assumption: the open subproblems are the right first steps. Settle them before choosing.',
+                    ],
+                    confidence: 0.2,
+                    cites: fallback,
+                  },
+            usage: SCENARIO_TOKENS,
+          };
+        }
         return respond([
           {
             type: 'synthesis',
