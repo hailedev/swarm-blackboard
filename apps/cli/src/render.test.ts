@@ -8,6 +8,7 @@ import {
   renderFailure,
   renderRoundHeader,
   renderSummary,
+  renderWriteUpHeader,
 } from './render';
 
 describe('renderBoard', () => {
@@ -101,14 +102,43 @@ describe('headers and summary', () => {
     const fx = new BoardFixture();
     fx.problem();
     fx.startRound(1);
-    fx.entry('synthesis', { version: 1, confidence: 0.9, cites: [] }, { content: 'The answer.' });
+    const draft = fx.entry(
+      'synthesis',
+      { version: 1, confidence: 0.9, cites: [] },
+      { content: 'A draft.' },
+    );
+    fx.entry(
+      'synthesis',
+      { version: 2, confidence: 0.9, cites: [], stage: 'final' },
+      { content: 'The answer.', supersedes: draft.id },
+    );
     expect(renderSummary(summary({ view: fx.view() }))).toEqual([
       '== Done: completed after 4 rounds ==',
       'entries 12 | tokens 150 (0 thinking) | cost $0.0315 | elapsed 42 ms',
       '',
-      'Answer:',
+      'Final answer:',
       'The answer.',
     ]);
+  });
+
+  it('says so when the answer is only a draft, and picks the highest version', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    // Two live syntheses, as a local model sometimes leaves them: the later version wins.
+    fx.entry('synthesis', { version: 2, confidence: 0.6, cites: [] }, { content: 'Second.' });
+    fx.entry('synthesis', { version: 1, confidence: 0.6, cites: [] }, { content: 'First.' });
+    expect(renderSummary(summary({ view: fx.view() })).slice(2)).toEqual([
+      '',
+      'Answer (a draft: the run ended without a final write-up):',
+      'Second.',
+    ]);
+  });
+
+  it('announces the write-up with why the run is ending and the length asked for', () => {
+    expect(renderWriteUpHeader('budget_rounds', 900)).toBe(
+      '== Ending (budget_rounds): writing the final answer from the whole board, about 900 words ==',
+    );
   });
 
   it('names paused and failed runs for what they are', () => {

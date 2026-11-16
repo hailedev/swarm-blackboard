@@ -29,6 +29,7 @@ import {
   createCliLogger,
   createUuidV7Generator,
   loadPromptFiles,
+  loadWriteUpPrompt,
   loadRosterFile,
   ModelCallStore,
   monthlyBudgetFromEnv,
@@ -54,6 +55,7 @@ import {
   renderFailure,
   renderRoundHeader,
   renderSummary,
+  renderWriteUpHeader,
 } from './render';
 
 export interface SolveIo {
@@ -238,6 +240,11 @@ export const main = async (
     io.write(prompts.error);
     return 2;
   }
+  const writeUpPrompt = await loadWriteUpPrompt(roster.value, values.roster);
+  if (!writeUpPrompt.ok) {
+    io.write(writeUpPrompt.error);
+    return 2;
+  }
 
   // One database for runs, traces and the spend ledger, shared with the server (ADR-0010).
   let opened: OpenedDatabase;
@@ -256,6 +263,7 @@ export const main = async (
       config,
       profile: profile.value,
       prompts: prompts.value,
+      writeUpPrompt: writeUpPrompt.value,
       opened,
       io,
       env,
@@ -272,6 +280,8 @@ interface SolveInput {
   config: RunConfigInput;
   profile: RunProfile;
   prompts: Record<AgentRole, string>;
+  /** The system prompt of the final write-up; undefined when agents.yaml names none. */
+  writeUpPrompt: string | undefined;
   opened: OpenedDatabase;
   io: SolveIo;
   env: Env;
@@ -284,6 +294,7 @@ const solve = async ({
   config,
   profile,
   prompts,
+  writeUpPrompt,
   opened,
   io,
   env,
@@ -430,12 +441,20 @@ const solve = async ({
     // Failures are rendered from events below; the CLI logger skips those warnings.
     logger,
     agents,
+    // The final write-up is written by the Synthesizer's model (docs/PLAN.md §2.3 step 8).
+    writeUp:
+      writeUpPrompt === undefined
+        ? undefined
+        : { model: models.roles.synthesizer, fallback: models.fallback, prompt: writeUpPrompt },
     periodBudget,
     profile,
     onEvent: (event) => {
       events.push(event);
       if (event.type === 'agents_selected')
         io.write(renderRoundHeader(event.round, event.selected));
+      if (event.type === 'write_up_started') {
+        io.write(renderWriteUpHeader(event.reason, event.wordBudget));
+      }
       if (event.type === 'agent_failed') {
         io.write(renderFailure(event.agentId, event.reason, event.detail));
       }

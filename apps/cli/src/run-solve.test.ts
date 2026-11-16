@@ -81,7 +81,16 @@ describe('pnpm solve', () => {
     expect(text).toContain('  A1   synthesizer r4  v1, conf 0.90, cites');
     expect(text).toContain('== Done: completed after 4 rounds ==');
     expect(text).toContain('cost $0.0000');
-    expect(text).toContain('Answer:');
+    // After the last round the Synthesizer's model writes the answer from the whole board.
+    expect(text).toContain(
+      '== Ending (completed): writing the final answer from the whole board, about 900 words ==',
+    );
+    expect(text).toContain('Final answer:\nAdopt a single pnpm monorepo');
+    expect(text).toContain('Assumption: the payback period holds as estimated.');
+    expect(text.indexOf('== Ending (completed)')).toBeGreaterThan(text.indexOf('== Round 4:'));
+    expect(text.indexOf('== Done: completed')).toBeGreaterThan(
+      text.indexOf('== Ending (completed)'),
+    );
     expect(text).not.toContain('Budget check');
     expect(text).not.toContain('Recorded in');
     expect(text).not.toContain('[info]');
@@ -143,7 +152,10 @@ describe('pnpm solve', () => {
       expect(repository.list().map((r) => r.id)).toEqual([runId]);
       const calls = new ModelCallStore(opened.db, { ids: new SequentialIdGenerator() });
       const traced = calls.forRun(runId);
-      expect(traced.length).toBe(7);
+      // Seven calls in the four rounds, and the final write-up after them, under its own role.
+      expect(traced.length).toBe(8);
+      expect(traced.map((c) => c.role).filter((role) => role === 'write-up').length).toBe(1);
+      expect(traced.at(-1)?.role).toBe('write-up');
       expect(traced.every((c) => c.billing === 'fake' && c.outcome === 'ok')).toBe(true);
       expect(traced[0]?.estimateCharsPerToken).toBe(3);
     } finally {
@@ -285,13 +297,13 @@ describe('pnpm solve', () => {
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line) as Record<string, unknown>);
-    expect(traces.length).toBe(7);
+    expect(traces.length).toBe(8);
     for (const trace of traces) {
       expect(trace).toMatchObject({ outcome: 'ok', billing: 'fake' });
       expect(trace['estimate']).toMatchObject({ charsPerToken: 3 });
       expect(trace['actualInputTokens']).toBe(1200);
     }
-    expect(lines.at(-1)).toBe(`Wrote 7 model-call traces to ${file}`);
+    expect(lines.at(-1)).toBe(`Wrote 8 model-call traces to ${file}`);
   });
 
   describe('real models', () => {

@@ -2,6 +2,7 @@ import {
   AGENT_ROLES,
   ENTRY_TYPES,
   isPaidProvider,
+  latestSynthesis,
   type BoardView,
   type Entry,
   type ResolvedModel,
@@ -89,10 +90,24 @@ export const renderSummary = (summary: RunSummary): string[] => {
     `== ${HEADING[summary.status]}: ${summary.reason} after ${String(summary.rounds)} rounds ==`,
     `entries ${String(totals.entries)} | tokens ${String(tokens)} (${String(totals.usage.reasoningTokens)} thinking) | cost $${totals.usage.costUsd.toFixed(4)} | elapsed ${String(totals.elapsedMs)} ms`,
   ];
-  const synthesis = summary.view.liveOfType('synthesis').at(-1);
-  if (synthesis !== undefined) lines.push('', 'Answer:', synthesis.content);
+  // The run's answer is its latest synthesis: the final write-up when the run ended with
+  // one, otherwise the last draft the Synthesizer posted, and the heading says which.
+  const synthesis = latestSynthesis(summary.view);
+  if (synthesis !== undefined) {
+    lines.push(
+      '',
+      synthesis.payload.stage === 'final'
+        ? 'Final answer:'
+        : 'Answer (a draft: the run ended without a final write-up):',
+      synthesis.content,
+    );
+  }
   return lines;
 };
+
+/** Printed when the run is over and the last call, the final write-up, starts. */
+export const renderWriteUpHeader = (reason: string, wordBudget: number): string =>
+  `== Ending (${reason}): writing the final answer from the whole board, about ${String(wordBudget)} words ==`;
 
 export interface BudgetBannerInput {
   profile: RunProfile;
