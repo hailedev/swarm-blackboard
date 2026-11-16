@@ -20,6 +20,7 @@ import {
   ManualClock,
   SequentialIdGenerator,
   testRolePrompts,
+  testWriteUpPrompt,
 } from '@team/core/testing';
 import {
   DEFAULT_MONTHLY_BUDGET,
@@ -106,7 +107,11 @@ const scriptedSource =
     );
   };
 
-const setup = async (source: RunModelsSource = scriptedSource(), idsFrom = 0) => {
+const setup = async (
+  source: RunModelsSource = scriptedSource(),
+  idsFrom = 0,
+  options: { writeUpPrompt?: string } = {},
+) => {
   const o = openDatabase(':memory:');
   opened.push(o);
   const roster = await loadRosterFile(ROSTER);
@@ -116,6 +121,7 @@ const setup = async (source: RunModelsSource = scriptedSource(), idsFrom = 0) =>
     db: o.db,
     roster: roster.value,
     prompts: testRolePrompts(),
+    writeUpPrompt: options.writeUpPrompt,
     clock,
     ids: new SequentialIdGenerator(idsFrom),
     logger: nullLogger,
@@ -685,5 +691,166 @@ describe('recovery', () => {
     expect(starts.slice(0, 4)).toEqual([1, 2, 3, 4]);
     expect(new Set(starts).size).toBe(starts.length);
     expect(after.events.map((e) => e.seq)).toEqual(after.events.map((_, i) => i));
+  });
+});
+
+describe('the final write-up', () => {
+  // The server as `pnpm dev` runs it: with prompts/write-up.md loaded.
+  const withWriteUp = (source: RunModelsSource = scriptedSource(), idsFrom = 0) =>
+    setup(source, idsFrom, { writeUpPrompt: testWriteUpPrompt() });
+
+  it('is the last thing a run streams before it ends, and is in its board, trace and totals', async () => {
+    const { app, manager } = await withWriteUp();
+    const started = await startRun(app);
+    await manager.settled(started.id);
+
+    const events = parseSse(await (await app.request(`/runs/${started.id}/events`)).text());
+    expect(events.slice(-5).map((e) => e.event)).toEqual([
+      'round_completed',
+      'write_up_started',
+      'entry_committed',
+      'write_up_completed',
+      'run_terminated',
+    ]);
+    expect(events.map((e) => Number(e.id))).toEqual(events.map((_, i) => i));
+
+    // The write-up supersedes the draft and is the answer; the board is still the fold of the log.
+    const board = await body<{
+      entries: {
+        id: string;
+        type: string;
+        handle: string;
+        live: boolean;
+        payload: { stage?: string; version?: number };
+      }[];
+    }>(await app.request(`/runs/${started.id}/board`));
+    expect(
+      board.entries
+        .filter((e) => e.type === 'synthesis')
+        .map((e) => [e.handle, e.live, e.payload.version, e.payload.stage]),
+    ).toEqual([
+      ['A1', false, 1, 'draft'],
+      ['A2', true, 2, 'final'],
+    ]);
+    const log = await body<{ events: BoardEvent[] }>(await app.request(`/runs/${started.id}/log`));
+    const folded = buildBoardView(started.id, log.events);
+    expect(board.entries.map((e) => [e.id, e.handle])).toEqual(
+      folded.entries.map((e) => [e.id, folded.handleOf(e.id)]),
+    );
+
+    // Seven calls in the rounds and one after them, under its own role; all in the run row.
+    const trace = await body<{ calls: { role: string; round: number | null }[] }>(
+      await app.request(`/runs/${started.id}/trace`),
+    );
+    expect(trace.calls.length).toBe(8);
+    expect(trace.calls.filter((c) => c.role === 'write-up').map((c) => c.round)).toEqual([4]);
+    const run = await body<RunRecord>(await app.request(`/runs/${started.id}`));
+    expect(run).toMatchObject({
+      status: 'completed',
+      reason: 'completed',
+      totals: { rounds: 4, entries: 13 },
+    });
+    const terminated = log.events.at(-1);
+    expect(terminated?.type === 'run_terminated' && terminated.totals.usage.inputTokens).toBe(
+      run.totals.usage.inputTokens,
+    );
+    expect(run.totals.usage.inputTokens).toBe(8 * 1200);
+  });
+
+  it('is written when a paused run is stopped, and a second stop is refused', async () => {
+    const held = gate();
+    const { app } = await withWriteUp(scriptedSource(held.wrap));
+    const run = await startRun(app);
+    await held.reached;
+    const pausing = post(app, `/runs/${run.id}/pause`);
+    held.release();
+    expect((await body<RunRecord>(await pausing)).status).toBe('paused');
+
+    // Two stops a moment apart: one ends the run and writes it up, the other is told so.
+    const [first, second] = await Promise.all([
+      post(app, `/runs/${run.id}/stop`),
+      post(app, `/runs/${run.id}/stop`),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    const stopped = await body<RunRecord>(first.status === 200 ? first : second);
+    expect(stopped).toMatchObject({ status: 'stopped', reason: 'user_stopped' });
+
+    const log = await body<{ events: BoardEvent[] }>(await app.request(`/runs/${run.id}/log`));
+    expect(log.events.slice(-5).map((e) => e.type)).toEqual([
+      'run_paused',
+      'write_up_started',
+      'entry_committed',
+      'write_up_completed',
+      'run_terminated',
+    ]);
+    expect(log.events.filter((e) => e.type === 'write_up_started').length).toBe(1);
+    expect(log.events.map((e) => e.seq)).toEqual(log.events.map((_, i) => i));
+  });
+
+  it('finishes an end the last process did not live to finish, without another round', async () => {
+    const { app, manager, db, roster } = await withWriteUp(scriptedSource(), 1_000);
+    const profile = resolveProfile(roster, 'dev');
+    if (!profile.ok) throw new Error('no dev profile');
+    // A whole run with its write-up, written by another process into its own memory…
+    const memory = new InMemoryBoardStore();
+    const ref: { controller: ReturnType<typeof createController> | undefined } = {
+      controller: undefined,
+    };
+    const models = createScriptedModels(() => {
+      if (ref.controller === undefined) throw new Error('not ready');
+      return ref.controller.currentView();
+    });
+    const controller = createController({
+      store: memory,
+      clock: new ManualClock(),
+      ids: new SequentialIdGenerator(),
+      logger: nullLogger,
+      agents: createDefaultAgents(models, testRolePrompts()),
+      writeUp: { model: models.synthesizer, prompt: testWriteUpPrompt() },
+      profile: profile.value,
+    });
+    ref.controller = controller;
+    await controller.start({ content: 'P' });
+    await controller.run();
+    const whole = await memory.eventsFor(controller.runId);
+    // …which died while the write-up's call was in flight: the log ends at its start.
+    const cutAt = whole.findIndex((e) => e.type === 'write_up_started');
+    expect(cutAt).toBeGreaterThan(-1);
+    const store = new SqliteBoardStore(db);
+    for (const event of whole.slice(0, cutAt + 1)) {
+      expect((await store.append(event)).ok).toBe(true);
+    }
+
+    expect(await manager.recover()).toBe(1);
+    const paused = await body<RunRecord>(await app.request(`/runs/${controller.runId}`));
+    expect(paused).toMatchObject({
+      status: 'paused',
+      reason: 'interrupted',
+      totals: { rounds: 4 },
+    });
+
+    expect((await post(app, `/runs/${controller.runId}/resume`)).status).toBe(200);
+    await manager.settled(controller.runId);
+    const done = await body<RunRecord>(await app.request(`/runs/${controller.runId}`));
+    expect(done).toMatchObject({
+      status: 'completed',
+      reason: 'completed',
+      totals: { rounds: 4, entries: 13 },
+    });
+    const log = await body<{ events: BoardEvent[] }>(
+      await app.request(`/runs/${controller.runId}/log`),
+    );
+    // No round ran again: the resumed run went straight back to the end it owed.
+    expect(log.events.slice(cutAt).map((e) => e.type)).toEqual([
+      'write_up_started',
+      'run_paused',
+      'run_resumed',
+      'write_up_started',
+      'entry_committed',
+      'write_up_completed',
+      'run_terminated',
+    ]);
+    expect(log.events.filter((e) => e.type === 'round_started').length).toBe(4);
+    expect(log.events.map((e) => e.seq)).toEqual(log.events.map((_, i) => i));
   });
 });

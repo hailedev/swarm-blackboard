@@ -12,6 +12,7 @@ import {
   IN_MEMORY,
   loadPromptFiles,
   loadRosterFile,
+  loadWriteUpPrompt,
   monthlyBudgetFromEnv,
   openDatabase,
   systemClock,
@@ -43,6 +44,8 @@ if (!roster.ok) fail(roster.error);
 const prompts = roster.ok ? await loadPromptFiles(roster.value, rosterPath) : undefined;
 if (prompts === undefined || !prompts.ok)
   fail(prompts?.ok === false ? prompts.error : 'no prompts');
+const writeUpPrompt = roster.ok ? await loadWriteUpPrompt(roster.value, rosterPath) : undefined;
+if (writeUpPrompt?.ok === false) fail(writeUpPrompt.error);
 const monthlyBudget = monthlyBudgetFromEnv(process.env);
 if (!monthlyBudget.ok) fail(monthlyBudget.error);
 
@@ -65,6 +68,7 @@ if (roster.ok && prompts?.ok === true && monthlyBudget.ok) {
     db: opened.db,
     roster: roster.value,
     prompts: prompts.value,
+    writeUpPrompt: writeUpPrompt?.ok === true ? writeUpPrompt.value : undefined,
     clock: systemClock,
     ids: createUuidV7Generator(systemClock),
     logger,

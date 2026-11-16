@@ -30,6 +30,7 @@ import {
   type RunConfigInput,
   type RunProfile,
   type TraceSink,
+  type WriteUpDeps,
 } from '@team/core';
 import {
   ModelCallStore,
@@ -69,6 +70,12 @@ export interface RunManagerDeps {
   db: Db;
   roster: Roster;
   prompts: RolePrompts;
+  /**
+   * The system prompt of the final write-up (prompts/write-up.md). With it every run ends
+   * with the Synthesizer's model writing the answer once more, and holds that call's cost
+   * back from its cap; without it a run ends on its last draft.
+   */
+  writeUpPrompt?: string;
   clock: Clock;
   ids: IdGenerator;
   logger: Logger;
@@ -98,6 +105,14 @@ interface Handle {
   loop: Promise<void> | null;
 }
 
+/** What a run's controller is built from, once its models exist. */
+interface Built {
+  agents: Agent[];
+  writeUp: WriteUpDeps | undefined;
+  /** Lets the scripted stand-ins read the board of the controller they were built for. */
+  attach: (controller: Controller) => void;
+}
+
 export class RunManager {
   readonly #deps: RunManagerDeps;
   readonly store: SqliteBoardStore;
@@ -105,6 +120,8 @@ export class RunManager {
   readonly ledger: SqliteSpendLedger;
   readonly runs: RunRepository;
   readonly #handles = new Map<string, Handle>();
+  /** Rebuilds of a paused run's controller that are under way, by run id. */
+  readonly #attaching = new Map<string, Promise<Result<Handle, RunManagerError>>>();
   readonly #listeners = new Map<string, Set<Listener>>();
 
   constructor(deps: RunManagerDeps) {
@@ -144,7 +161,7 @@ export class RunManager {
     if (!profile.ok) return err({ kind: 'roster', message: describeRosterError(profile.error) });
     const built = await this.#build(profile.value);
     if (!built.ok) return built;
-    const controller = createController(this.#controllerDeps(profile.value, built.value.agents));
+    const controller = createController(this.#controllerDeps(profile.value, built.value));
     built.value.attach(controller);
     const started = await controller.start(input.problem, input.config);
     if (!started.ok) return err({ kind: 'controller', error: started.error });
@@ -279,10 +296,24 @@ export class RunManager {
     return ok(handle);
   }
 
-  /** The in-memory handle, or a controller rebuilt from the log for a paused run. */
-  async #attach(runId: string): Promise<Result<Handle, RunManagerError>> {
+  /**
+   * The in-memory handle, or a controller rebuilt from the log for a paused run. Two
+   * requests for the same cold run (a stop and a resume a moment apart) share one rebuild:
+   * two controllers over one log would each end the run, and each pay for its write-up.
+   */
+  #attach(runId: string): Promise<Result<Handle, RunManagerError>> {
     const existing = this.#handles.get(runId);
-    if (existing !== undefined) return ok(existing);
+    if (existing !== undefined) return Promise.resolve(ok(existing));
+    const inFlight = this.#attaching.get(runId);
+    if (inFlight !== undefined) return inFlight;
+    const attaching = this.#rebuild(runId).finally(() => {
+      this.#attaching.delete(runId);
+    });
+    this.#attaching.set(runId, attaching);
+    return attaching;
+  }
+
+  async #rebuild(runId: string): Promise<Result<Handle, RunManagerError>> {
     const record = this.runs.get(runId);
     if (record === undefined) return err({ kind: 'not_found' });
     if (record.status !== 'paused') return err({ kind: 'not_live', status: record.status });
@@ -297,19 +328,16 @@ export class RunManager {
     }
     const built = await this.#build(state.value.profile);
     if (!built.ok) return built;
-    const controller = createController(
-      this.#controllerDeps(state.value.profile, built.value.agents),
-      { resume: state.value },
-    );
+    const controller = createController(this.#controllerDeps(state.value.profile, built.value), {
+      resume: state.value,
+    });
     built.value.attach(controller);
     const handle: Handle = { controller, loop: null };
     this.#handles.set(runId, handle);
     return ok(handle);
   }
 
-  async #build(
-    profile: RunProfile,
-  ): Promise<Result<{ agents: Agent[]; attach: (c: Controller) => void }, RunManagerError>> {
+  async #build(profile: RunProfile): Promise<Result<Built, RunManagerError>> {
     let controller: Controller | undefined;
     const models = await this.#deps.models({
       profile,
@@ -322,21 +350,28 @@ export class RunManager {
       },
     });
     if (!models.ok) return err({ kind: 'models', message: models.error.message });
+    const prompt = this.#deps.writeUpPrompt;
     return ok({
       agents: createDefaultAgents(models.value.roles, this.#deps.prompts, models.value.fallback),
+      // The final write-up is written by the Synthesizer's model (docs/PLAN.md §2.3 step 8).
+      writeUp:
+        prompt === undefined
+          ? undefined
+          : { model: models.value.roles.synthesizer, fallback: models.value.fallback, prompt },
       attach: (c) => {
         controller = c;
       },
     });
   }
 
-  #controllerDeps(profile: RunProfile, agents: readonly Agent[]): ControllerDeps {
+  #controllerDeps(profile: RunProfile, built: Built): ControllerDeps {
     return {
       store: this.store,
       clock: this.#deps.clock,
       ids: this.#deps.ids,
       logger: this.#deps.logger,
-      agents,
+      agents: built.agents,
+      writeUp: built.writeUp,
       periodBudget: profile.paid ? { ...this.#deps.monthlyBudget, ledger: this.ledger } : undefined,
       profile,
       onEvent: (event) => {
