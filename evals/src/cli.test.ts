@@ -110,6 +110,36 @@ describe('pnpm eval --fake', () => {
     expect(await main(['--help'], help.io)).toBe(0);
   });
 
+  it('takes --baseline as a model alias of the roster, and refuses one it does not have', async () => {
+    const out = await tempDir();
+    const unknown = capture();
+    expect(await main(base(out, '--baseline', 'gpt'), unknown.io)).toBe(2);
+    expect(unknown.lines.join('\n')).toContain(
+      '--baseline names the unknown model alias "gpt"; aliases are sonnet, haiku',
+    );
+    // A control pass: the stand-in is named in the banner and in the report's header.
+    const { lines, io } = capture();
+    const code = await main(
+      base(out, '--limit', '1', '--label', 'control', '--baseline', 'local'),
+      io,
+    );
+    const text = lines.join('\n');
+    expect(code, text).toBe(0);
+    expect(text).toMatch(/baseline\s+local\s+ollama\/qwen3\.6:35b-a3b-q8_0/);
+    expect(text).toContain(
+      "--baseline local: this model writes the baseline in place of the profile's `local-fast`",
+    );
+    const dirs = await readdir(out);
+    const passDir = dirs.find((d) => d.endsWith('-control'));
+    if (passDir === undefined) throw new Error('no results folder');
+    const report = await readFile(join(out, passDir, 'report.md'), 'utf8');
+    expect(report).toContain('- Baseline: `local` (ollama/qwen3.6:35b-a3b-q8_0)');
+    expect(report).toContain(
+      '  - **Control pass.** --baseline local: this model writes the baseline',
+    );
+    expect(USAGE.join('\n')).toContain('--baseline <alias>');
+  });
+
   it('refuses a profile without an evals entry and an unknown profile', async () => {
     const out = await tempDir();
     const { lines, io } = capture();

@@ -11,6 +11,7 @@ pnpm eval --profile cheap --yes --label pass1     # a paid pass: Haiku-led swarm
 ```
 
 - The swarm runs on the profile (`agents.yaml`); the baseline and the judge are the profile's `evals` entry there. A free profile evaluates with free models.
+- `--baseline <alias>` is for a **control pass**: another model of the roster writes the baseline (`--baseline haiku` sets the Haiku-led swarm against one Haiku call), with the same prompt and the output allowance, and so the word budget, the profile's own baseline would be given under the cap, so the swarm's write-up is asked for the same length as on an ordinary pass. The judge is unchanged. Its answers are cached under the stand-in's own model id; the report's header says it was a control pass.
 - Every call is traced into `model_calls` in the usual database, tagged `eval-baseline` or `eval-judge` with `runId` `eval:<pass id>`; API-billed calls count in the month's ledger like any other.
 - A paid pass prints the banner and needs `--yes` (or a yes at the prompt). It is refused when the month cannot absorb its cap.
 - Caps: `--max-cost` on the pass (default $1.00) and `--run-cap` on each swarm run and each baseline call (default $0.03; $0.10 under `--fake`, whose scripted prices are far higher): equal budget means the same cap for both arms (ADR-0013). See docs/budget-guardrails.md §9.

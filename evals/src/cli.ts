@@ -25,6 +25,7 @@ import {
   type ResolvedEvalModels,
   type ResolvedModel,
   type Result,
+  type Roster,
   type RunProfile,
 } from '@team/core';
 import { createScriptedModels, SCENARIO_PRICING } from '@team/core/testing';
@@ -83,12 +84,15 @@ export const DEFAULT_PROBLEMS_DIR = 'evals/problems';
 export const DEFAULT_RESULTS_DIR = 'evals/results';
 
 export const USAGE = [
-  'Usage: pnpm eval [--profile <name>] [--yes] [--max-cost <usd>] [--run-cap <usd>] [--label <name>]',
+  'Usage: pnpm eval [--profile <name>] [--baseline <alias>] [--yes] [--max-cost <usd>] [--run-cap <usd>]',
+  '                 [--label <name>]',
   '                 [--problems a,b] [--limit N] [--judge-orders 1|2] [--refresh-baselines] [--seed N]',
   '                 [--fake] [--roster <file>] [--db <url>] [--problems-dir <dir>] [--out <dir>]',
   '',
   '  --profile <name>     swarm profile from agents.yaml (default: its defaultProfile); the',
   '                       baseline and judge come from its `evals` entry',
+  '  --baseline <alias>   have this model alias write the baseline instead (a control pass);',
+  "                       same prompt and the length the profile's own baseline is asked for",
   '  --yes                skip the confirmation a paid pass asks for',
   `  --max-cost <usd>     cap on the whole pass (default ${String(DEFAULT_PASS_CAP_USD)})`,
   `  --run-cap <usd>      cap on each swarm run and on the baseline call (default ${String(DEFAULT_RUN_CAP_USD)}; ${String(DEFAULT_FAKE_RUN_CAP_USD)} with --fake)`,
@@ -106,6 +110,7 @@ export const USAGE = [
 
 const options = {
   profile: { type: 'string' },
+  baseline: { type: 'string' },
   yes: { type: 'boolean', default: false },
   'max-cost': { type: 'string' },
   'run-cap': { type: 'string' },
@@ -193,6 +198,23 @@ export const fileBaselineCache = (dir: string): BaselineCache => {
   };
 };
 
+/**
+ * The model `--baseline <alias>` names, from the roster's models; null when the option was
+ * not given, and the message to print when the alias is not one the roster has.
+ */
+export const baselineStandIn = (
+  roster: Roster,
+  alias: string | undefined,
+): Result<ResolvedModel | null, string> => {
+  if (alias === undefined) return ok(null);
+  const model = roster.models[alias];
+  return model === undefined
+    ? err(
+        `--baseline names the unknown model alias "${alias}"; aliases are ${Object.keys(roster.models).join(', ')}`,
+      )
+    : ok({ alias, ...model });
+};
+
 /** A controller error in one line, with the issues of a refused config rather than its kind alone. */
 const describeControllerError = (error: ControllerError): string => {
   switch (error.kind) {
@@ -262,6 +284,8 @@ const modelRow = (label: string, model: ResolvedModel): string =>
 export interface EvalBannerInput {
   profile: RunProfile;
   evalModels: ResolvedEvalModels;
+  /** Set when --baseline put another model in the profile's baseline's place. */
+  baselineNote?: string | null;
   passCapUsd: number;
   runCapUsd: number;
   problems: number;
@@ -278,6 +302,7 @@ export const renderEvalBanner = (input: EvalBannerInput): string[] => {
       : modelRow('fallback', input.profile.fallback),
   );
   lines.push(modelRow('baseline', input.evalModels.baseline));
+  if (input.baselineNote != null) lines.push(`  ${''.padEnd(13)} ${input.baselineNote}`);
   lines.push(modelRow('judge', input.evalModels.judge));
   lines.push(`  ${'problems'.padEnd(13)} ${String(input.problems)}`);
   lines.push(`  ${'pass cap'.padEnd(13)} $${input.passCapUsd.toFixed(4)}`);
@@ -350,11 +375,27 @@ export const main = async (
     io.write(describeRosterError(profile.error));
     return 2;
   }
-  const evalModels = resolveEvalModels(roster.value, profile.value.name);
-  if (!evalModels.ok) {
-    io.write(describeRosterError(evalModels.error));
+  const configured = resolveEvalModels(roster.value, profile.value.name);
+  if (!configured.ok) {
+    io.write(describeRosterError(configured.error));
     return 2;
   }
+  // --baseline <alias>: a control pass. Another model of the roster writes the baseline,
+  // with the same prompt and the length the profile's own baseline would be asked for; the
+  // swarm and the judge are what the profile says.
+  const standIn = baselineStandIn(roster.value, values.baseline);
+  if (!standIn.ok) {
+    io.write(standIn.error);
+    return 2;
+  }
+  const evalModels = ok({
+    baseline: standIn.value ?? configured.value.baseline,
+    judge: configured.value.judge,
+  });
+  const baselineNote =
+    standIn.value === null
+      ? null
+      : `--baseline ${standIn.value.alias}: this model writes the baseline in place of the profile's \`${configured.value.baseline.alias}\`, with the same prompt and the output allowance, and so the word budget, \`${configured.value.baseline.alias}\` would be given under the cap`;
   const prompts = await loadPromptFiles(roster.value, values.roster);
   if (!prompts.ok) {
     io.write(prompts.error);
@@ -413,6 +454,7 @@ export const main = async (
     const ref: { controller: Controller | undefined } = { controller: undefined };
     let swarmModels: { roles: Record<AgentRole, Model>; fallback: Model | undefined };
     let baselineModel: Model;
+    let baselineAllowanceModel: Model | null = null;
     let judgeModel: Model;
     if (values.fake) {
       const scripted = createScriptedModels(() => {
@@ -461,6 +503,15 @@ export const main = async (
       }
       baselineModel = baseline.value;
       judgeModel = judge.value;
+      // The profile's own baseline model, for sizing only: no call is made to it.
+      if (standIn.value !== null) {
+        const own = factory.modelFor(configured.value.baseline);
+        if (!own.ok) {
+          io.write(describeFactoryError(own.error));
+          return 2;
+        }
+        baselineAllowanceModel = own.value;
+      }
     }
 
     // The month: banner, confirmation and the guard the pass re-reads before each problem.
@@ -478,6 +529,7 @@ export const main = async (
     renderEvalBanner({
       profile: profile.value,
       evalModels: evalModels.value,
+      baselineNote,
       passCapUsd: passCap.value,
       runCapUsd: runCap.value,
       problems: problems.length,
@@ -595,6 +647,7 @@ export const main = async (
       {
         runSwarm,
         baselineModel,
+        baselineAllowanceModel,
         judgeModel,
         cache,
         month,
@@ -613,6 +666,7 @@ export const main = async (
       commit: await gitCommit(),
       baselineModelId: baselineModel.id,
       judgeModelId: judgeModel.id,
+      baselineNote,
     });
     const a = pass.aggregate;
     io.write('');

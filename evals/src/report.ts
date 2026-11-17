@@ -17,6 +17,8 @@ export interface ReportMeta {
   /** The resolved model ids actually called, for the header. */
   baselineModelId: string;
   judgeModelId: string;
+  /** Set when --baseline put another model in the profile's baseline's place (a control pass). */
+  baselineNote?: string | null;
 }
 
 const usd = (value: number): string => `$${value.toFixed(4)}`;
@@ -42,6 +44,7 @@ export const renderReport = (pass: PassResult, meta: ReportMeta): string => {
     `  - fallback: ${meta.profile.fallback === null ? 'none' : `\`${meta.profile.fallback.alias}\``}`,
   );
   lines.push(modelLine('Baseline', meta.evalModels.baseline) + ` → ${meta.baselineModelId}`);
+  if (meta.baselineNote != null) lines.push(`  - **Control pass.** ${meta.baselineNote}.`);
   lines.push(modelLine('Judge', meta.evalModels.judge) + ` → ${meta.judgeModelId}`);
   lines.push(
     `- Caps: pass ${usd(pass.options.capUsd)}; each swarm run and each baseline call capped at ${usd(pass.options.runCapUsd)}, the same budget for both arms`,

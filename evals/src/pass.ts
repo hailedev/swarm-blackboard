@@ -99,6 +99,14 @@ export interface PassDeps {
     writeUpMaxOutputTokens: number | null,
   ): Promise<Result<SwarmOutcome, string>>;
   baselineModel: Model;
+  /**
+   * Set when another model writes the baseline in place of the profile's own
+   * (`pnpm eval --baseline <alias>`): the profile's own baseline model, used only to size
+   * the answer's output allowance under the cap. The stand-in is then asked for the same
+   * number of words, and so is the swarm's write-up, whatever the stand-in costs; no call
+   * is made to this model. Null otherwise.
+   */
+  baselineAllowanceModel: Model | null;
   judgeModel: Model;
   cache: BaselineCache;
   /** Present when any model is paid: the pass re-reads the month before each problem. */
@@ -231,7 +239,11 @@ export const runPass = async (options: PassOptions, deps: PassDeps): Promise<Pas
 
 const pct = (value: number | null): string => (value === null ? '—' : `${value.toFixed(0)}%`);
 
-/** The allowance a baseline call would be fitted to under `capUsd`; null when none fits. */
+/**
+ * The allowance a baseline call would be fitted to under `capUsd`; null when none fits.
+ * Sized on the profile's own baseline model when a stand-in writes the answer, so the
+ * length asked for does not change with who writes it.
+ */
 const wouldBeAllowance = (
   problem: Problem,
   options: PassOptions,
@@ -239,7 +251,7 @@ const wouldBeAllowance = (
   capUsd: number,
 ): number | null => {
   const { fit } = sizeBaseline({
-    model: deps.baselineModel,
+    model: deps.baselineAllowanceModel ?? deps.baselineModel,
     problem,
     capUsd,
     maxOutputTokens: options.baselineMaxOutputTokens,
@@ -292,12 +304,18 @@ const runProblem = async (
   } else {
     // Equal budget means the same cap for both arms (ADR-0013): the run cap, not the swarm's spend.
     const capUsd = Math.min(options.runCapUsd, budget.remainingUsd);
+    // A stand-in baseline model is given the allowance the profile's own would have had
+    // under this cap, not the larger one its lower price would buy.
+    const maxOutputTokens =
+      deps.baselineAllowanceModel === null
+        ? options.baselineMaxOutputTokens
+        : (wouldBeAllowance(problem, options, deps, capUsd) ?? options.baselineMaxOutputTokens);
     const generated = await generateBaseline(
       {
         model: deps.baselineModel,
         problem,
         capUsd,
-        maxOutputTokens: options.baselineMaxOutputTokens,
+        maxOutputTokens,
       },
       tags('eval-baseline'),
       deps.now(),

@@ -2,7 +2,7 @@ import { createFakeModel, err, ok, zeroUsage } from '@team/core';
 import { SCENARIO_PRICING } from '@team/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import type { BaselineCache, BaselineRecord } from './baseline';
+import { sizeBaseline, type BaselineCache, type BaselineRecord } from './baseline';
 import { createFakeBaseline, createFakeJudge, FAKE_BASELINE_USAGE, FAKE_JUDGE_USAGE } from './fake';
 import { mulberry32 } from './judge';
 import { PassBudget, runPass, type PassDeps, type PassOptions, type SwarmOutcome } from './pass';
@@ -104,6 +104,7 @@ const deps = (overrides: Partial<PassDeps> = {}): PassDeps & { lines: string[] }
     lines,
     runSwarm: (p, cap) => Promise.resolve(ok(swarmOutcome(p.id, Math.min(0.02, cap)))),
     baselineModel: createFakeBaseline(SCENARIO_PRICING),
+    baselineAllowanceModel: null,
     judgeModel: createFakeJudge(SCENARIO_PRICING),
     cache: memoryCache(),
     month: null,
@@ -734,5 +735,99 @@ describe('what the judge sees', () => {
     expect(report).toContain('2048/2048 (650 words) **truncated**');
     expect(report).toContain('baseline truncated at its allowance');
     expect(report).toContain('1 baseline answer used the whole output allowance (one)');
+  });
+});
+
+describe('a stand-in baseline model (pnpm eval --baseline)', () => {
+  // Ten times the scripted prices: under the 8-cent cap its allowance has to shrink.
+  const dear = createFakeBaseline({
+    tiers: [
+      {
+        upToPromptTokens: null,
+        inputPerMTok: 10,
+        outputPerMTok: 50,
+        cacheReadPerMTok: 10,
+        cacheWritePerMTok: 10,
+      },
+    ],
+  });
+
+  it('is given the allowance the profile’s own baseline would have had, and so is the write-up', async () => {
+    const own = sizeBaseline({
+      model: dear,
+      problem: problem('one'),
+      capUsd: 0.08,
+      maxOutputTokens: 2_048,
+    });
+    if (!own.fit.fits) throw new Error('the dear model does not fit at all');
+    expect(own.fit.maxOutputTokens).toBeLessThan(2_048);
+
+    const allowances: (number | null)[] = [];
+    const cheap = createFakeBaseline(SCENARIO_PRICING);
+    const pass = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({
+        baselineModel: cheap,
+        baselineAllowanceModel: dear,
+        runSwarm: (p, cap, writeUpMaxOutputTokens) => {
+          allowances.push(writeUpMaxOutputTokens);
+          return Promise.resolve(ok(swarmOutcome(p.id, Math.min(0.02, cap))));
+        },
+      }),
+    );
+    const baseline = pass.results[0]?.baseline;
+    // The cheap model wrote it, at the dear model's allowance and word budget, under the same cap.
+    expect(baseline?.modelId).toBe(cheap.id);
+    expect(baseline?.maxOutputTokens).toBe(own.fit.maxOutputTokens);
+    expect(baseline?.wordBudget).toBe(own.wordBudget);
+    expect(baseline?.capUsd).toBe(0.08);
+    expect(allowances).toEqual([own.fit.maxOutputTokens]);
+    // The dear model was only measured against: it was never called.
+    expect(dear.calls).toHaveLength(0);
+    expect(cheap.calls).toHaveLength(1);
+  });
+
+  it('changes nothing when there is none', async () => {
+    const allowances: (number | null)[] = [];
+    const pass = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({
+        runSwarm: (p, cap, writeUpMaxOutputTokens) => {
+          allowances.push(writeUpMaxOutputTokens);
+          return Promise.resolve(ok(swarmOutcome(p.id, Math.min(0.02, cap))));
+        },
+      }),
+    );
+    expect(pass.results[0]?.baseline?.maxOutputTokens).toBe(2_048);
+    expect(allowances).toEqual([2_048]);
+  });
+
+  it('is named in the report’s header', async () => {
+    const pass = await runPass(options({ problems: [problem('one')] }), deps());
+    const local = { alias: 'x', provider: 'ollama' as const, model: 'm' };
+    const meta = {
+      label: 'control',
+      profile: {
+        name: 'dev',
+        roles: {
+          planner: local,
+          researcher: local,
+          solver: local,
+          critic: local,
+          synthesizer: local,
+        },
+        bidder: null,
+        fallback: null,
+        paid: false,
+      },
+      evalModels: { baseline: local, judge: local },
+      commit: null,
+      baselineModelId: 'fake-baseline',
+      judgeModelId: 'fake-judge',
+    };
+    expect(renderReport(pass, meta)).not.toContain('Control pass');
+    expect(
+      renderReport(pass, { ...meta, baselineNote: '--baseline x: this model writes the baseline' }),
+    ).toContain('  - **Control pass.** --baseline x: this model writes the baseline.');
   });
 });
