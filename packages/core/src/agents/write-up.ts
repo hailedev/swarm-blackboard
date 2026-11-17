@@ -18,6 +18,12 @@ import { lengthInstruction, MIN_WORD_SHARE } from './word-budget';
 // `maxBoardChars`. This module lays that prompt out and says what the model returns; the
 // controller makes the call, stamps the entry and commits it (controller/write-up.ts). It
 // is a pure function of the board, so the prompt can be snapshot-tested like an agent's.
+//
+// One kind of entry is never shown: a synthesis. The drafts of the rounds were written
+// part-way through, each beside the hypotheses of its own round, so a draft can hold a
+// figure the standing hypothesis has since moved on from; shown the latest draft, the
+// write-up of 2026-11-17 copied "150 passes" from it where the hypothesis said 200
+// (ADR-0015, ADR-0016). The writer works from what the drafts were made of, not from them.
 
 /** The role the write-up call is traced under. */
 export const WRITE_UP_ROLE = 'write-up';
@@ -54,7 +60,10 @@ export interface RenderedWriteUp {
   citeable: readonly Handle[];
   /** Live entries shown in full, as one line for want of room, and not at all. */
   shown: { full: number; digested: number; omitted: number };
-  /** Critiques left out: resolved, or attacking an entry that has since been replaced. */
+  /**
+   * Critiques left out: resolved, attacking an entry that has since been replaced or
+   * rejected, or attacking a draft, which the writer is not shown and is about to replace.
+   */
   staleCritiques: number;
 }
 
@@ -68,12 +77,16 @@ const stands = (
   view.isLive(critique.payload.target) &&
   !rejected.has(critique.payload.target);
 
+/** A critique of a draft answer: the draft is not shown, so neither is what was said of it. */
+const attacksDraft = (view: BoardView, critique: EntryOf<'critique'>): boolean =>
+  view.byId(critique.payload.target)?.type === 'synthesis';
+
 const bySeverity = (a: EntryOf<'critique'>, b: EntryOf<'critique'>): number =>
   SEVERITY_RANK[a.payload.severity] - SEVERITY_RANK[b.payload.severity];
 
 // One entry of the layout. A `block` gets a heading of its own (a decision, a candidate
-// answer, the draft); a `bullet` is a list item, nested under the hypothesis it belongs to
-// or listed in its section. `note` says what a nested entry is to its hypothesis.
+// answer); a `bullet` is a list item, nested under the hypothesis it belongs to or listed
+// in its section. `note` says what a nested entry is to its hypothesis.
 interface Item {
   entry: Entry;
   kind: 'block' | 'bullet';
@@ -167,13 +180,17 @@ const sectionsOf = (view: BoardView): { sections: Section[]; staleCritiques: num
     if (!placed.has(e.id)) place(evidence, e, 'bullet', null);
   }
 
-  // Critiques of anything but a hypothesis: evidence, a subproblem, the draft itself.
+  // Critiques of anything but a hypothesis: evidence, a subproblem. Not of a draft: the
+  // write-up replaces the draft, so a critique of one is counted with the stale ones.
   const critiques = section('Other critiques that stand');
   let staleCritiques = 0;
   for (const critique of [...view.liveOfType('critique')].sort(bySeverity)) {
     if (placed.has(critique.id)) continue;
-    if (stands(view, critique, rejectedIds)) place(critiques, critique, 'bullet', null);
-    else staleCritiques += 1;
+    if (stands(view, critique, rejectedIds) && !attacksDraft(view, critique)) {
+      place(critiques, critique, 'bullet', null);
+    } else {
+      staleCritiques += 1;
+    }
   }
 
   const questions = section('Open questions');
@@ -186,12 +203,8 @@ const sectionsOf = (view: BoardView): { sections: Section[]; staleCritiques: num
     place(subproblems, subproblem, 'bullet', null);
   }
 
-  const draft = section('Latest draft of the answer');
-  const latest = latestSynthesis(view);
-  if (latest !== undefined) place(draft, latest, 'block', null);
-
   return {
-    sections: [decisions, candidates, ruledOut, evidence, critiques, questions, subproblems, draft],
+    sections: [decisions, candidates, ruledOut, evidence, critiques, questions, subproblems],
     staleCritiques,
   };
 };
@@ -306,27 +319,52 @@ export const renderWriteUpPrompt = (
   return { prompt: lines.join('\n'), handles, citeable, shown, staleCritiques };
 };
 
-/** A write-up with its cited handles mapped back to entry ids, each once. */
+/** Why a write-up is asked for a second time. */
+export interface WriteUpRetry {
+  /** The answer as it came back, to build on. */
+  paragraphs: readonly string[];
+  wordBudget: number;
+  /** Set when the answer was under half its word budget (word-budget.ts): its word count. */
+  shortWords: number | null;
+  /** The sentences that say where the answer came from or how sure its writer is (write-up-leaks.ts). */
+  leaks: readonly string[];
+}
+
 /**
- * The second and last attempt at a write-up that came back under half its word budget
- * (word-budget.ts): the same prompt, what was wrong with the answer, and the answer itself
- * to build on.
+ * The second and last attempt at a write-up: the same prompt, what was wrong with the
+ * answer, and the answer itself to build on. One retry covers everything that was wrong:
+ * an answer under half its word budget, sentences that mention the board, the agents or
+ * the writer's own confidence, or both.
  */
-export const renderShortfallPrompt = (
-  prompt: string,
-  shortfall: { words: number; wordBudget: number; paragraphs: readonly string[] },
-): string =>
-  [
-    prompt,
-    '',
-    '# Your previous answer was too short',
-    `It had ${String(shortfall.words)} words. You were asked for about ${String(shortfall.wordBudget)}, and anything under ${String(Math.ceil(shortfall.wordBudget * MIN_WORD_SHARE))} leaves out what the reader needs: each step with its dates and duration, the effort and cost of each, the thresholds and checks, each risk with what is done about it, and an answer to every success criterion with its specifics. All of it is in the working notes above.`,
+export const renderRetryPrompt = (prompt: string, retry: WriteUpRetry): string => {
+  const lines = [prompt];
+  if (retry.shortWords !== null) {
+    lines.push(
+      '',
+      '# Your previous answer was too short',
+      `It had ${String(retry.shortWords)} words. You were asked for about ${String(retry.wordBudget)}, and anything under ${String(Math.ceil(retry.wordBudget * MIN_WORD_SHARE))} leaves out what the reader needs: each step with its dates and duration, the effort and cost of each, the thresholds and checks, each risk with what is done about it, and an answer to every success criterion with its specifics. All of it is in the working notes above.`,
+    );
+  }
+  if (retry.leaks.length > 0) {
+    lines.push(
+      '',
+      '# Your previous answer said where it came from, or how sure you are',
+      'The reader knows the problem and nothing about how the answer was produced, and your confidence belongs in the `confidence` field and nowhere in the text. These sentences break that:',
+      ...retry.leaks.map((sentence) => `- "${sentence}"`),
+      'Where such a sentence was making a point the reader needs, make the point in the reader\'s terms: as part of the plan, or as a sentence that begins "Assumption:" and says what it rests on. Otherwise leave it out. Change nothing else that was right.',
+    );
+  }
+  lines.push(
     '',
     'Previous answer:',
-    ...shortfall.paragraphs,
+    ...retry.paragraphs,
     '',
     'Write the whole answer again, complete, at the length you were asked for. Do not mention the previous answer or this request.',
-  ].join('\n');
+  );
+  return lines.join('\n');
+};
+
+/** A write-up with its cited handles mapped back to entry ids, each once. */
 
 export interface ResolvedWriteUp {
   paragraphs: readonly string[];

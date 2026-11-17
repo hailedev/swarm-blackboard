@@ -59,8 +59,9 @@ export { researcher, researcherOutputSchema } from './roles/researcher';
 export { solver, solverOutputSchema } from './roles/solver';
 export { synthesizer, synthesizerOutputSchema } from './roles/synthesizer';
 export { createDefaultAgents, roleDefinitions } from './roster';
-export type { RenderedWriteUp, ResolvedWriteUp, WriteUpOutput } from './write-up';
+export type { RenderedWriteUp, ResolvedWriteUp, WriteUpOutput, WriteUpRetry } from './write-up';
 export {
+  renderRetryPrompt,
   renderWriteUpPrompt,
   resolveWriteUp,
   WRITE_UP_AUTHOR,
@@ -68,6 +69,7 @@ export {
   writeUpContribution,
   writeUpOutputSchema,
 } from './write-up';
+export { findLeaks, MAX_LEAKS_REPORTED } from './write-up-leaks';
 export {
   JSON_HEADROOM,
   lengthInstruction,

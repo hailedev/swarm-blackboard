@@ -148,11 +148,17 @@ export const WriteUpStartedEventSchema = EventBaseSchema.extend({
   maxOutputTokens: z.int().positive(),
   wordBudget: z.int().positive(),
 });
-// `attempts`, `words` and `short` record the length guard: a write-up that comes back
-// under half the words it was asked for is asked for once more, the longer of the two is
-// kept, and `short` says that even that one is under half. `words` counts the answer
-// that was committed, 0 when none was. A log recorded before the guard reads as one
-// attempt, not short.
+// `attempts`, `words`, `short`, `retriedFor` and `leaks` record the write-up's two guards
+// (docs/PLAN.md §2.3 step 9). A write-up that comes back under half the words it was asked
+// for, or that mentions the board, the agents or its writer's own confidence, is asked for
+// once more: one retry, whatever was wrong, named in `retriedFor`. The better of the two
+// answers is kept (not short before short, then fewer such sentences, then the longer).
+// `short` says the answer kept is still under half its budget, `leaks` holds the
+// sentences it still contains (agents/write-up-leaks.ts), and `words` counts it, 0 when
+// nothing was committed. A log recorded before a guard existed reads as one attempt, not
+// short, with nothing found.
+export const WriteUpRetryReasonSchema = z.enum(['short', 'leak']);
+export type WriteUpRetryReason = z.infer<typeof WriteUpRetryReasonSchema>;
 export const WriteUpCompletedEventSchema = EventBaseSchema.extend({
   type: z.literal('write_up_completed'),
   round: RoundSchema,
@@ -161,6 +167,8 @@ export const WriteUpCompletedEventSchema = EventBaseSchema.extend({
   attempts: z.int().min(1).default(1),
   words: z.int().nonnegative().default(0),
   short: z.boolean().default(false),
+  retriedFor: z.array(WriteUpRetryReasonSchema).default([]),
+  leaks: z.array(z.string()).default([]),
 });
 export const RunTerminatedEventSchema = EventBaseSchema.extend({
   type: z.literal('run_terminated'),

@@ -11,7 +11,7 @@ import { callWithRepair, noControlFlags } from '../agents/agent';
 import { boardIsNew } from '../agents/eligibility';
 import { countWords, isShortOf } from '../agents/word-budget';
 import {
-  renderShortfallPrompt,
+  renderRetryPrompt,
   resolveWriteUp,
   WRITE_UP_AUTHOR,
   WRITE_UP_ROLE,
@@ -19,6 +19,7 @@ import {
   type ResolvedWriteUp,
   type WriteUpOutput,
 } from '../agents/write-up';
+import { findLeaks } from '../agents/write-up-leaks';
 import { buildBoardView, type BoardView } from '../board/board-view';
 import type { BoardStore, StoreError } from '../ports/board-store';
 import { isoFromMs, type Clock } from '../ports/clock';
@@ -39,6 +40,7 @@ import type {
   BoardEvent,
   EligibilityRecord,
   RunTotals,
+  WriteUpRetryReason,
 } from '../schemas/event';
 import type { HumanNotePriority } from '../schemas/payloads';
 import type { RunProfile } from '../schemas/roster';
@@ -463,45 +465,80 @@ export const createController = (
         : { reason: error.kind, detail: describeCallError(error) };
     const wordsOf = (resolved: ResolvedWriteUp): number =>
       countWords(resolved.paragraphs.join(' '));
+    // What the answer is held to (agents/write-up-leaks.ts): no word of the board, the
+    // agents or the writer's confidence, unless the problem itself speaks of such things.
+    const problem = board.problem();
+    const problemText =
+      problem === undefined
+        ? ''
+        : [
+            problem.content,
+            ...problem.payload.constraints,
+            ...problem.payload.successCriteria,
+          ].join('\n');
+    const leaksOf = (resolved: ResolvedWriteUp): string[] =>
+      findLeaks(resolved.paragraphs, problemText);
+    const isShort = (resolved: ResolvedWriteUp): boolean =>
+      isShortOf(wordsOf(resolved), sized.wordBudget);
+    // Which of two answers to keep: one that is not short before one that is, then the one
+    // with fewer sentences it should not have, then the longer.
+    const betterThan = (candidate: ResolvedWriteUp, other: ResolvedWriteUp): boolean => {
+      if (isShort(candidate) !== isShort(other)) return !isShort(candidate);
+      const leaks = leaksOf(candidate).length - leaksOf(other).length;
+      if (leaks !== 0) return leaks < 0;
+      return wordsOf(candidate) > wordsOf(other);
+    };
 
     let outcome = await attempt(request);
-    // The length guard: an answer under half the words it was asked for is asked for once
-    // more, with the shortfall stated, on what the run has left; the longer of the two is
-    // the answer. A second attempt that fails leaves the first in place.
+    // The two guards share one retry. An answer under half the words it was asked for, or
+    // one that says where it came from or how sure its writer is, is asked for once more,
+    // with everything that was wrong stated, on what the run has left; the better of the
+    // two is the answer. A second attempt that fails leaves the first in place.
     let attempts = 1;
-    if (outcome.ok && isShortOf(wordsOf(outcome.value), sized.wordBudget)) {
+    const retriedFor: WriteUpRetryReason[] = [];
+    if (outcome.ok) {
       const first = outcome.value;
-      attempts = 2;
-      deps.logger.warn('final write-up under half its word budget: asking once more', {
-        runId,
-        round,
-        words: wordsOf(first),
-        wordBudget: sized.wordBudget,
-      });
-      const second = await attempt({
-        ...request,
-        prompt: renderShortfallPrompt(request.prompt, {
+      const firstLeaks = leaksOf(first);
+      if (isShort(first)) retriedFor.push('short');
+      if (firstLeaks.length > 0) retriedFor.push('leak');
+      if (retriedFor.length > 0) {
+        attempts = 2;
+        deps.logger.warn('final write-up asked for once more', {
+          runId,
+          round,
+          retriedFor,
           words: wordsOf(first),
           wordBudget: sized.wordBudget,
-          paragraphs: first.paragraphs,
-        }),
-      });
-      if (second.ok) {
-        if (wordsOf(second.value) > wordsOf(first)) outcome = second;
-      } else {
-        const failure = describeFailure(second.error);
-        const noted = await notWritten(
-          failure.reason,
-          `second attempt at the final write-up failed; the first, ${String(wordsOf(first))} words of about ${String(sized.wordBudget)}, is kept: ${failure.detail}`,
-        );
-        if (!noted.ok) return noted;
+          leaks: firstLeaks.length,
+        });
+        const second = await attempt({
+          ...request,
+          prompt: renderRetryPrompt(request.prompt, {
+            paragraphs: first.paragraphs,
+            wordBudget: sized.wordBudget,
+            shortWords: isShort(first) ? wordsOf(first) : null,
+            leaks: firstLeaks,
+          }),
+        });
+        if (second.ok) {
+          if (betterThan(second.value, first)) outcome = second;
+        } else {
+          const failure = describeFailure(second.error);
+          const noted = await notWritten(
+            failure.reason,
+            `second attempt at the final write-up failed; the first, ${String(wordsOf(first))} words of about ${String(sized.wordBudget)}, is kept: ${failure.detail}`,
+          );
+          if (!noted.ok) return noted;
+        }
       }
     }
 
     let newEntries = 0;
     let words = 0;
+    let leaks: string[] = [];
     if (outcome.ok) {
       words = wordsOf(outcome.value);
+      leaks = leaksOf(outcome.value);
       const batch = prepareEntries({
         contributions: [writeUpContribution(view, outcome.value)],
         view,
@@ -527,14 +564,19 @@ export const createController = (
       const failed = await notWritten(failure.reason, failure.detail);
       if (!failed.ok) return failed;
     }
-    if (newEntries === 0) words = 0;
+    if (newEntries === 0) {
+      words = 0;
+      leaks = [];
+    }
     const short = newEntries > 0 && isShortOf(words, sized.wordBudget);
-    if (short) {
-      deps.logger.warn('final write-up still under half its word budget', {
+    if (short || leaks.length > 0) {
+      deps.logger.warn('final write-up kept with what a second attempt did not mend', {
         runId,
         round,
+        short,
         words,
         wordBudget: sized.wordBudget,
+        leaks: leaks.length,
         attempts,
       });
     }
@@ -546,6 +588,8 @@ export const createController = (
       attempts,
       words,
       short,
+      retriedFor,
+      leaks,
     });
     return completed.ok ? ok(undefined) : completed;
   };

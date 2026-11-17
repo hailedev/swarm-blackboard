@@ -6,6 +6,7 @@ import {
   type RunStatus,
   type SynthesisStage,
   type Usage,
+  type WriteUpRetryReason,
 } from '@team/core';
 
 import {
@@ -66,10 +67,14 @@ export interface SwarmWriteUp {
   written: boolean;
   /** What its calls cost, repairs included; part of the run's cost. */
   costUsd: number;
-  /** 2 when the first answer came back under half its word budget and was asked for again. */
+  /** 2 when the first answer was asked for again: it was short, or said what it must not. */
   attempts: number;
   /** The answer that was kept is still under half its word budget. */
   short: boolean;
+  /** Why it was asked for again: under half its word budget, sentences it must not have, or both. */
+  retriedFor: WriteUpRetryReason[];
+  /** Sentences of the answer kept that mention the board, the agents or its writer's confidence. */
+  leaks: string[];
 }
 
 export interface MonthGuard {

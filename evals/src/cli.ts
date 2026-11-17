@@ -255,6 +255,8 @@ export const writeUpOf = (events: readonly BoardEvent[]): SwarmWriteUp | null =>
     costUsd: done?.usage.costUsd ?? 0,
     attempts: done?.attempts ?? 1,
     short: done?.short ?? false,
+    retriedFor: done?.retriedFor ?? [],
+    leaks: done?.leaks ?? [],
   };
 };
 

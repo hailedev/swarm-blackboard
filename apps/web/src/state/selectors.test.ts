@@ -441,6 +441,8 @@ describe('the final write-up', () => {
       attempts: 1,
       words: 0,
       short: false,
+      retriedFor: [],
+      leaks: [],
       newEntries,
       usage,
     };

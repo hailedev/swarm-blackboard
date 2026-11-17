@@ -603,6 +603,8 @@ describe('rehydrate', () => {
       attempts: 1,
       words: 0,
       short: false,
+      retriedFor: [],
+      leaks: [],
     };
     const terminated: BoardEvent = {
       ...at(7),

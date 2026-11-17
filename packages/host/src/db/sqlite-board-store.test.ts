@@ -176,6 +176,8 @@ describe('SqliteBoardStore', () => {
         attempts: 1,
         words: 0,
         short: false,
+        retriedFor: [],
+        leaks: [],
         newEntries: 0,
         usage,
       },

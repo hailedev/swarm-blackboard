@@ -34,8 +34,8 @@ describe('renderWriteUpPrompt', () => {
     expect(rendered.prompt).toContain(lengthInstruction(900));
 
     // Unlike an agent's view, nothing is clipped and nothing is a digest: the live
-    // hypothesis, its two pieces of evidence, the critique that stands, the question,
-    // both subproblems and the draft.
+    // hypothesis, its two pieces of evidence, the critique that stands, the question and
+    // both subproblems.
     for (const entry of [
       ...board.hypotheses,
       ...board.evidence,
@@ -44,9 +44,8 @@ describe('renderWriteUpPrompt', () => {
     ]) {
       expect(rendered.prompt).toContain(entry.content);
     }
-    expect(rendered.prompt).toContain(board.synthesis?.content ?? 'no synthesis');
-    expect(rendered.shown).toEqual({ full: 8, digested: 0, omitted: 0 });
-    expect(rendered.handles).toEqual(['P1', 'S2', 'S4', 'H2', 'E1', 'E2', 'C2', 'Q1', 'A1', 'N1']);
+    expect(rendered.shown).toEqual({ full: 7, digested: 0, omitted: 0 });
+    expect(rendered.handles).toEqual(['P1', 'S2', 'S4', 'H2', 'E1', 'E2', 'C2', 'Q1', 'N1']);
     for (const entry of view.entries) expect(rendered.prompt).not.toContain(entry.id);
 
     // The evidence sits under the hypothesis it supports, the critique under what it attacks.
@@ -54,7 +53,47 @@ describe('renderWriteUpPrompt', () => {
     expect(at('### H2 (hypothesis')).toBeGreaterThan(at('## Candidate answers'));
     expect(at('- E1 (evidence, round 2; supports it)')).toBeGreaterThan(at('### H2 (hypothesis'));
     expect(at('- C2 (critique, round 4; critique that stands)')).toBeGreaterThan(at('- E2 ('));
-    expect(at('## Latest draft of the answer')).toBeGreaterThan(at('## Subproblems'));
+  });
+
+  it('shows no draft of the answer, whatever the board holds of them', () => {
+    const board = lateBoard();
+    const draft = board.synthesis;
+    expect(draft).toBeDefined();
+    const rendered = renderWriteUpPrompt(board.fx.view(), WHOLE_BOARD, 900);
+    // A draft is written beside the hypotheses of its own round and can be behind them:
+    // the writer is given what the draft was made of, never the draft (ADR-0016).
+    expect(rendered.prompt).not.toContain(draft?.content ?? 'missing');
+    expect(rendered.prompt).not.toMatch(/draft/i);
+    expect(rendered.prompt).not.toMatch(/\bA1\b/);
+    expect(rendered.handles).not.toContain('A1');
+  });
+
+  it('leaves out a critique of a draft with the draft, and counts it', () => {
+    const fx = new BoardFixture();
+    fx.problem();
+    fx.startRound(1);
+    const hypothesis = fx.entry(
+      'hypothesis',
+      { confidence: 0.6, supportedBy: [], contradictedBy: [] },
+      { content: 'Issue 200 passes.' },
+    );
+    const draft = fx.entry(
+      'synthesis',
+      { version: 1, confidence: 0.6, cites: [hypothesis.id], stage: 'draft' },
+      { content: 'Issue 150 passes.' },
+    );
+    fx.entry(
+      'critique',
+      { target: draft.id, severity: 'major' },
+      { content: 'The total does not add up.' },
+    );
+    const rendered = renderWriteUpPrompt(fx.view(), WHOLE_BOARD, 900);
+    expect(rendered.prompt).toContain('Issue 200 passes.');
+    expect(rendered.prompt).not.toContain('Issue 150 passes.');
+    expect(rendered.prompt).not.toContain('The total does not add up.');
+    expect(rendered.prompt).not.toContain('Other critiques that stand');
+    expect(rendered.staleCritiques).toBe(1);
+    expect(rendered.handles).toEqual(['P1', 'H1']);
   });
 
   it('leaves out a critique of an entry that has been replaced, and says how many', () => {

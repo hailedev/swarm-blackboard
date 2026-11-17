@@ -260,7 +260,8 @@ describe('the final write-up at the end of a run', () => {
     expect(call?.system).toBe(testWriteUpPrompt());
     expect(call?.maxOutputTokens).toBe(2_700);
     expect(call?.prompt).toContain('# Working notes');
-    expect(call?.prompt).toContain('## Latest draft of the answer');
+    // The round's draft is on the board and is not shown to the writer.
+    expect(call?.prompt).not.toMatch(/draft/i);
     expect(call?.prompt).toContain('you have about 900 words');
 
     // The controller stamps what the model does not state: the next version, superseding
@@ -894,5 +895,148 @@ describe('a write-up that comes back under half its word budget', () => {
     expect(countWords('   ')).toBe(0);
     expect(isShortOf(449, 900)).toBe(true);
     expect(isShortOf(450, 900)).toBe(false);
+  });
+});
+
+describe('a write-up that says where it came from, or how sure its writer is', () => {
+  const CONFIDENCE = 'Confidence is moderate: the estimate is the part most likely to change.';
+  const BOARD = 'The payback period is something the board does not establish.';
+  const AGENTS = 'The agents disagreed on the order of the teams.';
+  // A full-length answer whose last paragraphs are the given sentences.
+  const saying = (
+    sentences: readonly string[],
+    body: string = BODY,
+    cites: readonly string[] = ['H1'],
+  ): FakeResponse => ({
+    object: { paragraphs: ['Adopt it.', body, ...sentences], confidence: 0.6, cites },
+    usage: SCENARIO_TOKENS,
+  });
+  const clean = (body: string = BODY): FakeResponse => saying([], body);
+  const bodyOf = (count: number): string =>
+    Array.from({ length: count }, (_, i) => `w${String(i + 1)}`).join(' ');
+  const run = async (script: readonly FakeResponse[], problem = 'Should we adopt a monorepo?') => {
+    const model = writerModel(script);
+    const h = harness([oneHypothesis()], { writeUp: { model, prompt: testWriteUpPrompt() } });
+    await h.controller.start({ content: problem });
+    const result = await h.controller.run();
+    if (!result.ok) throw new Error('run failed');
+    const completed = ofType(h.events, 'write_up_completed')[0];
+    return { ...h, model, view: result.value.view, completed };
+  };
+
+  it('is asked for once more, with the sentences quoted, and the clean answer is kept', async () => {
+    const { model, events, view, completed } = await run([saying([CONFIDENCE, BOARD]), clean()]);
+    expect(model.calls.map((call) => call.outcome)).toEqual(['ok', 'ok']);
+    const second = model.calls[1]?.request.prompt ?? '';
+    expect(second.startsWith(model.calls[0]?.request.prompt ?? '?')).toBe(true);
+    expect(second).toContain('# Your previous answer said where it came from, or how sure you are');
+    expect(second).toContain(`- "${CONFIDENCE}"\n- "${BOARD}"`);
+    expect(second).toContain(`Previous answer:\nAdopt it.\n${BODY}\n${CONFIDENCE}\n${BOARD}`);
+    // Its length was fine: the retry says nothing about length.
+    expect(second).not.toContain('too short');
+
+    expect(latestSynthesis(view)?.content).toBe(`Adopt it.\n\n${BODY}`);
+    expect(view.liveOfType('synthesis')).toHaveLength(1);
+    expect(completed).toMatchObject({
+      newEntries: 1,
+      attempts: 2,
+      short: false,
+      retriedFor: ['leak'],
+      leaks: [],
+      usage: { costUsd: 2 * SCENARIO_CALL_COST_USD },
+    });
+    expect(ofType(events, 'agent_failed')).toEqual([]);
+  });
+
+  it('keeps the answer with fewer such sentences when both have some, and records them', async () => {
+    const fewerSecond = await run([saying([CONFIDENCE, BOARD]), saying([AGENTS])]);
+    expect(fewerSecond.completed).toMatchObject({
+      attempts: 2,
+      retriedFor: ['leak'],
+      leaks: [AGENTS],
+    });
+    expect(latestSynthesis(fewerSecond.view)?.content).toContain(AGENTS);
+
+    const fewerFirst = await run([saying([AGENTS]), saying([CONFIDENCE, BOARD])]);
+    expect(fewerFirst.completed).toMatchObject({ attempts: 2, leaks: [AGENTS] });
+    expect(latestSynthesis(fewerFirst.view)?.content).not.toContain(CONFIDENCE);
+
+    // Level on that count, the longer one.
+    const longerSecond = await run([saying([AGENTS]), saying([BOARD], bodyOf(700))]);
+    expect(longerSecond.completed).toMatchObject({ attempts: 2, leaks: [BOARD] });
+  });
+
+  it('prefers a full-length answer with such a sentence to a clean one that is short', async () => {
+    const { completed, view } = await run([saying([CONFIDENCE]), clean(bodyOf(100))]);
+    expect(completed).toMatchObject({
+      attempts: 2,
+      short: false,
+      retriedFor: ['leak'],
+      leaks: [CONFIDENCE],
+    });
+    expect(latestSynthesis(view)?.content).toContain(CONFIDENCE);
+  });
+
+  it('asks once, naming both, when the answer is short as well', async () => {
+    const { model, completed } = await run([saying([CONFIDENCE], bodyOf(60)), clean()]);
+    expect(model.calls).toHaveLength(2);
+    const second = model.calls[1]?.request.prompt ?? '';
+    expect(second).toContain('# Your previous answer was too short');
+    expect(second).toContain('It had 74 words. You were asked for about 900');
+    expect(second).toContain('# Your previous answer said where it came from, or how sure you are');
+    expect(second.indexOf('too short')).toBeLessThan(second.indexOf('said where it came from'));
+    expect(second.match(/Previous answer:/g)).toHaveLength(1);
+    expect(completed).toMatchObject({
+      attempts: 2,
+      short: false,
+      retriedFor: ['short', 'leak'],
+      leaks: [],
+    });
+  });
+
+  it('is asked for no third time', async () => {
+    const { model, completed } = await run([saying([CONFIDENCE]), saying([CONFIDENCE]), clean()]);
+    expect(model.calls).toHaveLength(2);
+    expect(completed).toMatchObject({ attempts: 2, retriedFor: ['leak'], leaks: [CONFIDENCE] });
+  });
+
+  it('keeps the first answer when the second attempt fails, and records what it says', async () => {
+    const { model, events, completed } = await run([saying([BOARD])]);
+    expect(model.calls.map((call) => call.outcome)).toEqual(['ok', 'script_exhausted']);
+    expect(completed).toMatchObject({
+      newEntries: 1,
+      attempts: 2,
+      retriedFor: ['leak'],
+      leaks: [BOARD],
+    });
+    expect(ofType(events, 'agent_failed')[0]?.detail).toContain(
+      'second attempt at the final write-up failed; the first, 512 words of about 900, is kept',
+    );
+  });
+
+  it('leaves alone a word the problem statement itself uses', async () => {
+    const { model, completed } = await run(
+      [saying([BOARD])],
+      'The board must approve the migration. Should we adopt a monorepo?',
+    );
+    expect(model.calls).toHaveLength(1);
+    expect(completed).toMatchObject({ attempts: 1, retriedFor: [], leaks: [] });
+  });
+
+  it('records nothing when the write-up committed nothing', async () => {
+    const malformed = saying([CONFIDENCE], BODY, ['H7']);
+    const { completed } = await run([malformed, malformed]);
+    expect(completed).toMatchObject({ newEntries: 0, words: 0, retriedFor: [], leaks: [] });
+  });
+
+  it('finds nothing to ask again for in the scripted answer', async () => {
+    const { controller, events } = scripted();
+    await controller.start({ content: 'Should we adopt a monorepo?' });
+    expect((await controller.run()).ok).toBe(true);
+    expect(ofType(events, 'write_up_completed')[0]).toMatchObject({
+      attempts: 1,
+      retriedFor: [],
+      leaks: [],
+    });
   });
 });
