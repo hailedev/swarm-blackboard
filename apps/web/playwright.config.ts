@@ -29,10 +29,12 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // Each scripted call takes this long, so a round lasts long enough to be paused.
+      // Each scripted call takes this long, so a round lasts long enough to be paused. The
+      // month's limit is the one the smoke test asserts ("of $5.00", a $9 cap refused),
+      // whatever the developer's own `.env` says: the environment wins over the file.
       command: 'pnpm exec tsx apps/server/src/index.ts --fake',
       cwd: '../..',
-      env: { PORT: String(API_PORT), FAKE_DELAY_MS: '1500' },
+      env: { PORT: String(API_PORT), FAKE_DELAY_MS: '1500', MONTHLY_BUDGET_USD: '5' },
       url: `http://localhost:${String(API_PORT)}/health`,
       reuseExistingServer: false,
       timeout: 60_000,
