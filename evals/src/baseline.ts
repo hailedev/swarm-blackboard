@@ -18,6 +18,7 @@ import {
 import { z } from 'zod';
 
 import { problemText, type Problem } from './problems';
+import { isShort, wordCount } from './words';
 
 // The single-agent arm (ADR-0012): one call of a strong model on the same problem text,
 // capped at the dollar cost of that problem's swarm run. The cap is enforced the way the
@@ -99,6 +100,15 @@ export const BaselineRecordSchema = z.object({
   latencyMs: z.int().nonnegative(),
   at: z.string().min(1),
   passId: z.string().min(1),
+  /** 2 when the first answer came back under half its word budget and the call was made again. */
+  attempts: z.int().min(1).default(1),
+  /**
+   * Still under half its word budget after the second attempt: not an answer to judge. A
+   * void baseline is left out of the pass's means, and is not cached.
+   */
+  void: z.boolean().default(false),
+  /** What the attempt that was not kept cost; `usage` is the kept answer's own. */
+  discardedCostUsd: z.number().nonnegative().default(0),
 });
 export type BaselineRecord = z.infer<typeof BaselineRecordSchema>;
 
@@ -210,6 +220,9 @@ export const generateBaseline = async (
     latencyMs,
     at: isoFromMs(nowMs),
     passId: tags.runId,
+    attempts: 1,
+    void: false,
+    discardedCostUsd: 0,
   });
   if (!response.ok) {
     const error = response.error;
@@ -232,6 +245,63 @@ export const generateBaseline = async (
       hitAllowance(response.value.usage.outputTokens, fit.maxOutputTokens),
     ),
   );
+};
+
+/** Whether an answer is under half the words it was asked for (words.ts). */
+export const baselineIsShort = (record: Pick<BaselineRecord, 'answer' | 'wordBudget'>): boolean =>
+  isShort(wordCount(record.answer), record.wordBudget);
+
+export interface GuardedBaseline {
+  record: BaselineRecord;
+  /** What the pass pays: both attempts when there were two. */
+  costUsd: number;
+}
+
+/**
+ * The baseline with its length guard. An answer under half its word budget is not what the
+ * model would normally write (one Haiku call of 2026-11-17 stopped after five words and was
+ * judged at 0): the same call is made once more, the longer of the two answers is kept, and
+ * if that one is still short the record is marked void, to be left out of the means rather
+ * than scored. The prompt of the second attempt is the first's, word for word, so every
+ * baseline answer in a pass was asked for in the same words. A second attempt that fails
+ * leaves the first, void.
+ */
+export const generateGuardedBaseline = async (
+  request: BaselineRequest,
+  tags: ModelCallTags,
+  now: () => number,
+): Promise<Result<GuardedBaseline, BaselineError>> => {
+  const first = await generateBaseline(request, tags, now());
+  if (!first.ok) return first;
+  if (!baselineIsShort(first.value)) {
+    return ok({ record: first.value, costUsd: first.value.usage.costUsd });
+  }
+  const second = await generateBaseline(request, tags, now());
+  const firstCost = first.value.usage.costUsd;
+  if (!second.ok) {
+    const lost =
+      second.error.kind === 'invalid_output'
+        ? second.error.usage.costUsd
+        : second.error.kind === 'truncated'
+          ? second.error.usage.usage.costUsd
+          : 0;
+    return ok({
+      record: { ...first.value, attempts: 2, void: true, discardedCostUsd: lost },
+      costUsd: firstCost + lost,
+    });
+  }
+  const secondIsLonger = wordCount(second.value.answer) > wordCount(first.value.answer);
+  const kept = secondIsLonger ? second.value : first.value;
+  const discarded = secondIsLonger ? first.value : second.value;
+  return ok({
+    record: {
+      ...kept,
+      attempts: 2,
+      void: baselineIsShort(kept),
+      discardedCostUsd: discarded.usage.costUsd,
+    },
+    costUsd: firstCost + second.value.usage.costUsd,
+  });
 };
 
 export const describeBaselineError = (error: BaselineError): string => {

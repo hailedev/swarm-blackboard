@@ -88,6 +88,50 @@ export const judgePrompt = (problem: Problem, answers: Record<Slot, string>): st
     answers.B,
   ].join('\n\n');
 
+// ── One answer alone ─────────────────────────────────────────────────────────────────────
+//
+// A pairwise score is given with another answer on the page, and what that other answer is
+// may move it. The solo mode scores one answer against the same rubric with nothing beside
+// it, so an answer's score can be read without its opponent: used by the judge-only session
+// (rejudge.ts) to tell how far the swarm's own answers move between runs from how far the
+// judge's scores move with the company an answer keeps. Same instructions otherwise, and
+// the reason still comes before the score.
+
+export const SOLO_JUDGE_SYSTEM = [
+  'You are grading one answer to a problem against a rubric. You do not know who or what',
+  'wrote the answer, and you must not guess. For every rubric criterion, first write one',
+  'sentence of reason that points at something specific in the answer, then give the score',
+  'on the 0 to 3 scale using the anchors given. Do not reward length, confidence or',
+  "formatting; reward correctness, specificity and respect for the problem's constraints",
+  'and success criteria. Finally add one sentence on the answer as a whole. Return only',
+  'JSON matching the schema.',
+].join(' ');
+
+export interface SoloJudgement {
+  scores: Record<string, CriterionScore>;
+  note: string;
+}
+
+/** One score object per rubric criterion, reason first, for the one answer. */
+export const soloJudgementSchema = (problem: Problem): z.ZodType<SoloJudgement> => {
+  const score = z.object({ reason: z.string().min(1), score: z.int().min(0).max(MAX_SCORE) });
+  return z.object({
+    scores: z.object(Object.fromEntries(problem.rubric.map((c) => [c.id, score]))),
+    note: z.string(),
+  });
+};
+
+export const soloJudgePrompt = (problem: Problem, answer: string): string =>
+  [
+    '# Problem',
+    problemText(problem),
+    '# Rubric',
+    'Score each criterion from 0 to 3 using these anchors.',
+    ...problem.rubric.map((c) => `- ${c.id}: ${c.criterion}\n  Scale: ${c.scale}`),
+    '# Answer',
+    answer,
+  ].join('\n\n');
+
 /** A small seeded generator, so a pass's blind orders are reproducible from its seed. */
 export const mulberry32 = (seed: number): (() => number) => {
   let state = seed >>> 0;

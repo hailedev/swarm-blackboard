@@ -1,7 +1,4 @@
 import {
-  addUsage,
-  estimateInput,
-  fitCall,
   zeroUsage,
   type Model,
   type Result,
@@ -13,26 +10,19 @@ import {
 
 import {
   baselineCacheKey,
+  baselineIsShort,
   describeBaselineError,
-  generateBaseline,
+  generateGuardedBaseline,
   sizeBaseline,
   type BaselineCache,
   type BaselineRecord,
 } from './baseline';
-import {
-  blindOrder,
-  blindText,
-  JUDGE_SYSTEM,
-  judgePrompt,
-  judgementSchema,
-  swapped,
-  unblind,
-  type BlindOrder,
-  type UnblindedJudgement,
-} from './judge';
+import type { UnblindedJudgement } from './judge';
+import { judgePair } from './judging';
 import type { LoopFigures } from './loop';
 import type { Problem } from './problems';
 import { aggregate, scoreProblem, type Aggregate, type ProblemScores } from './scoring';
+import { wordCount } from './words';
 
 // One eval pass (ADR-0012): for each problem, in order, the baseline call, the swarm run
 // and the blind judgements. The baseline comes first so that the swarm's final write-up
@@ -293,8 +283,13 @@ const runProblem = async (
   const stored = options.refreshBaselines
     ? undefined
     : await deps.cache.get(problem.id, deps.baselineModel.id);
+  // A cached answer under half its word budget is no baseline (one such was written before
+  // the length guard existed): it is made again, as if it were not there.
   const cached =
-    stored !== undefined && stored.key === baselineCacheKey(problem, deps.baselineModel.id)
+    stored !== undefined &&
+    stored.key === baselineCacheKey(problem, deps.baselineModel.id) &&
+    !stored.void &&
+    !baselineIsShort(stored)
       ? stored
       : undefined;
   if (cached !== undefined) {
@@ -310,7 +305,9 @@ const runProblem = async (
       deps.baselineAllowanceModel === null
         ? options.baselineMaxOutputTokens
         : (wouldBeAllowance(problem, options, deps, capUsd) ?? options.baselineMaxOutputTokens);
-    const generated = await generateBaseline(
+    // With its length guard: under half its word budget it is asked for once more, and if
+    // still short it is void (baseline.ts).
+    const generated = await generateGuardedBaseline(
       {
         model: deps.baselineModel,
         problem,
@@ -318,7 +315,7 @@ const runProblem = async (
         maxOutputTokens,
       },
       tags('eval-baseline'),
-      deps.now(),
+      () => deps.now(),
     );
     if (!generated.ok) {
       if (generated.error.kind === 'invalid_output') budget.charge(generated.error.usage.costUsd);
@@ -326,11 +323,13 @@ const runProblem = async (
       result.baselineSkipped = describeBaselineError(generated.error);
       deps.log(`   baseline skipped: ${result.baselineSkipped}`);
     } else {
-      budget.charge(generated.value.usage.costUsd);
-      await deps.cache.put(generated.value);
-      result.baseline = generated.value;
+      const { record, costUsd } = generated.value;
+      budget.charge(costUsd);
+      // A void answer is not kept for later passes: the next one tries again.
+      if (!record.void) await deps.cache.put(record);
+      result.baseline = record;
       deps.log(
-        `   baseline: ${String(generated.value.usage.outputTokens)} of ${String(generated.value.maxOutputTokens)} output tokens used (asked for about ${String(generated.value.wordBudget)} words), $${generated.value.usage.costUsd.toFixed(4)}${generated.value.truncated ? ', TRUNCATED' : ''}`,
+        `   baseline: ${String(record.usage.outputTokens)} of ${String(record.maxOutputTokens)} output tokens used (asked for about ${String(record.wordBudget)} words), $${costUsd.toFixed(4)}${record.truncated ? ', TRUNCATED' : ''}${record.void ? `, VOID: ${describeVoid(record)}` : record.attempts > 1 ? ', on the second attempt' : ''}`,
       );
     }
   }
@@ -371,51 +370,32 @@ const runProblem = async (
     if (swarm.value.answer !== null && result.baseline === null) result.scores.baseline = 0;
     return result;
   }
-  const first = blindOrder(() => deps.rng());
-  const orders: BlindOrder[] = options.judgeOrders === 2 ? [first, swapped(first)] : [first];
-  // Both arms pass through the same blinding, so the judge cannot tell them apart by it.
-  const answers = {
-    swarm: blindText(swarm.value.answer),
-    baseline: blindText(result.baseline.answer),
-  };
-  for (const order of orders) {
-    const prompt = judgePrompt(problem, { A: answers[order.A], B: answers[order.B] });
-    const schema = judgementSchema(problem);
-    const estimate = estimateInput(
-      { system: JUDGE_SYSTEM, prompt, schema },
-      deps.judgeModel.charsPerToken,
-    );
-    const fit = fitCall({
-      pricing: deps.judgeModel.pricing,
-      inputTokens: estimate.tokens,
-      maxOutputTokens: options.judgeMaxOutputTokens,
-      remainingUsd: budget.remainingUsd,
-    });
-    if (!fit.fits) {
-      result.judgeSkipped.push(
-        `order ${order.A}/${order.B}: $${budget.remainingUsd.toFixed(4)} left does not cover the judge call ($${fit.worstCaseUsd.toFixed(4)})`,
-      );
-      continue;
-    }
-    const response = await deps.judgeModel.generateObject({
-      schema,
-      system: JUDGE_SYSTEM,
-      prompt,
-      maxOutputTokens: fit.maxOutputTokens,
-      tags: tags('eval-judge'),
-    });
-    if (!response.ok) {
-      if (response.error.kind === 'invalid_output') {
-        budget.charge(response.error.usage.costUsd);
-        result.judgeUsage = addUsage(result.judgeUsage, response.error.usage);
-      }
-      result.judgeSkipped.push(`order ${order.A}/${order.B}: ${response.error.kind}`);
-      continue;
-    }
-    budget.charge(response.value.usage.costUsd);
-    result.judgeUsage = addUsage(result.judgeUsage, response.value.usage);
-    result.judgements.push(unblind(response.value.object, order));
+  // A void baseline is not judged and scores nothing, 0 included: the pair is left out of
+  // the means, as any pair that was not judged is.
+  if (result.baseline.void) {
+    result.judgeSkipped.push(`the baseline is void: ${describeVoid(result.baseline)}`);
+    result.scores = scoreProblem(problem.rubric, []);
+    return result;
   }
+  const judged = await judgePair(
+    problem,
+    { swarm: swarm.value.answer, baseline: result.baseline.answer },
+    {
+      orders: options.judgeOrders,
+      maxOutputTokens: options.judgeMaxOutputTokens,
+      tags: tags('eval-judge'),
+    },
+    deps.judgeModel,
+    () => deps.rng(),
+    budget,
+  );
+  result.judgements = judged.judgements;
+  result.judgeSkipped.push(...judged.skipped);
+  result.judgeUsage = judged.usage;
   result.scores = scoreProblem(problem.rubric, result.judgements);
   return result;
 };
+
+/** "5 words of about 900 asked for, after a second attempt". */
+export const describeVoid = (record: BaselineRecord): string =>
+  `${String(wordCount(record.answer))} words of about ${String(record.wordBudget)} asked for, after a second attempt`;

@@ -831,3 +831,89 @@ describe('a stand-in baseline model (pnpm eval --baseline)', () => {
     ).toContain('  - **Control pass.** --baseline x: this model writes the baseline.');
   });
 });
+
+describe('a baseline that stays short', () => {
+  // A baseline model that always answers in five words.
+  const terse = () =>
+    createFakeModel({
+      id: 'fake-baseline',
+      pricing: SCENARIO_PRICING,
+      script: () => ({
+        object: { paragraphs: ['Recommendation: run a six-week, once-weekly'] },
+        usage: FAKE_BASELINE_USAGE,
+      }),
+    });
+  const local = { alias: 'x', provider: 'ollama' as const, model: 'm' };
+  const meta = {
+    label: 'void',
+    profile: {
+      name: 'dev',
+      roles: {
+        planner: local,
+        researcher: local,
+        solver: local,
+        critic: local,
+        synthesizer: local,
+      },
+      bidder: null,
+      fallback: null,
+      paid: false,
+    },
+    evalModels: { baseline: local, judge: local },
+    commit: null,
+    baselineModelId: 'fake-baseline',
+    judgeModelId: 'fake-judge',
+  };
+
+  it('is void: asked for twice, not cached, not judged, and left out of the means', async () => {
+    const cache = memoryCache();
+    const baselineModel = terse();
+    const judgeModel = createFakeJudge(SCENARIO_PRICING);
+    const pass = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({ cache, baselineModel, judgeModel }),
+    );
+    const [result] = pass.results;
+    expect(baselineModel.calls).toHaveLength(2);
+    expect(result?.baseline).toMatchObject({ void: true, attempts: 2 });
+    expect(cache.records.size).toBe(0);
+    // The swarm still ran; nothing was judged, and nobody scored 0.
+    expect(result?.swarm?.answer).not.toBeNull();
+    expect(judgeModel.calls).toHaveLength(0);
+    expect(result?.scores).toMatchObject({ swarm: null, baseline: null, winner: null });
+    expect(result?.judgeSkipped).toEqual([
+      'the baseline is void: 5 words of about 650 asked for, after a second attempt',
+    ]);
+    expect(pass.aggregate).toMatchObject({ judged: 0, swarmMean: null, baselineMean: null });
+    // Both attempts were paid for.
+    expect(pass.spentUsd).toBeCloseTo(2 * BASELINE_COST + 0.02, 10);
+
+    const report = renderReport(pass, meta);
+    expect(report).toContain(
+      '| 5 / 650 | **void** (under half its word budget after a second attempt; not judged) |',
+    );
+    expect(report).toContain(
+      '`one`: the baseline is void (5 words of about 650 asked for, after a second attempt). The pair was not judged and is left out of the means.',
+    );
+  });
+
+  it('is made again when it comes from the cache', async () => {
+    const cache = memoryCache();
+    // A pass with a terse model caches nothing; put a short record there by hand, as the
+    // pass of 2026-11-17 did before the guard existed.
+    const first = await runPass(options({ problems: [problem('one')] }), deps({ cache }));
+    const good = first.results[0]?.baseline;
+    if (good === undefined || good === null) throw new Error('no baseline');
+    await cache.put({ ...good, answer: 'Recommendation: run a six-week, once-weekly' });
+
+    const baselineModel = createFakeBaseline(SCENARIO_PRICING);
+    const second = await runPass(
+      options({ problems: [problem('one')] }),
+      deps({ cache, baselineModel }),
+    );
+    expect(second.results[0]?.baselineCached).toBe(false);
+    expect(baselineModel.calls).toHaveLength(1);
+    expect(second.results[0]?.baseline?.void).toBe(false);
+    expect(second.results[0]?.judgements).toHaveLength(2);
+  });
+});

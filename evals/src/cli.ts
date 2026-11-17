@@ -130,7 +130,11 @@ const options = {
 
 type Values = ReturnType<typeof parseArgs<{ options: typeof options; strict: true }>>['values'];
 
-const money = (raw: string | undefined, name: string, fallback: number): Result<number, string> => {
+export const money = (
+  raw: string | undefined,
+  name: string,
+  fallback: number,
+): Result<number, string> => {
   if (raw === undefined) return ok(fallback);
   const value = Number(raw);
   return Number.isFinite(value) && value >= 0
@@ -138,7 +142,7 @@ const money = (raw: string | undefined, name: string, fallback: number): Result<
     : err(`${name} must be a dollar amount, got "${raw}"`);
 };
 
-const integer = (
+export const integer = (
   raw: string | undefined,
   name: string,
   fallback: number,

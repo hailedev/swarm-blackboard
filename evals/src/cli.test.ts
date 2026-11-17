@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { loadProblems, main, renderEvalBanner, USAGE, type EvalIo } from './cli';
+import { JUDGE_USAGE, judgeMain } from './rejudge-cli';
 
 const ROSTER = fileURLToPath(new URL('../../agents.yaml', import.meta.url));
 const PROBLEMS = fileURLToPath(new URL('../problems', import.meta.url));
@@ -138,6 +139,70 @@ describe('pnpm eval --fake', () => {
       '  - **Control pass.** --baseline local: this model writes the baseline',
     );
     expect(USAGE.join('\n')).toContain('--baseline <alias>');
+  });
+
+  it('judges again without running a swarm: pairwise and solo, from an earlier pass’s answers', async () => {
+    const out = await tempDir();
+    const first = capture();
+    expect(await main(base(out, '--limit', '2', '--label', 'earlier'), first.io)).toBe(0);
+    const { lines, io } = capture();
+    const code = await judgeMain(
+      [
+        ...base(out, '--label', 'again', '--problems', 'mobile-release-cadence,local-first-sync'),
+        '--pair',
+        'earlier=local-fast',
+        '--solo',
+        'swarm:earlier,baseline:local-fast',
+      ],
+      io,
+    );
+    const text = lines.join('\n');
+    expect(code, text).toBe(0);
+    expect(text).toContain('== Judge-only session: no swarm runs ==');
+    expect(text).toContain(
+      'the swarm answers of earlier beside the local-fast baselines, both orders',
+    );
+    expect(text).toContain('judge calls   8');
+    expect(text).toContain('Judged 2 of 2 pairs and 4 of 4 answers alone');
+    // No swarm ran, and the baselines came from the cache the first pass filled.
+    expect(text).not.toContain(': swarm run (cap');
+    const dirs = await readdir(out);
+    const dir = dirs.find((d) => d.endsWith('-again'));
+    if (dir === undefined) throw new Error('no results folder');
+    const report = await readFile(join(out, dir, 'report.md'), 'utf8');
+    expect(report).toContain('# Judge-only session: again');
+    expect(report).not.toContain('## Baselines made');
+    expect(report).toContain('### mobile-release-cadence');
+    // The earlier pass's swarm answer: its score there, its score here, and its solo score.
+    expect(report).toMatch(
+      /\| swarm answer of earlier \| \d+ \/ 1350 \| \d+\.\d% \| \d+\.\d% beside the fake-baseline baseline \(earlier\); \d+\.\d% beside the fake-baseline baseline \(again\) \|/,
+    );
+    const json = JSON.parse(await readFile(join(out, dir, 'report.json'), 'utf8')) as {
+      session: { pairs: unknown[]; solo: unknown[]; spentUsd: number };
+    };
+    expect(json.session.pairs).toHaveLength(2);
+    expect(json.session.solo).toHaveLength(4);
+    expect(json.session.spentUsd).toBeGreaterThan(0);
+  });
+
+  it('refuses a judge-only session that names nothing, a pass that does not exist or a bad reference', async () => {
+    const out = await tempDir();
+    const nothing = capture();
+    expect(await judgeMain(base(out), nothing.io)).toBe(2);
+    expect(nothing.lines.join('\n')).toContain('nothing to judge: give --pair, --solo or both');
+    const missing = capture();
+    expect(await judgeMain([...base(out), '--solo', 'swarm:never-ran'], missing.io)).toBe(2);
+    expect(missing.lines.join('\n')).toContain('no pass labelled "never-ran"');
+    const bad = capture();
+    expect(await judgeMain([...base(out), '--solo', 'sonnet'], bad.io)).toBe(2);
+    expect(bad.lines.join('\n')).toContain('"sonnet" is not swarm:<pass> or baseline:<alias>');
+    const alias = capture();
+    expect(await judgeMain([...base(out), '--solo', 'baseline:gpt'], alias.io)).toBe(2);
+    expect(alias.lines.join('\n')).toContain('the session names the unknown model alias "gpt"');
+    const pair = capture();
+    expect(await judgeMain([...base(out), '--pair', 'earlier'], pair.io)).toBe(2);
+    expect(pair.lines.join('\n')).toContain('--pair takes <pass>=<alias>, got "earlier"');
+    expect(JUDGE_USAGE.join('\n')).toContain('pnpm eval:judge');
   });
 
   it('refuses a profile without an evals entry and an unknown profile', async () => {

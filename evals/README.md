@@ -18,6 +18,25 @@ pnpm eval --profile cheap --yes --label pass1     # a paid pass: Haiku-led swarm
 - Per problem the baseline comes first, then the swarm run, then the judge. The swarm's answer is its **final write-up**: when the run ends, the Synthesizer's model writes the answer once more from the whole board (docs/PLAN.md §2.3 step 9), with the output allowance the baseline got and so the same word budget. Its cost is part of the run's cap, held back from the first round.
 - `--judge-orders 2` (the default) judges each pair in both orders; `--seed` fixes the first order.
 
+- **The baseline's length guard.** A baseline answer under half the words it was asked for is asked for once more, with the same prompt; the longer of the two is kept. One that is still short is **void**: it is not judged, not cached, and its pair is left out of the means instead of scoring 0. A cached answer that short is treated as absent and made again.
+
+## Judging again, without a swarm
+
+```
+pnpm eval:judge --profile cheap --yes --max-cost 0.35 --label judge-only \
+  --problems api-rate-limiting,oidc-migration,teen-reading-programme \
+  --pair control-haiku=sonnet \
+  --solo baseline:sonnet,swarm:step2b,swarm:control-haiku,baseline:haiku
+```
+
+A judge-only session judges answers that already exist. No swarm runs and nothing about the controller is involved; the judge is the profile's own, and the whole session has one cap, enforced in code.
+
+- `--pair <pass>=<alias>` is **pairwise**: the swarm answers of an earlier pass (named by its label, the results folder without the date) beside the cached baseline answers of a model alias, blind and in both orders, exactly as a pass judges a pair.
+- `--solo <ref>,…` is **solo**: each answer alone against the rubric, with no second answer in the prompt, once. A reference is `swarm:<pass>` or `baseline:<alias>`. The reason still comes before the score.
+- A baseline the cache does not hold (or holds under half its word budget) is made first, with the length guard above, at the allowance the profile's own baseline would be given.
+
+The report (`<date>-<label>/report.md`, with `report.json` beside it) has one table per problem: every answer the session was pointed at, its solo score, and every pairwise score the same text has received so far with the answer it received each against. A pairwise score is given with another answer on the page; the solo score is what tells how much of a difference between two passes is the answer and how much is the company it kept.
+
 ## Development set and held-out problems
 
 While Phase 5's Step 2 changes the controller, three problems are the development set: `api-rate-limiting`, `oidc-migration` and `teen-reading-programme`. Every pilot, rehearsal and per-change pass runs on those three (`--problems api-rate-limiting,oidc-migration,teen-reading-programme`), on `dev` as well as on a paid profile. The other seven are held out: nothing runs on them until one full pass at the end of Step 2, so that pass measures the swarm on problems no change was tuned against.

@@ -4,16 +4,19 @@ import { describe, expect, it } from 'vitest';
 
 import {
   baselineCacheKey,
+  baselineIsShort,
   baselinePrompt,
   hitAllowance,
   salvageParagraphs,
   BaselineRecordSchema,
   describeBaselineError,
   generateBaseline,
+  generateGuardedBaseline,
   sizeBaseline,
   wordBudgetFor,
 } from './baseline';
 import type { Problem } from './problems';
+import { wordCount } from './words';
 
 const problem: Problem = {
   id: 'demo',
@@ -245,5 +248,100 @@ describe('salvageParagraphs', () => {
       maxOutputTokens: 512,
     });
     expect(result.value.usage.costUsd).toBe(0.004);
+  });
+});
+
+describe('generateGuardedBaseline: an answer under half its word budget', () => {
+  // 2,048 output tokens buy 650 words: under 325 is short.
+  const request = (script: readonly { words: number }[] | 'exhausted-after-one') => {
+    const answers = script === 'exhausted-after-one' ? [{ words: 5 }] : script;
+    const model = createFakeModel({
+      id: 'fake-baseline',
+      pricing: SCENARIO_PRICING,
+      script: answers.map(({ words }) => ({
+        object: {
+          paragraphs: [Array.from({ length: words }, (_, i) => `w${String(i)}`).join(' ')],
+        },
+        usage: { inputTokens: 500, outputTokens: 300 },
+      })),
+    });
+    return { model, request: { model, problem, capUsd: 0.08, maxOutputTokens: 2_048 } };
+  };
+  const callCost = 500 * 1e-6 + 300 * 5e-6;
+
+  it('is left alone at half the budget or more', async () => {
+    const { model, request: r } = request([{ words: 325 }]);
+    const guarded = await generateGuardedBaseline(r, tags, () => 0);
+    expect(guarded.ok && guarded.value.record).toMatchObject({
+      attempts: 1,
+      void: false,
+      discardedCostUsd: 0,
+      wordBudget: 650,
+    });
+    expect(guarded.ok && guarded.value.costUsd).toBeCloseTo(callCost, 10);
+    expect(model.calls).toHaveLength(1);
+  });
+
+  it('is asked for once more with the same prompt, and the longer answer is kept', async () => {
+    const { model, request: r } = request([{ words: 5 }, { words: 400 }]);
+    const guarded = await generateGuardedBaseline(r, tags, () => 0);
+    if (!guarded.ok) throw new Error('not generated');
+    expect(guarded.value.record).toMatchObject({ attempts: 2, void: false });
+    expect(wordCount(guarded.value.record.answer)).toBe(400);
+    expect(guarded.value.record.discardedCostUsd).toBeCloseTo(callCost, 10);
+    // The pass pays for both; the record's usage is the kept answer's own.
+    expect(guarded.value.costUsd).toBeCloseTo(2 * callCost, 10);
+    expect(guarded.value.record.usage.costUsd).toBeCloseTo(callCost, 10);
+    expect(model.calls.map((call) => call.request.prompt)).toEqual([
+      model.calls[0]?.request.prompt,
+      model.calls[0]?.request.prompt,
+    ]);
+  });
+
+  it('is void when the second is short too, keeping the longer of the two', async () => {
+    const { request: r } = request([{ words: 120 }, { words: 60 }]);
+    const guarded = await generateGuardedBaseline(r, tags, () => 0);
+    if (!guarded.ok) throw new Error('not generated');
+    expect(guarded.value.record).toMatchObject({ attempts: 2, void: true });
+    expect(wordCount(guarded.value.record.answer)).toBe(120);
+    expect(baselineIsShort(guarded.value.record)).toBe(true);
+  });
+
+  it('is void, with the first answer kept, when the second attempt fails', async () => {
+    const { model, request: r } = request('exhausted-after-one');
+    const guarded = await generateGuardedBaseline(r, tags, () => 0);
+    if (!guarded.ok) throw new Error('not generated');
+    expect(model.calls.map((call) => call.outcome)).toEqual(['ok', 'script_exhausted']);
+    expect(guarded.value.record).toMatchObject({ attempts: 2, void: true, discardedCostUsd: 0 });
+    expect(guarded.value.costUsd).toBeCloseTo(callCost, 10);
+  });
+
+  it('reads a record written before the guard as one attempt, not void', () => {
+    const old = {
+      key: 'k',
+      problemId: 'demo',
+      modelId: 'm',
+      capUsd: 0.03,
+      maxOutputTokens: 2_700,
+      wordBudget: 900,
+      truncated: false,
+      answer: 'An old answer.',
+      usage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        costUsd: 0,
+      },
+      latencyMs: 1,
+      at: '2026-11-16T00:00:00.000Z',
+      passId: 'p',
+    };
+    expect(BaselineRecordSchema.parse(old)).toMatchObject({
+      attempts: 1,
+      void: false,
+      discardedCostUsd: 0,
+    });
   });
 });

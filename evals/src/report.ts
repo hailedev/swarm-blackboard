@@ -3,6 +3,7 @@ import type { ResolvedEvalModels, RunProfile } from '@team/core';
 import type { CriterionScore } from './judge';
 import { describeOpenCritiques } from './loop';
 import type { PassResult, ProblemResult } from './pass';
+import { wordCount } from './words';
 
 // The committed report (docs/PLAN.md §6, Phase 5): what ran, what it cost, how the arms
 // scored, and the honesty notes a reader needs to weigh ten judged pairs. Three pairs are
@@ -173,12 +174,7 @@ const loopRow = (r: ProblemResult): string => {
   return `| ${r.problem.id} | ${String(swarm.rounds)} | ${swarm.reason} | ${String(critiques.resolved)} / ${String(critiques.raised)} | ${String(critiques.replaced)} | ${describeOpenCritiques(critiques)} | ${String(calls.rejected)} / ${String(calls.made)} | ${String(swarm.loop.trimmedReplies)} | ${String(swarm.loop.rivals)} | ${String(swarm.loop.decisions)} (${String(swarm.loop.rejectedHypotheses)}) | ${String(swarm.loop.drafts)} | ${String(subproblems.done)} / ${String(subproblems.claimed)} / ${String(subproblems.open)} | ${String(swarm.loop.claimsWithoutSuperseding)} | ${String(swarm.loop.subproblemsWithSecondAnswer)} |`;
 };
 
-/** Words in an answer as a reader would count them: runs of non-space characters. */
-export const wordCount = (text: string): number =>
-  text
-    .trim()
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
+export { wordCount };
 
 const answerRow = (r: ProblemResult): string => {
   const swarm = r.swarm;
@@ -208,7 +204,9 @@ const answerRow = (r: ProblemResult): string => {
   const baselineKind =
     r.baseline === null
       ? 'none'
-      : `${r.baseline.truncated ? '**truncated**' : 'complete'}${r.baselineCached ? ', cached' : ''}`;
+      : r.baseline.void
+        ? '**void** (under half its word budget after a second attempt; not judged)'
+        : `${r.baseline.truncated ? '**truncated**' : 'complete'}${r.baseline.attempts > 1 ? ', on the second attempt' : ''}${r.baselineCached ? ', cached' : ''}`;
   return `| ${r.problem.id} | ${kind} | ${swarmWords} | ${writeUpCost} | ${baselineWords} | ${baselineKind} |`;
 };
 
@@ -280,6 +278,15 @@ const baselineTokens = (b: NonNullable<ProblemResult['baseline']>): string =>
 /** Things a reader must know before trusting the table. */
 export const honestyNotes = (pass: PassResult): string[] => {
   const notes: string[] = [];
+  // A baseline under half the words it was asked for is asked for once more; one that is
+  // still short is void: not judged, and its pair left out of the means, not scored 0.
+  const voided = pass.results.filter((r) => r.baseline?.void === true);
+  for (const r of voided) {
+    if (r.baseline === null) continue;
+    notes.push(
+      `\`${r.problem.id}\`: the baseline is void (${String(wordCount(r.baseline.answer))} words of about ${String(r.baseline.wordBudget)} asked for, after a second attempt). The pair was not judged and is left out of the means.`,
+    );
+  }
   const truncated = pass.results.filter((r) => r.baseline?.truncated === true);
   if (truncated.length > 0) {
     notes.push(

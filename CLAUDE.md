@@ -41,6 +41,7 @@ pnpm solve "<problem>" [--fake]  # run the swarm from the CLI; --fake uses FakeM
 pnpm ledger:import [file]        # one-shot import of the old data/spend.jsonl into model_calls
 pnpm db:generate                 # regenerate the SQL migrations after a schema change
 pnpm eval [--profile cheap --yes] # swarm vs single-call baseline at equal cost, judged blind (evals/README.md); --fake needs nothing
+pnpm eval:judge --pair <pass>=<alias> --solo <ref>,… # judge existing answers again, pairwise or alone; no swarm runs (evals/README.md)
 ```
 
 ## Architecture rules — non-negotiable
