@@ -7,20 +7,14 @@ import { parseArgs } from 'node:util';
 import {
   AGENT_ROLES,
   calendarMonth,
-  createController,
-  createDefaultAgents,
   describeRosterError,
   err,
   isPaidProvider,
-  latestSynthesis,
   ok,
   resolveEvalModels,
   resolveProfile,
-  type AgentRole,
-  type BoardEvent,
   type Clock,
   type Controller,
-  type ControllerError,
   type Model,
   type ResolvedEvalModels,
   type ResolvedModel,
@@ -28,7 +22,7 @@ import {
   type Roster,
   type RunProfile,
 } from '@team/core';
-import { createScriptedModels, SCENARIO_PRICING } from '@team/core/testing';
+import { SCENARIO_PRICING } from '@team/core/testing';
 import {
   createCliLogger,
   createUuidV7Generator,
@@ -55,10 +49,13 @@ import {
 import { BaselineRecordSchema, type BaselineCache, type BaselineRecord } from './baseline';
 import { createFakeBaseline, createFakeJudge } from './fake';
 import { mulberry32 } from './judge';
-import { loopFigures } from './loop';
-import { runPass, type PassResult, type SwarmOutcome, type SwarmWriteUp } from './pass';
+import { runPass, type PassResult } from './pass';
 import { parseProblemFile, type Problem } from './problems';
 import { renderPair, renderReport, selectPairs } from './report';
+import { createScriptedSwarm, createSwarmRunner, type SwarmModels } from './swarm-runner';
+
+// The run's write-up as its log has it: defined with the runner, named here as before.
+export { writeUpFailureOf, writeUpOf } from './swarm-runner';
 
 // pnpm eval — the swarm against a single-call baseline at equal cost, judged blind
 // (docs/PLAN.md §6 Phase 5, ADR-0012, docs/budget-guardrails.md §9). The wiring mirrors
@@ -219,63 +216,7 @@ export const baselineStandIn = (
     : ok({ alias, ...model });
 };
 
-/** A controller error in one line, with the issues of a refused config rather than its kind alone. */
-const describeControllerError = (error: ControllerError): string => {
-  switch (error.kind) {
-    case 'invalid_config':
-    case 'invalid_problem':
-    case 'invalid_note':
-      return `${error.kind}: ${error.issues.join('; ')}`;
-    case 'monthly_budget':
-      return `monthly_budget: ${error.spentUsd.toFixed(4)} of ${error.limitUsd.toFixed(2)} spent, a cap of ${error.requestedCapUsd.toFixed(4)} does not fit`;
-    case 'ledger':
-      return `ledger: ${error.message}`;
-    case 'store':
-      return `store: ${error.error.kind}`;
-    case 'terminated':
-    case 'paused':
-      return `${error.kind}: ${error.reason}`;
-    case 'not_started':
-    case 'already_started':
-    case 'not_paused':
-      return error.kind;
-  }
-};
-
-/** The final write-up's call as the run's log has it, or null when it never started. */
-export const writeUpOf = (events: readonly BoardEvent[]): SwarmWriteUp | null => {
-  const started = events.findLast((e) => e.type === 'write_up_started');
-  if (started?.type !== 'write_up_started') return null;
-  const completed = events.findLast((e) => e.type === 'write_up_completed');
-  const done = completed?.type === 'write_up_completed' ? completed : undefined;
-  return {
-    maxOutputTokens: started.maxOutputTokens,
-    wordBudget: started.wordBudget,
-    written: (done?.newEntries ?? 0) > 0,
-    costUsd: done?.usage.costUsd ?? 0,
-    attempts: done?.attempts ?? 1,
-    short: done?.short ?? false,
-    retriedFor: done?.retriedFor ?? [],
-    leaks: done?.leaks ?? [],
-  };
-};
-
-/**
- * Why a run's answer is not its write-up: what the controller logged against the
- * Synthesizer after the last round ended, or that no write-up was attempted at all.
- */
-export const writeUpFailureOf = (events: readonly BoardEvent[]): string => {
-  const lastRound = events.map((e) => e.type).lastIndexOf('round_completed');
-  const failure = events
-    .slice(lastRound + 1)
-    .findLast((e) => e.type === 'agent_failed' && e.agentId === 'synthesizer');
-  if (failure?.type === 'agent_failed') return `${failure.reason}: ${failure.detail}`;
-  return events.some((e) => e.type === 'write_up_started')
-    ? 'the write-up committed nothing'
-    : 'no final write-up was attempted';
-};
-
-const gitCommit = async (): Promise<string | null> => {
+export const gitCommit = async (): Promise<string | null> => {
   try {
     const { stdout } = await promisify(execFile)('git', ['rev-parse', '--short', 'HEAD']);
     return stdout.trim() || null;
@@ -457,22 +398,15 @@ export const main = async (
     const sink = calls.sink;
 
     // Models: scripted under --fake, real ones through the shared builders otherwise.
-    const ref: { controller: Controller | undefined } = { controller: undefined };
-    let swarmModels: { roles: Record<AgentRole, Model>; fallback: Model | undefined };
+    let swarmModels: SwarmModels;
+    let onController: ((controller: Controller) => void) | undefined;
     let baselineModel: Model;
     let baselineAllowanceModel: Model | null = null;
     let judgeModel: Model;
     if (values.fake) {
-      const scripted = createScriptedModels(() => {
-        if (ref.controller === undefined) throw new Error('controller not ready');
-        return ref.controller.currentView();
-      });
-      swarmModels = {
-        roles: Object.fromEntries(
-          AGENT_ROLES.map((role) => [role, traceModel(scripted[role], sink, now)]),
-        ) as Record<AgentRole, Model>,
-        fallback: undefined,
-      };
+      const scripted = createScriptedSwarm(sink, now);
+      swarmModels = scripted.models;
+      onController = scripted.onController;
       baselineModel = traceModel(createFakeBaseline(SCENARIO_PRICING), sink, now);
       judgeModel = traceModel(createFakeJudge(SCENARIO_PRICING), sink, now);
     } else {
@@ -573,69 +507,19 @@ export const main = async (
         : null;
 
     const periodBudget = paid && !values.fake ? { ...settings.value, ledger } : undefined;
-    const runSwarm = async (
-      problem: Problem,
-      maxCostUsd: number,
-      writeUpMaxOutputTokens: number | null,
-    ): Promise<Result<SwarmOutcome, string>> => {
-      const agents = createDefaultAgents(swarmModels.roles, prompts.value, swarmModels.fallback);
-      const events: BoardEvent[] = [];
-      const controller = createController({
-        store,
-        clock,
-        ids,
-        logger,
-        agents,
-        // The run ends with the Synthesizer's model writing the answer (docs/PLAN.md §2.3 step 8).
-        writeUp:
-          writeUpPrompt.value === undefined
-            ? undefined
-            : {
-                model: swarmModels.roles.synthesizer,
-                fallback: swarmModels.fallback,
-                prompt: writeUpPrompt.value,
-              },
-        periodBudget,
-        profile: profile.value,
-        onEvent: (event) => events.push(event),
-      });
-      ref.controller = controller;
-      const started = await controller.start(
-        {
-          content: problem.statement,
-          constraints: problem.constraints,
-          successCriteria: problem.successCriteria,
-        },
-        {
-          maxCostUsd,
-          // The baseline's output allowance, so the write-up is asked for the same words.
-          ...(writeUpMaxOutputTokens === null
-            ? {}
-            : { writeUp: { maxOutputTokens: writeUpMaxOutputTokens } }),
-        },
-      );
-      if (!started.ok) return err(`could not start: ${describeControllerError(started.error)}`);
-      const result = await controller.run();
-      if (!result.ok) return err(`run failed: ${describeControllerError(result.error)}`);
-      const synthesis = latestSynthesis(result.value.view);
-      const stage = synthesis?.payload.stage ?? null;
-      return ok({
-        runId: result.value.runId,
-        answer: synthesis?.content ?? null,
-        confidence: synthesis?.payload.confidence ?? null,
-        stage,
-        writeUp: writeUpOf(events),
-        writeUpFailure: stage === 'final' ? null : writeUpFailureOf(events),
-        loop: loopFigures(result.value.view, events, calls.forRun(result.value.runId)),
-        rounds: result.value.rounds,
-        status: result.value.status,
-        reason: result.value.reason,
-        entries: result.value.totals.entries,
-        usage: result.value.totals.usage,
-        costUsd: result.value.totals.usage.costUsd,
-        elapsedMs: result.value.totals.elapsedMs,
-      });
-    };
+    const runSwarm = createSwarmRunner({
+      store,
+      clock,
+      ids,
+      logger,
+      periodBudget,
+      profile: profile.value,
+      models: swarmModels,
+      prompts: prompts.value,
+      writeUpPrompt: writeUpPrompt.value,
+      calls,
+      onController,
+    });
 
     const passId = ids.next();
     io.write(`Pass ${passId}: ${String(problems.length)} problems, results in ${outDir}`);
