@@ -1,0 +1,32 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:46:44.656Z",
+  "spentUsd": 0.0007922000000000001,
+  "outcome": "answered",
+  "text": "Recommendation: store every note as a local document in an embedded database on each device, use a CRDT-based document model for text so that concurrent edits merge automatically without losing text, and design the sync protocol from day one as a peer-to-peer exchange of change logs that a hosted relay can later join as just another peer. Ship the first release with no server at all, using direct device-to-device sync (for example over the local network or a file or cloud-folder transport the user already owns) as an optional convenience. When the paid hosted service arrives, it becomes a relay that stores and forwards the same change logs; existing users connect to it by adding an account, not by moving data.\n\nOn-device storage: use SQLite as the storage engine, with notes stored as CRDT state (for example Automerge or Yjs, or a similar sequence CRDT) in a blob column plus a plain indexed table of metadata such as title, timestamps, and tags for fast listing and search. Attachments up to 10 MB should live in a content-addressed blob store on disk, keyed by a hash, referenced from the note's CRDT by hash rather than embedded inline, so that large binaries never bloat note sync and identical attachments deduplicate. Rejected alternatives: plain JSON or Markdown files with last-writer-wins are simple but silently discard one device's text on concurrent edits, which violates the core expectation. Core Data or Realm tie you to one platform or a vendor's sync model and make a shared phone-and-laptop codebase harder. A pure operational-transform approach needs a central server to order operations, which contradicts the offline-first requirement.\n\nConcurrent edits and conflicts: each device records its edits as changes to the CRDT, and when two devices reconcile, the merge is deterministic, so both end up with identical text containing both sets of insertions and deletions. Text is never lost in the merge. Users should see this as ordinary text rather than a conflict dialog for prose, which is what most people expect. The one place a human decision is genuinely needed is when the same attachment has been replaced differently on two devices or metadata like a title has been set to two different values; for these, keep both versions, show a small non-blocking 'two versions found' notice with a side-by-side view, and let the user pick, defaulting to keeping both. Never silently drop either side. Also keep a bounded local history so an accidental merge can be reverted.\n\nMigration path: because the sync format is the change log from day one, adding the hosted service requires no data migration. Today's peer exchange and tomorrow's relay speak the same protocol. Concretely, in the first release, each note carries a stable ID and every device appends changes to a local log with device and sequence identifiers. The hosted service later accepts those logs, stores them per account, and serves them to the user's other devices. Existing users simply sign in, at which point their devices upload their full logs once; no action is required beyond a prompt. Keep the sync transport behind an interface so the peer transport and the relay transport can run side by side during the transition, and never make the relay the only path, so that offline use is preserved.\n\nRisks and how to detect them early: first, CRDT state can grow large over time with heavy editing, which matters on phones; measure document size and load time with realistic editing histories in the first month and add compaction (periodic snapshot plus truncated log) if growth exceeds a set budget. Second, the 10 MB attachments might make peer sync slow or unreliable on poor networks; test resumable, chunked transfer of blobs early and track sync completion times in beta. Third, the team may find the CRDT library's maturity or its mobile bindings insufficient; prototype the merge of two divergent offline edits on both iOS and Android in the first two weeks, and check that merged output matches on every platform. Fourth, users may find the no-server peer sync too fiddly, which would hurt adoption before the hosted service exists; watch for support tickets about failed device pairing and be ready to offer a simple optional file-folder transport. Fifth, a hosted relay creates a privacy and trust obligation; decide early on end-to-end encryption of change logs so the service cannot read notes, which also simplifies the paid offering. Each risk should have a concrete metric and a kill threshold reviewed at the six-month mark, when paying customers are expected.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2700,
+    "usage": {
+      "inputTokens": 987,
+      "outputTokens": 1387,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0007922000000000001
+    },
+    "latencyMs": 10060,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 753,
+  "wordBudget": 900
+}

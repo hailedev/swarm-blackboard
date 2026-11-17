@@ -1,0 +1,54 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:45:57.742Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Shift to a mandatory two-week release cadence to normalize the workflow and remove 'heroics,' supported by a strict 'New Feature = Feature Flag' rule that decouples deployment from release. This approach makes hotfixes rare by catching risks early and ensures that any remaining bugs can be disabled instantly via the backend, eliminating the need for urgent binary re-submissions.\n\nRelease Cadence and Rationale: The team will ship a new version every two weeks on a fixed Tuesday. This bi-weekly cycle is the maximum sustainable throughput for a mobile app with mandatory one-to-three-day store review windows. While DORA data suggests high-performing teams aim for lead times under 28 hours, that model relies on immediate deployment capabilities which mobile stores do not provide. Attempting to ship daily or weekly would force the team into constant 'heroic' modes to meet arbitrary deadlines before the store review bottleneck resolves. A two-week window provides sufficient buffer for the one-to-three-day review process to complete without rushing. It allows engineers to finish code, run necessary checks, and submit builds without overlapping submissions, which reduces the likelihood of rejections caused by rushed or poorly prepared binaries. This cadence ensures that 'when things are ready' becomes a routine schedule rather than a source of stress.\n\nHotfix Path and Frequency Reduction: The new process aims to make hotfixes rare by shifting the focus from rapid repair to preventive flagging. For the minority of cases where a binary hotfix is unavoidable, we replace the old reactive model with a 'Staged Rollout Submission.' Instead of waiting for the next scheduled release, a fix build is submitted immediately to the store. Crucially, this submission uses the app stores' native staged rollout features (starting at 1% or 10% visibility) rather than a full release. This does not bypass the 1-3 day review queue but ensures that if the binary passes review, it only affects a tiny fraction of users initially, allowing the team to monitor for crashes before scaling up. To further reduce the need for hotfixes, the team adopts an 'Instant Kill Switch' strategy using feature flags. If a bug is discovered in a deployed version, the flag can be disabled via a remote configuration service. This effectively makes the hotfix time zero days for UI or logic errors, as users do not need to reinstall the app. This eliminates the two-day exposure window for most bugs, satisfying the goal of faster recovery without needing faster store reviews.\n\nFeature Flag Rules and Governance: To ensure flags are used effectively despite having no dedicated QA, we implement a simple 'Release Manager Heuristic' rule. Every change that introduces new UI elements, alters user-facing logic, or changes backend integration points MUST be shipped behind a feature flag. The sole exception is simple, single-file bug fixes for known, low-risk issues (e.g., correcting a typo or fixing a null pointer in a stable utility class). These small fixes can ship directly without flags to maintain flow. For all other changes, the code merges to main but remains disabled for users until the next scheduled release. This rule leverages the Release Manager's context to judge risk rather than relying on automated tools. The Release Manager reviews the PR scope: if it touches core logic or UI, it is flagged. This heuristic ensures that risky code is never live without being swappable, drastically reducing the frequency of true binary hotfixes.\n\nMeasurable Success Criteria in Three Months: To verify this process works by the end of three months, the team will track two specific metrics against a baseline established at kickoff. First, we measure 'Flagged Release Ratio': the percentage of releases where all changes were shipped behind flags. We target a ratio above 80%. If the ratio is low, it means we are still shipping risky code directly, leading to bugs. Second, we measure 'Hotfix Frequency per Quarter': the number of times a binary hotfix was required to patch a live app. We aim for this number to drop from the current baseline (approx. 1-2 per quarter) to near zero. If binary hotfixes drop to zero but bugs persist, the flag system is working as intended (bugs are killed via config). The third metric is 'Review Cycle Consistency': the standard deviation of time between releases. We aim for a tight two-week cycle (e.g., +/- 1 day variance), proving that 'heroics' have been replaced by routine.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e873-9b95-7816-8fe9-a075d3dac624",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 77,
+    "elapsedMs": 304727,
+    "usage": {
+      "inputTokens": 89328,
+      "outputTokens": 17396,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 28,
+      "resolved": 7
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 724,
+  "wordBudget": 900
+}

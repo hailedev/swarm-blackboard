@@ -1,0 +1,54 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:52:40.375Z",
+  "spentUsd": 0.0191597,
+  "outcome": "answered",
+  "text": "Recommendation: stay multi-repo and fix propagation directly. Do not move to a monorepo. The pain is late breakage of shared-library changes, which is a validation-timing problem, not a repository-layout problem. A monorepo would cost a large migration, rebuild-heavy CI that finance would notice, and a loss of team-owned release cadence, while the same consumer-tests-before-publish gate can be added to the existing repos. The deciding reasons are the one-sprint limit, the CI budget, and the constraint that teams keep their deploy schedules.\n\nFixing the shared-library problem: each of the three libraries gets a consumer canary job in its own CI. When a library PR opens, the pipeline clones the consumers listed in a central deps.json manifest into ephemeral containers and runs their test suites against the unreleased library, injected by commit hash or temporary package URL. Consumer source files and consumer CI configs are not modified; the credential and registry setup lives in a standardized runner template with keys held in the platform vault. A breaking API change therefore fails the library PR before any version bump, rather than surfacing days later. A nightly job parses go.mod and package.json across all 12 repos against the registry and opens a draft PR when a new consumer imports a shared library that deps.json does not list, so the consumer list stays complete. Assumption: the consumer canary covers only consumers listed in deps.json; an unlisted consumer is caught by the nightly drift job within a day, not at PR time.\n\nMigration plan, within one sprint of stopped feature work in total. Week 1, parallel with feature work: the platform engineer builds the reverse dependency scan from the registry and package manifests (about 10 to 15 engineer-days including the drift job, spread across the platform team), and writes the runner template. Week 2, parallel: each library owner wires the canary job into their library CI, about 1 to 2 engineer-days per library. No feature freeze is needed for these steps. The only stopped feature work is a half-day per team in the final sprint day to adopt the shared runner template and confirm their consumer entry is correct, about 2.5 engineer-days across five teams. That is well inside the single-sprint limit.\n\nDeploy ownership is unchanged. Each team keeps its own repositories, deploy pipelines, schedules and rollback. Library owners keep publishing on their own cadence. Consumers still decide when to bump their go.mod or package.json; the canary only guarantees that a published version has already passed their tests. The cost is that a consumer may lag on versions, which the nightly drift check and a monthly bump reminder mitigate but do not eliminate.\n\nCI cost: the canary adds one ephemeral consumer run per consumer per library PR. Estimated at 3 to 5 minutes per run including clone and setup, with about 4 consumer runs per library PR, that is roughly 12 to 20 extra minutes per library PR. Mitigations: path filters so the canary runs only when exported APIs change, detected by static analysis; build caches for dependencies; and test sharding for large consumers. Assumption: these mitigations keep the net increase under 15 percent of the current CI-minute baseline; if library PR volume is high, the increase rises proportionally and finance should be given the measured figure after the first month.\n\nRisks and costs of this recommendation, stated honestly. First, the canary catches only breaks in consumers it runs; untested consumer behaviour can still break, so likelihood of residual late breakage is medium and impact is moderate. Second, the canary and drift job are tooling that the platform team must maintain, roughly 0.5 engineer-day per week ongoing, and Go and TypeScript toolchain friction in ephemeral containers is likely to cause flaky runs at first. Third, version lag is a persistent risk: consumers may stay on old versions, leading to a larger eventual upgrade; likelihood high, impact moderate, mitigated by a monthly bump reminder. Fourth, CI cost rises by the figure above, which finance must accept. Fifth, if the canary proves too brittle, the fallback is a pre-release channel with a short soak window, which trades some propagation speed for stability.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e843-3fcc-74c5-b1db-fa113b46c825",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 90,
+    "elapsedMs": 276585,
+    "usage": {
+      "inputTokens": 103136,
+      "outputTokens": 23653,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 41804,
+      "reasoningTokens": 0,
+      "costUsd": 0.0191597
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2691,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001508575,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 31,
+      "resolved": 20
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 684,
+  "wordBudget": 900
+}

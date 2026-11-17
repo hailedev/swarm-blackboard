@@ -1,0 +1,54 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:02:43.436Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommend using Yjs CRDTs for in-memory state management with SQLite (WAL mode) and a file-system-based attachment store, synchronized via an op-based protocol that transitions from local HTTP to hosted REST without data migration. Store the full textual document state as a compact binary blob within a single SQLite TEXT column, keeping attachments out of the database to ensure performance. This approach prevents text loss during concurrent edits by leveraging Yjs’s automatic merge capabilities, while the separation of storage allows for seamless scaling to a cloud service.\n\nFor on-device storage and sync strategy, adopt Yjs as the core CRDT library because it produces smaller transaction logs than alternatives like Automerge, which is critical for limited bandwidth environments. Store notes in SQLite using Write-Ahead Logging (WAL) mode; WAL ensures robust concurrent read/write access on both mobile and desktop platforms without locking issues. To address critiques regarding opaque binary blobs, serialize the Yjs document state using its native BinaryEncoder/Decoder, then store this hex-encoded string in a TEXT column. This makes the database inspectable via standard SQL tools while keeping the heavy sync payload manageable. Store attachments as files on the file system, keyed by their SHA-256 hash, stored outside the database to prevent bloating every sync message with 10 MB data. Reject pure file-system storage for notes because it lacks transactional integrity, and reject storing attachments within CRDT payloads because it forces sending entire documents over the wire even for minor text edits.\n\nConcurrent edits are reconciled automatically by Yjs in memory. When two devices edit the same note offline, Yjs merges the operation sequences deterministically. To satisfy the requirement that users do not lose text, the app must assume a 'best-effort merge' where overlapping edits are preserved as much as possible through vector space logic. If true structural ambiguity arises (e.g., two users deleting/inserting at the same index), Yjs applies a deterministic tie-breaker based on client ID and clock. The user sees no conflict markers during normal operation; the merge is silent. However, if the merge results in unexpected text loss due to CRDT limitations (such as competing insertions that cannot be fully reconciled), the app should display a 'Merge Conflict' banner only when the user explicitly opens the note, providing a 'View Changes' button that shows a diff view of the conflicting segments. This avoids cluttering the UI while ensuring no data is permanently lost without user awareness.\n\nThe migration path from 'no server' to hosted sync is zero-touch for existing users. Initially, the app runs in peer-to-peer (P2P) mode using a local HTTP server on one device (e.g., the laptop acting as a hotspot or primary node). The two devices exchange data via direct HTTP requests over a local network. Store a `config.json` or metadata row in SQLite that lists known sync partners (peers) and, initially, no hosted endpoint. When the hosted service launches, the server provides a unique endpoint URL. The client updates its config to include this new server as another 'peer' in the list. The sync protocol remains identical: exchange of Yjs operation logs (deltas). Because the local storage schema (SQLite + file system) is unchanged, the hosted server simply acts as a central message broker for these deltas and a blob store for attachments. Existing users do not migrate data; they merely change the destination of their HTTP requests from 'local peer' to 'hosted endpoint'.\n\nKey risks include CRDT storage bloat due to unbounded history, sync failures if local HTTP is blocked by firewalls on mobile networks, and silent data loss in complex conflicts. To detect storage bloat early, implement a 'Local-First Garbage Collection' strategy where old operation logs are pruned only after confirming the state has been successfully synced to at least one other device. Monitor database size weekly; if it exceeds 50 MB for small notes, prune aggressively. For sync failures, use a heartbeat mechanism over the local connection; if no response is received in 30 seconds, switch to 'offline-only' mode and queue operations. To detect silent data loss risks, conduct manual conflict tests with two developers editing the same line simultaneously on two devices, verifying the final state matches expectations for at least 100 different edit sequences. If Yjs fails to preserve text in a specific edge case, flag it immediately for potential custom patching or fallback strategies.\n\nThe main risk is that Yjs’s automatic merge might not perfectly preserve all user intent in complex scenarios, leading to 'silent' text reordering. The team mitigates this by assuming CRDTs are sufficient for the first release and relying on the diff view for manual resolution if needed. Another risk is the reliance on local HTTP for P2P sync, which may fail on mobile networks without a direct hotspot. Mitigation: fallback to QR-code-based exchange of compressed state vectors if Wi-Fi Direct is unavailable. The final risk is that unbounded history bloats storage. Mitigation: Implement garbage collection that prunes history once the current state is confirmed synced to another device or a local backup table. This ensures data safety even if one device is lost, provided the other copy remains.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e84b-f818-70a9-9181-17a796dce372",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 80,
+    "elapsedMs": 308179,
+    "usage": {
+      "inputTokens": 100503,
+      "outputTokens": 16509,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 843,
+  "wordBudget": 900
+}

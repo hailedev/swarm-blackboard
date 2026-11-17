@@ -1,0 +1,32 @@
+{
+  "problemId": "eu-log-retention",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:47:24.568Z",
+  "spentUsd": 0.0010111,
+  "outcome": "answered",
+  "text": "Recommendation: adopt a tiered retention schedule in which application logs are kept 30 days, infrastructure logs 30 to 90 days, audit logs 13 months, and database backups 35 days (with a documented exception for the 90-day window only if restore testing requires it). Pair this with a per-tenant deletion pipeline that removes a terminated customer's live data within 30 days, and an explicit statement that encrypted backup copies age out on their own schedule and are not restored for that tenant. This keeps the team's promises to customers and the security lead's audit requirement compatible, without a compliance department.\n\nApplication logs (user identifiers and free text): keep 30 days. These logs are the most privacy-sensitive class because free text can contain personal data users never meant to record. The reason for a short period is that debugging rarely needs older application logs, and every extra day multiplies exposure. Redact or hash user identifiers at write time where feasible, and drop free-text fields from logs by default, so that the retention question is smaller in the first place.\n\nInfrastructure logs (IP addresses): keep 30 to 90 days, with 30 as the default. IP addresses are personal data under GDPR when they can be linked to a person, which is usually true for logs tied to authenticated sessions. Ninety days is a defensible ceiling for intrusion and availability investigations; anything beyond that needs a written justification. Where IP is only needed for coarse geography or rate limiting, truncate it (for example the last octet removed) at ingestion.\n\nAudit logs (who did what to which account or configuration): keep 13 months. The security lead's request for at least one year is reasonable because it covers a full annual cycle and typical incident discovery lags. Thirteen months gives a small buffer past one year. Audit logs should record actions and resource identifiers rather than personal content, which keeps them lighter and easier to justify. They should be append-only and access-controlled, since their value depends on integrity.\n\nDatabase backups: keep 35 days, not 90. Daily backups at 90 days exceed what the company needs for recovery: a 35-day window still allows restoration to any of the last five weeks, which covers almost all realistic corruption or ransomware scenarios. The 90-day figure is the main obstacle to the deletion promise, so reducing it removes most of the conflict. If a longer window is kept for disaster recovery, it should be justified in writing and limited to encrypted, access-restricted storage.\n\nHonouring the 30-day deletion promise. Live systems are the part the company fully controls: when a customer terminates, a tenant-scoped job deletes that customer's rows from production stores, caches and search indexes within 30 days, and the 30-day log retention means their log entries are gone on their own by then. Backups cannot be edited record by record, so the honest position is different: after termination the customer's data persists in backup copies until they expire under the 35-day schedule, which means deletion is complete at about 65 days from termination in the worst case. The contract wording must either state that backups are deleted on the normal cycle, or the company must commit to a crypto-shredding design (a per-tenant encryption key destroyed at termination) so that residual backup data is unreadable. Legal review of the contract text is needed here; the team should not promise more than its mechanism delivers.\n\nEnforcement and proof. Use scheduled jobs in the existing platform: log store lifecycle or TTL policies for application and infrastructure logs, a scheduled deletion job for terminated tenants, and backup-tool retention settings. Each job should write a record (timestamp, scope, count of objects removed, outcome) to an append-only ledger. To prove the schedule ran, keep those ledger entries, periodically sample storage to confirm the oldest remaining object is within the window, and run a quarterly restore test that also checks expiry. Alerts should fire when a job fails or a backlog exceeds the window. This evidence is what an auditor or customer would ask for, and it is generated without a compliance team.\n\nGDPR concepts the schedule relies on. Storage limitation (Article 5(1)(e)) requires personal data to be kept no longer than necessary for the purpose, which is the basis for the short periods. Data minimisation (Article 5(1)(c)) justifies dropping free text and truncating IP addresses. Article 17 (right to erasure) and the controller/processor distinction matter because, for customer data, the company is typically a processor acting on the customer's instructions, so deletion on termination follows the customer's documented instructions under Article 28. Security of processing (Article 32) supports the audit-log and access-control choices. Where an audit-log period is set for security reasons, Article 6(1)(f) legitimate interest is the usual basis, which must be documented in a balancing test rather than assumed.\n\nWhat we are and are not claiming. We are claiming the schedule is technically achievable, that it reduces retention and exposure, and that the proposed evidence trail would show the jobs ran. We are not claiming legal compliance: whether these periods satisfy a particular EU or US regulator, or a specific customer's contract, needs review by counsel, and US state privacy laws and any sector rules may add requirements. We have not verified the company's actual logging stack, so the mechanisms above assume features (TTL policies, tenant-scoped deletion, encryption keys) that must be confirmed. Open questions: whether any customer requires backups to be deleted within 30 days, whether disaster recovery needs longer copies, and who signs off the legitimate-interest assessment for audit logs.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2692,
+    "usage": {
+      "inputTokens": 1061,
+      "outputTokens": 1810,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0010111
+    },
+    "latencyMs": 11781,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 919,
+  "wordBudget": 900
+}

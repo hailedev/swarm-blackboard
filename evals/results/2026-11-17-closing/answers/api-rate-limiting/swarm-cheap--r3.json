@@ -1,0 +1,54 @@
+{
+  "problemId": "api-rate-limiting",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:25:13.493Z",
+  "spentUsd": 0.019464975,
+  "outcome": "answered",
+  "text": "Recommendation: enforce each customer's limit with a token bucket held in memory in every region, with a per-region share of the plan quota, and reconcile the regions asynchronously against a shared store so that no request waits on a cross-region call.\n\nAlgorithm. A token bucket suits bursty clients because its capacity equals the burst allowance: a paying customer on a 600 requests-per-minute plan has a bucket of 600 tokens refilled at 10 tokens per second. A scheduled job can spend the whole minute's allowance in two seconds, then is held to the 10-per-second average. A fixed-window counter admits up to double the limit across a window boundary, and a leaky bucket smooths bursts away, which penalises exactly the clients described. A sliding window log is accurate but costs memory and time proportional to recent requests. Free accounts use capacity 60 with refill 1 token per second, and paying tiers scale the same way up to 6,000 per minute.\n\nState and sharing. Each region holds the bucket for each customer in local memory, and the admission check is a read, compare and decrement in process, well under one millisecond, which keeps the added latency far inside the five millisecond budget. Each region is granted a fixed share of the plan, one third by default, so a single-region burst can use only its share immediately. Regions push their consumption to a shared store every one to five seconds and rebalance shares from the observed spread. The inaccuracy this implies is concrete: a customer whose traffic is evenly spread across regions can be under-admitted by up to two thirds of a burst in one region until shares rebalance, and during a rebalance window a customer can overshoot the plan by up to roughly one plan-limit's worth of extra tokens in the worst case. Assumption: traffic from one customer is spread across regions well enough that rebalancing every few seconds keeps single-region bursts close to the plan.\n\nDegraded store. Store calls are made off the request path with a short timeout, and a circuit breaker opens after repeated failures. While the store is slow or down, each region keeps enforcing its local bucket, so the API keeps serving and the latency budget is preserved. Assumption: during a total outage a customer can exceed its plan by up to the sum of the regional shares, roughly the full plan again, and this is accepted for paying tiers; free tiers instead fail closed at their local share so that a store outage cannot multiply free traffic. When the store returns, regions resynchronise and shares are recomputed. The design does not recover overshoot already admitted during the outage; the excess is simply absorbed.\n\nClient contract. Responses carry RateLimit-Limit with the plan limit, RateLimit-Remaining with the tokens left in the region's bucket, and RateLimit-Reset with the number of seconds until the bucket would hold a full burst again. Rejections return HTTP 429 with a Retry-After in whole seconds, computed from the time until one token is available, plus a random jitter of up to twenty percent so that rejected bursty clients do not retry in lockstep. Remaining is an estimate and can disagree with admission during reconciliation, so clients should treat it as advisory and rely on Retry-After.\n\nKnown errors. The worst-case overshoot across three regions during a reconciliation window is about one plan-limit above quota, and the worst-case under-admission for a single-region burst is about two thirds of the burst until shares rebalance. Clock skew between regions shifts refill by well under a second because each bucket refills from its own monotonic clock, so window-boundary effects are negligible. Free clients are the most exposed during degradation, since their small shares are the first to reject legitimate bursts.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7bc-01cd-75c5-b9d1-2fd6d3e1cb23",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 82,
+    "elapsedMs": 292935,
+    "usage": {
+      "inputTokens": 106842,
+      "outputTokens": 23637,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 41003,
+      "reasoningTokens": 0,
+      "costUsd": 0.019464975
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.00139065,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 31,
+      "resolved": 9
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 620,
+  "wordBudget": 900
+}

@@ -1,0 +1,56 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:51:45.011Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: The application should utilize SQLite as the primary on-device storage engine, storing Yjs document state for text notes and linking external files for attachments up to 10 MB. For synchronization, the team should implement a peer-to-peer sync protocol using Yjs's built-in encoding, initially relying on local network discovery for ad-hoc sharing, and transitioning to a hosted REST API service for persistent cloud sync. This approach satisfies the offline-first constraint while ensuring that text edits are reconciled automatically via Conflict-free Replicated Data Types (CRDT) logic, preventing data loss during concurrent offline usage.\n\nSuccess Criterion 1: On-Device Storage and Sync Strategy. We select SQLite over Realm or raw file storage because SQLite provides ACID-compliant transactions essential for data integrity without a server, is fully offline-capable, and offers a stable, self-contained binary format that requires no schema migration when moving to a cloud backend. While Realm offers good local performance, its sync features are tied to a paid hosted service, creating licensing barriers for our 'no-server' start phase. Raw file storage (JSON) lacks relational integrity for linking notes to large attachments. SQLite is sufficient for concurrent reads but cannot handle complex text merge conflicts alone; therefore, we embed Yjs CRDT state within SQLite blobs. For sync strategy, we reject a server-dependent Operational Transformation (OT) approach because it violates the 'no server' constraint. Instead, we use Yjs's offline-capable encoding to generate portable data structures that can eventually be uploaded to a simple HTTP endpoint without changing the local data model.\n\nSuccess Criterion 2: Concurrent Edits and Conflict Resolution. The app uses Yjs, a CRDT library, to handle text edits automatically. When two users edit the same note offline, Yjs merges changes deterministically based on operational precedence, ensuring no text is lost. The user sees a unified document that reflects all valid insertions and deletions from both devices; manual conflict resolution is unnecessary for standard text edits. For attachments up to 10 MB, we store files externally in the device's file system, indexed by UUID, rather than embedding them in the CRDT state to avoid bloating the database and sync payloads. If two devices attach different files to the same note ID simultaneously, we apply a Last-Write-Wins (LWW) strategy based on a local vector clock or timestamp. The user sees the most recent attachment but retains access to previous versions via a 'History' view in the UI, ensuring no data is silently lost. This separation of text (in Yjs/SQLite) and binary data (external files) mitigates the risk of state explosion.\n\nSuccess Criterion 3: Migration Path from No Server to Hosted Service. The migration path requires zero user intervention or data migration. Initially, the app generates a unique Device ID and maintains a vector clock for every note within the local Yjs document. Attachments are stored as raw binary files linked by UUID. When we introduce a hosted sync service, we simply add an HTTP client that reads these local SQLite records and uploads them to cloud object storage along with the CRDT state blobs. Because the local schema already includes the necessary Device ID and vector clock metadata, the server can ingest existing data without transformation. The transition is purely additive: we introduce a sync agent in the background that begins syncing new changes via HTTP. Existing local-first workflows remain unchanged; the server only acts as a passive store for the first release of the hosted service, mediating conflicts only when necessary.\n\nSuccess Criterion 4: Risks and Early Validation. The primary risks are performance degradation due to SQLite size growth from Yjs metadata and attachment sync consistency. To mitigate metadata bloat, we implement a periodic compaction mechanism in the first two weeks to test if old vector clocks can be safely discarded. For attachment consistency, we risk having orphaned files or mismatched pointers. To find these issues early, the team will run a smoke test: create a note on Phone A, attach a file, then edit the same note on Laptop B offline, and finally sync both devices via a local TCP bridge. We measure if the merged text is correct and if the attached file resolves to a valid object. We also track write latency during heavy concurrent editing to ensure SQLite WAL mode does not bottleneck on low-end phones. If metadata growth exceeds 5% per month of usage, we pivot to a compaction-heavy version immediately.\n\nAssumption: Both developers commit to using Yjs for text and external storage for attachments from day one; if Yjs proves too heavy for mobile memory constraints, the team will switch to Automerge with manual attachment handling. Assumption: The hosted sync service will accept raw binary uploads without immediate processing, allowing existing local files to be ingested as-is into object storage.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e878-41ef-7376-bfb8-7e6491630f35",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 94,
+    "elapsedMs": 347267,
+    "usage": {
+      "inputTokens": 102167,
+      "outputTokens": 19611,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 2,
+      "short": false,
+      "retriedFor": [
+        "leak"
+      ],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 25,
+      "resolved": 10
+    },
+    "calls": {
+      "made": 25,
+      "rejected": 0
+    }
+  },
+  "words": 783,
+  "wordBudget": 900
+}

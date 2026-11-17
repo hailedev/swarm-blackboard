@@ -1,0 +1,54 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:30:30.195Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "We recommend launching a six-week 'Library Beats' programme focused on audio storytelling and podcasting for teenagers aged 13–17 who do not currently use the library. The programme leverages the low barrier to entry of audio creation, requiring only smartphones and free software, to attract non-users through peer-to-peer recruitment and tangible incentives. By shifting from video production to audio-only workflows, we eliminate technical barriers and reduce librarian cognitive load, allowing a single librarian supported by volunteers to effectively manage the group within the four-hour weekly constraint.\n\nRecruitment targets teens in their natural social spaces rather than relying on library marketing. We will recruit 10–15 Student Ambassadors from local high school student councils or community colleges who are seeking service hours. These ambassadors, motivated by their own credit requirements, will distribute physical flyers with scannable QR codes linking to a sign-up form in high-traffic zones such as school hallways, local coffee shops, and fast-food restaurants. This peer-to-peer approach bypasses the need for teens to follow library social media accounts and leverages trusted networks to reach non-users effectively.\n\nThe programme schedule is designed around a 'Hook' of hands-on creation and social interaction. Each week consists of 30 minutes for arrival and informal socializing, two hours for core audio production instruction and work, one hour for sharing and critique sessions, and 30 minutes for wrap-up and feedback collection. The librarian provides targeted instruction on recording, editing using free apps like GarageBand or Audacity, and storytelling techniques. Volunteers staff 'recording booths' to manage parallel projects, allowing the librarian to focus on individual guidance rather than crowd control.\n\nWeek 1 introduces the concept of audio memoirs and personal stories. Teens record their first tracks using their own devices. Week 2 focuses on soundscapes and environmental noise, encouraging them to capture sounds in their community. Week 3 involves interviewing peers or library staff about local interests. Weeks 4–5 focus on editing, mixing, and adding music from royalty-free sources. Week 6 is dedicated to finalizing the projects, creating digital 'portfolios,' and hosting a listening party where teens share their work with parents and community members.\n\nThe $500 budget is allocated to maximize teen engagement and retention, recognizing that food and incentives are critical for this demographic. $150 is allocated for weekly pizza or snacks for all sessions, ensuring attendance and providing a social incentive. $100 is reserved for completion incentives, such as $20 gift cards for five participants who finish the programme, driving long-term commitment. $150 is spent on printed 'event pass' flyers and materials for the listening party (decorations, printing of QR code cards). The remaining $100 is held as a contingency for technical issues or additional snacks.\n\nVolunteers are recruited from local high school student councils or community college social work students. This provides free labor for setup and supervision while adding peer-like credibility to the program. These volunteers manage the 'recording booths,' handle snack distribution, and assist with basic technical troubleshooting, significantly reducing the librarian's direct oversight burden.\n\nOutcome measurement goes beyond attendance by tracking skill acquisition and confidence change. We implement a 'pre-post self-efficacy scale' where teens rate their confidence in specific skills (e.g., public speaking, digital design) on a 1–5 scale at Week 1 and Week 6. This survey is collected digitally during the final session. Additionally, we measure tangible output by verifying that each participant submits a completed audio track of at least three minutes in length by Week 6.\n\nThe evidence of change is compiled in a 'Digital Portfolio Log.' Participants maintain a simple log of their audio work, which serves as qualitative evidence of skill growth. The librarian verifies submissions against objective criteria (project submitted, meets length requirement) and reviews the self-efficacy survey scores to demonstrate increased confidence and engagement. This binary checklist approach allows for asynchronous verification at Week 6, minimizing face-to-face administrative time.\n\nAssumption: Student Ambassadors will secure necessary permissions from schools and private businesses to distribute flyers. If permissions are denied, recruitment shifts to direct social media ads targeting local school geofences, using the remaining budget contingency. This ensures that the reach of non-users is maintained even if physical distribution faces logistical barriers.\n\nThe programme fits the four-hour constraint by limiting complex technical instruction to free, pre-installed apps and focusing on short, manageable projects. The librarian's time is dedicated to high-impact activities like storytelling workshops and final reviews, while volunteers handle logistical tasks. The budget prioritizes food and incentives to ensure retention, addressing the need for extrinsic motivators among non-traditional patrons.\n\nBy combining peer recruitment, low-barrier audio creation, and strong social incentives, 'Library Beats' attracts teens who do not currently use the library. The outcome measures—self-efficacy surveys and completed audio artifacts—provide concrete evidence of change in skills and confidence, satisfying the branch manager's requirement for impact beyond mere attendance.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e865-82c3-7448-a8c2-5742644d7dd2",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 73,
+    "elapsedMs": 301039,
+    "usage": {
+      "inputTokens": 94940,
+      "outputTokens": 16829,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 792,
+  "wordBudget": 900
+}

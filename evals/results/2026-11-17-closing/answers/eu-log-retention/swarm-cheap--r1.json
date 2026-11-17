@@ -1,0 +1,54 @@
+{
+  "problemId": "eu-log-retention",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:17:12.760Z",
+  "spentUsd": 0.021093950000000004,
+  "outcome": "answered",
+  "text": "Recommendation: keep application logs for 30 days with user identifiers and free text masked at ingestion, infrastructure logs for 45 days with IP addresses stripped after 7 days, audit logs for 365 days with identifiers pseudonymised within 48 hours, and daily database backups for 90 days as today. Treat the customer's data as subject to a 30-day deletion on termination for active stores, and handle backup copies by excluding terminated customers from restore paths and by destroying per-customer encryption keys, with the residual backup window disclosed to customers rather than hidden.\n\nApplication logs (30 days): operational debugging rarely needs more than a month of history, and the period matches the contractual deletion promise so that no active store holds customer data beyond it. Free text is scrubbed or truncated at ingestion using a deterministic masking pipeline, and user identifiers are replaced with tokens, so the stored records contain minimal personal data. Assumption: the engineering team confirms that 30 days covers its incident and debugging needs; if a longer window is needed, it should be justified per field, not per store.\n\nInfrastructure logs (45 days): IP addresses are treated as personal data because the company, with its hosting provider and through lawful process, can reasonably identify the person behind an address. IPs are stripped from operational and debug logs after 7 days, leaving non-identifying metrics. The security-relevant subset that retains IPs is kept for 45 days to allow incident investigation. Assumption: 45 days is a proportionate forensic window; it rests on the company's own incident-response needs, not on external ISP retention periods, and should be shortened if incident reviews show it is never used.\n\nAudit logs (365 days): the security lead's one-year requirement is accepted as the company's own legitimate interest under Art. 6(1)(f), supported by a documented balancing test. Because these logs still contain identifiers, they remain personal data; user identifiers and IP addresses are pseudonymised within 48 hours using keyed hashing with a secret that is stored separately and rotated, and the lookup table is deleted. Assumption: the company acts as controller for these security records, which is contestable because they describe customer users; the balancing test and a contract clause covering this processing should be reviewed with counsel, and if the audit logs are found to be processor data, their retention is capped at the customer's instructed period.\n\nBackups (90 days): daily backups keep their current 90-day rotation. The 30-day promise cannot be met for backup copies still within rotation by deleting them individually, so it is met in two parts. First, terminated customers are excluded from every restore path, and any restore of a backup containing their data triggers deletion of that data on restore. Second, each customer's data is encrypted under a per-customer key held in a key-management service; on termination the key is destroyed within 30 days, rendering that customer's data in backups unreadable. This is effective deletion in practice, not proof of absolute anonymisation: the key must not be cached elsewhere, and key-store backups must be covered by the same destruction. The company should state to customers that backup ciphertext persists until rotation ends, and should not claim that backups are anonymous.\n\nEnforcement: infrastructure-as-code defines log-store TTLs, backup lifecycle rules and masking jobs, so that schedules are version-controlled and reviewed. A scheduled deletion job runs daily for terminated customers, writes a run record to a write-once audit bucket, and records the key-destruction event. Proof that the jobs ran comes from job logs, cloud API audit trails, and a monthly restore-and-verify test that samples a backup and confirms a terminated customer's data is unreadable. A signed run report is retained for audit. These records show that the jobs executed and what they reported; they do not by themselves prove absence of data, so the verification test is the evidence for absence.\n\nGDPR concepts: controller and processor roles (Art. 4 and 28) determine who owes deletion; storage limitation (Art. 5(1)(e)) justifies the periods; data minimisation (Art. 5(1)(c)) justifies masking and stripping; erasure (Art. 17) is met by the deletion job and key destruction; lawful basis (Art. 6(1)(f)) supports the audit-log period; and Art. 28(3)(g) requires deletion or return at contract end, which the deletion job implements. For US customers the policy applies the same controls but does not assert specific US retention law; the transfer position for EU-US flows is a matter for counsel and is not decided here.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7ec-0693-769b-8323-a188b41f388a",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 88,
+    "elapsedMs": 265252,
+    "usage": {
+      "inputTokens": 111911,
+      "outputTokens": 23759,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 45582,
+      "reasoningTokens": 0,
+      "costUsd": 0.021093950000000004
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0016002750000000002,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 37,
+      "resolved": 24
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 733,
+  "wordBudget": 900
+}

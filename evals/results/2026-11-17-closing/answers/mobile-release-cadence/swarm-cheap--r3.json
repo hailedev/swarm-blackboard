@@ -1,0 +1,56 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:13:35.229Z",
+  "spentUsd": 0.019837065,
+  "outcome": "answered",
+  "text": "Recommendation: decouple integration from release. Merge to main continuously, cut a release candidate every two weeks, and submit it to both stores on a fixed day early in the cycle so that release day becomes routine rather than stressful. Most bugs are handled by a server-side kill switch rather than a new binary, and a binary hotfix is reserved for crashes that no flag can reach.\n\nCadence: a fixed two-week cycle. A fortnight gives each cut a predictable slot and a standing buffer, and six engineers can sustain it without heroics because the work per cycle is one cut, one readiness check and one staged rollout. Store review takes one to three days, so a cut is submitted on day one or two of the cycle, which leaves roughly a week for a rejection and resubmission before the next cut. Assumption: a rejection that arrives late in the cycle slips that release by up to a few days, and the team accepts this rather than rushing a fix; the next cut then proceeds on schedule.\n\nStaged rollout: on both stores, submit with a 10 percent phased or controlled rollout. Hold at 10 percent for at least 48 hours, then ramp to 50 percent and then 100 percent over the following week, unless a halt criterion fires. Starting halt thresholds are 90 percent crash-free sessions and more than five unique crash reports within the first two hours of the 10 percent cohort. Assumption: these are loose starting values that are tightened by hand after each release until enough prior-cycle crash data exists to set them from the team's own baseline. When a halt fires, the previous build is restored for the affected cohort at once.\n\nHotfix path: first try a server-side kill switch or remote-config toggle for any user-facing feature, which reaches users in minutes without a store review. Use a binary hotfix only for crashes in non-flaggable code. Because the 10 percent rollout catches most regressions before they reach everyone, fewer releases need a binary hotfix at all, which removes the two-day user delay for most bugs. Standard review applies to binary hotfixes; expedited review on Google Play is requested only for genuine security or crash emergencies, and the team does not depend on it.\n\nFeature flag rule: a change ships behind a flag when it is user-facing, changes core logic, or is hard to reverse, such as a new screen, a change to a payment or sign-in path, or a data migration. A change ships directly, without a flag, when it is internal, a copy or style fix, or a dependency update covered by automated tests. Every flag has an owner and an expiry date, and any flag unused for 30 days raises an alert for removal, so cleanup stays cheap.\n\nRoles and checks: the release manager role rotates every two weeks among the six engineers, so no single person becomes a bottleneck. The outgoing release manager runs a standard readiness check against CI output and hands over the submission. Automated gates replace QA: unit and static-analysis checks in CI, automated UI smoke tests on a device farm for every release candidate, and a mandatory review by a second engineer for any change touching UI or core logic. Crash monitoring runs from submission through full rollout.\n\nMeasurement in three months: track four indicators, each compared with the current process. (1) Release interval, from Git tag timestamps, targeting a fortnightly cut within two days of schedule. (2) Share of releases followed by a binary hotfix within seven days, targeting under 10 percent, down from about one in four. (3) Time from defect detection to the fix reaching users, targeting under four hours for flagged issues and under 24 hours for crashes in non-flaggable code. (4) Crash-free session rate at each rollout stage, from the crash monitor, compared with the prior release. At the three-month review, if the hotfix rate has not fallen, the flag rule is tightened before the cadence is changed.\n\nConstraints: the process needs no hires and no platform team. The additional work is one readiness check per cycle, flag bookkeeping and the device-farm smoke test, all within the six engineers' existing capacity. Assumption: the starting figures for the hotfix rate and crash rates reflect the team's current process as reported, and are confirmed against the first two releases before the targets are treated as binding.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e820-31ef-77fa-978e-8efd803f88e2",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 75,
+    "elapsedMs": 228748,
+    "usage": {
+      "inputTokens": 106582,
+      "outputTokens": 20924,
+      "cacheReadTokens": 3689,
+      "cacheWriteTokens": 44699,
+      "reasoningTokens": 0,
+      "costUsd": 0.019837065
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0027551650000000004,
+      "attempts": 2,
+      "short": false,
+      "retriedFor": [
+        "leak"
+      ],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 16
+    },
+    "calls": {
+      "made": 25,
+      "rejected": 0
+    }
+  },
+  "words": 728,
+  "wordBudget": 900
+}

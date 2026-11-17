@@ -1,0 +1,54 @@
+{
+  "problemId": "onboarding-dropoff",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:25:07.295Z",
+  "spentUsd": 0.01828985,
+  "outcome": "answered",
+  "text": "Recommendation: treat the drop-off as a step-specific technical and coordination problem, find the single worst transition in the first two days, and spend the four weeks on one targeted fix plus one low-risk reordering rather than on a broad redesign.\n\nRanked causes. First, the Connect Data Source step is the most likely primary leak, because in B2B setup flows it is where permissions, API credentials and errors concentrate; it is confirmed if its completion rate is below about 85 percent and error logs show auth failures or rate-limit errors for that step, and ruled out if its completion is high and the drop sits elsewhere. Second, Invite Teammates is the likely secondary leak: small-team founders often intend to work alone at first, so the step feels like a detour; it is confirmed if abandonment clusters right after the email field is shown or when zero emails are entered, and ruled out if users who reach it mostly proceed. Third, the first-dashboard step can leak when users have no data to build from; it is confirmed by long time-on-page with no dashboard saved, and ruled out if most users reaching it save one. Account creation and workspace naming are least likely, since they carry little friction, and are ruled out if their step-to-step completion is above about 95 percent.\n\nTwo-week diagnostic plan. Days 1 to 2: export per-step funnel counts from the existing analytics, compute step-to-step conversion and the largest relative drop, and pull error logs and support tickets for the leading step. Days 3 to 7: an engineer ships an exit-intent micro-survey of three questions to users who abandon at the identified bottleneck, with a target of 50 or more responses, and the designer runs five to eight short calls with recent abandoners if reachable. Days 8 to 10: cross-check survey themes against error logs and timing, and write down which cause the evidence supports. Days 11 to 14: decide the two experiments and build them. Only instrumentation an engineer can ship in a day or two is used.\n\nExperiment 1 (weeks three and four): if Connect Data Source is the bottleneck, test deferral. Hypothesis: letting users reach a populated demo dashboard before connecting real data lowers the perceived risk and raises completion. Variants: control (standard five-step order) and treatment (Connect Data Source made optional and shown after the dashboard, with demo data pre-populated). Primary metric: setup completion rate, measured as the share of sign-ups reaching a saved first dashboard. Sample: at a baseline near 60 percent, detecting a 5-point lift needs roughly 9,300 users per arm, which two weeks cannot supply; so the test is designed for a 15 percent relative lift, about 600 per arm, and results below that power are read as directional.\n\nExperiment 2 (weeks three and four): reorder Invite Teammates to be optional and placed after the first dashboard. Hypothesis: moving the coordination step out of the critical path reduces early anxiety and raises completion. Variants: control and treatment (invite step deferred behind a clearly visible Skip or Later control, with all five steps still present). Primary metric: setup completion rate. Guardrail metrics: first-week activation quality (dashboards kept after seven days) and invite rate among those who see the step later, so that the change does not reduce collaboration. Sample: the same roughly 600 per arm, so only large effects are readable.\n\nDecision at the end of week four. Ship a variant only if its primary metric improves by at least the pre-agreed threshold (a relative lift of 10 percent or more) and no guardrail falls by more than 5 percent. A clear loss, meaning the treatment is worse on the primary metric beyond the threshold, is reverted. An inconclusive result is the expected outcome at this sample size, and it is handled as follows: ship only changes that are reversible and low-risk, such as reordering or making a step optional, and only when the diagnostic survey and error data independently support the same cause; otherwise keep the control and carry the finding into the next cycle. Make no decision on a single segment cut that was not planned in advance.\n\nAssumption: the team can run both tests concurrently on separate user subsets, and the per-step funnel data is clean enough to identify a bottleneck within two days; if either fails, the experiments run sequentially and the second one is shortened to a diagnostic.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7f3-96db-7083-a3d5-df4f72bd5042",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 81,
+    "elapsedMs": 244098,
+    "usage": {
+      "inputTokens": 101974,
+      "outputTokens": 21567,
+      "cacheReadTokens": 4275,
+      "cacheWriteTokens": 38352,
+      "reasoningTokens": 0,
+      "costUsd": 0.01828985
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2680,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001460975,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 29,
+      "resolved": 24
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 729,
+  "wordBudget": 900
+}

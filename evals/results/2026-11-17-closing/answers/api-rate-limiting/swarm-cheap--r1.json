@@ -1,0 +1,54 @@
+{
+  "problemId": "api-rate-limiting",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:15:13.822Z",
+  "spentUsd": 0.02052325,
+  "outcome": "answered",
+  "text": "Recommendation: enforce each customer's plan as a token bucket whose refill rate equals the plan's per-minute allowance and whose capacity equals the full minute's allowance, with the regional limiter deciding from local memory and reconciling against a shared store asynchronously; a request is never blocked on the store, and the API keeps serving when the store fails.\n\nAlgorithm. A token bucket suits bursty clients because it lets a client spend its whole minute's allowance at once and then refills gradually. For a 600 requests-per-minute paying plan the refill rate is 10 tokens per second and the bucket capacity is 600, so a scheduled job can send 600 requests in two seconds and then wait. For a 60 requests-per-minute free plan the refill is 1 token per second with capacity 60. A sliding window log stores a timestamp per request, which is too memory-heavy at this volume, and a sliding window counter or fixed window either lets through up to double the limit at window boundaries or needs sub-windows to approximate the same behaviour. The token bucket is the only one of these that gives the burst-then-quiet behaviour directly with bounded sustained rate.\n\nState and sharing across regions. Each region keeps an in-memory bucket per customer so the hot path costs well under one millisecond and comfortably inside the five-millisecond budget. A shared store (Redis-class) holds the authoritative tokens for each customer. Each region draws leases of tokens from that pool in blocks of roughly one third of the plan limit, refreshed on a short interval (about 10 seconds), and the store decrements the pool atomically (a Lua script or WATCH/MULTI) so the leases handed out never exceed what remains. Assumption: a client that hops regions can draw on the other regions' leases, so a customer's total admitted traffic is bounded by the plan limit plus the leases outstanding at any moment, meaning the worst case is up to one additional lease per region, roughly one plan-limit in total during a single minute, while typical steady-state error is around 10 to 20 percent of the limit. The design does not give a tight bound on this; this is the honest accuracy cost of avoiding cross-region round trips on each request.\n\nStore slow or down. The store is called only in the background, with a timeout around 50 milliseconds and a circuit breaker that opens after a short run of failures. While the circuit is open or the store is unreachable, each region continues to serve from its last valid lease and from its local bucket, and it stops issuing new leases. Behaviour is fail-open for paying plans and for free plans alike: requests are admitted rather than rejected, because a limiter outage should not take down a public API. The cost is that during an outage a customer can exceed its quota for as long as the outage lasts, bounded only by its local leases and the local bucket capacity. Assumption: free accounts are shed first, by applying a stricter local cap during an outage, so that paying customers absorb the overshoot tolerance; the business tolerance for overshoot on paid plans is not settled and should be confirmed.\n\nClient contract. Responses carry RateLimit-Limit (the plan limit), RateLimit-Remaining (the value from the local bucket, which can be slightly stale relative to the shared pool), and RateLimit-Reset as seconds until the bucket is full again. Throttled requests receive HTTP 429 with a Retry-After header in seconds. Clients should retry with exponential backoff and random jitter, so a scheduled job that is told to wait does not resynchronise with every other job and produce a retry storm. The Remaining value is advisory: it can disagree with what the central pool would enforce, and the reset value is a delta, not an absolute timestamp, to avoid clock-skew ambiguity between regions.\n\nWhat the design gets wrong, and by how much. Cross-region overshoot in normal operation is bounded by the leases outstanding, which is roughly one additional lease per region and in the worst case close to one full plan-limit per minute; this is an error of up to about 100 percent on a single minute for the most adversarial hop pattern, and about 10 to 20 percent under typical load. During a store outage admitted traffic is not bounded in time, so a sustained outage gives unlimited overshoot for the outage's duration; this is the largest weakness and should be paired with alerting and a manual kill-switch. Clock skew of tens of milliseconds between regions shifts window edges by a similar amount, which is negligible against a one-minute window. Bucketed counters approximate the per-minute limit with small discretisation error. An acceptable error bound is roughly 20 percent for paid plans in normal operation, with the outage case explicitly accepted as the cost of keeping the API available.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7b1-0a1e-7101-9bdd-db94228ee964",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 97,
+    "elapsedMs": 412028,
+    "usage": {
+      "inputTokens": 120730,
+      "outputTokens": 29091,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 45966,
+      "reasoningTokens": 0,
+      "costUsd": 0.02052325
+    },
+    "confidence": 0.55,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0017602750000000002,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 38,
+      "resolved": 19
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 801,
+  "wordBudget": 900
+}

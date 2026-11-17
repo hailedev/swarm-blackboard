@@ -1,0 +1,32 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "call",
+    "alias": "local-fast"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T09:14:33.683Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "I recommend shifting the team to a bi-weekly release cadence, delivering a stable, reviewed build every two weeks rather than the current irregular three-to-five-week cycle. This frequency strikes the optimal balance between reducing review bottleneck pressure and maintaining developer momentum. The reasoning for choosing two weeks is rooted in capacity management: with six engineers including a de-facto release manager, dedicating one week to coding and feature development and the second week to testing, code review, and preparing the App Store submission creates a sustainable rhythm. The current 'when ready' model creates stress because work piles up, leading to large, risky releases that are difficult to debug and high-stress for reviewers. By locking in a bi-weekly schedule, you decouple the release timing from the completion of specific feature sets, allowing small, incremental changes to accumulate. This reduces the cognitive load on the release manager, who can focus on quality assurance and store compliance during the designated 'release week,' while developers focus on shipping code. The predictability removes the 'heroics' typically required to squeeze out a release, making the process routine rather than stressful.\n\nTo address the hotfix problem, the team must implement a strict split between feature flags and immediate releases. A change goes behind a feature flag if it introduces new code paths that have not been tested in production with real user data, or if it modifies critical business logic (such as payment flows or authentication) where a bug could cause significant user loss or revenue impact. Conversely, changes do not need a feature flag if they are purely cosmetic (CSS changes, minor text updates), backend-only configuration changes that do not affect the client binary, or fixes for bugs that were already flagged by automated tests and verified in staging with sufficient coverage. This rule ensures that risky code is isolated. If a hotfix is still needed because a bug slipped through, you can reduce the two-day latency by using dynamic configuration features or remote config servers to toggle off the buggy feature instantly without a store resubmission. While you cannot eliminate App Store review for binary changes, this approach makes hotfixes rarer by forcing rigorous pre-review testing for flagged features and faster recovery via server-side toggles for immediate issues.\n\nThe team will know the new process works in three months by tracking two specific metrics: the percentage of releases requiring a subsequent hotfix and the average time from code merge to user availability. For the first metric, aim for a reduction in post-release hotfixes by at least 50% compared to the current one-in-four rate. This indicates that the feature flagging and pre-release review steps are catching issues before they reach users. For the second metric, track the 'cycle time' from a developer merging code to the release being live on app stores. With the new process, this should stabilize around 14 days for features, but more importantly, the variance should decrease significantly. The 'stress' level can be quantified by tracking the number of after-hours work sessions required for releases; a successful transition means zero emergency patches and predictable scheduling. Additionally, monitor the App Store rejection rate; if the process is effective, rejections due to technical errors or guideline violations should drop as the release manager dedicates more time to review compliance.\n\nImplementing this bi-weekly cadence requires a cultural shift where 'done' means tested and reviewed, not just coded. The de-facto release manager must be protected from ad-hoc feature work during the final week of the cycle. This is achieved by freezing feature integration during the review preparation phase. All code for that release should be merged to the main branch one week prior, leaving the final week solely for QA, store submission, and contingency planning. If a release is rejected, the team has a documented runbook that includes reverting to the previous stable version or using a pre-submitted binary backup if applicable (though iOS/Android are strict, having a 'golden' build ready for immediate re-upload minimizes downtime). The key is that the process is automated where possible; use CI/CD pipelines to automate the building and signing of binaries, so the release manager's time is spent on human-centric tasks like reading store guidelines and coordinating with developers, rather than manual compilation. This structure leverages the existing six-person team efficiently without adding headcount.\n\nTo ensure the hotfix path is robust, establish a 'Hotfix SWAT' protocol that activates only when a critical bug is found in production. This protocol bypasses the normal two-week cycle but requires explicit approval from the lead engineer. The binary for the hotfix must be built against the same codebase as the current live release, ensuring no regressions in other areas. Crucially, document every hotfix in the changelog with a clear reason and test coverage added for future regression testing. This creates a feedback loop where the lessons from each hotfix improve the next regular release cycle's testing rigor. Over three months, as the team refines its testing strategies and relies more on feature flags for risky changes, the need for hotfixes should diminish. The goal is to move from reactive fire-fighting to proactive risk mitigation, making releases feel like a routine deployment of verified value rather than a high-stakes gamble.",
+  "detail": {
+    "kind": "call",
+    "modelId": "qwen3.6:35b-mlx",
+    "maxOutputTokens": 2700,
+    "usage": {
+      "inputTokens": 535,
+      "outputTokens": 1090,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "latencyMs": 16212,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 863,
+  "wordBudget": 900
+}

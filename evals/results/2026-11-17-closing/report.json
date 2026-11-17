@@ -1,0 +1,1137 @@
+{
+  "manifest": {
+    "label": "closing",
+    "createdAt": "2026-11-17T04:07:41.309Z",
+    "commit": "d37db99",
+    "profile": "cheap",
+    "arms": [
+      {
+        "kind": "call",
+        "alias": "sonnet"
+      },
+      {
+        "kind": "call",
+        "alias": "haiku"
+      },
+      {
+        "kind": "swarm",
+        "profile": "cheap"
+      },
+      {
+        "kind": "swarm",
+        "profile": "dev"
+      },
+      {
+        "kind": "call",
+        "alias": "local-fast"
+      }
+    ],
+    "runs": 3,
+    "scoresPerAnswer": 2,
+    "problemIds": [
+      "mobile-release-cadence",
+      "local-first-sync",
+      "api-rate-limiting",
+      "oidc-migration",
+      "flaky-test-suite",
+      "confidential-llm-summaries",
+      "eu-log-retention",
+      "teen-reading-programme",
+      "onboarding-dropoff",
+      "monorepo-decision"
+    ],
+    "wordBudget": 900,
+    "runCapUsd": 0.03,
+    "comparisons": [
+      {
+        "swarm": {
+          "kind": "swarm",
+          "profile": "cheap"
+        },
+        "call": {
+          "kind": "call",
+          "alias": "haiku"
+        }
+      },
+      {
+        "swarm": {
+          "kind": "swarm",
+          "profile": "dev"
+        },
+        "call": {
+          "kind": "call",
+          "alias": "local-fast"
+        }
+      }
+    ],
+    "models": {
+      "call:sonnet": "one call of `sonnet` (anthropic/claude-sonnet-5-5)",
+      "call:haiku": "one call of `haiku` (anthropic/claude-haiku-5-5)",
+      "swarm:cheap": "the `cheap` swarm: planner `haiku`, researcher `local`, solver `local`, critic `haiku`, synthesizer `haiku`, fallback `haiku`",
+      "swarm:dev": "the `dev` swarm: planner `local-fast`, researcher `local-fast`, solver `local-fast`, critic `local-fast`, synthesizer `local-fast`, fallback none",
+      "call:local-fast": "one call of `local-fast` (ollama/qwen3.6:35b-mlx)",
+      "judge": "`sonnet` (anthropic/claude-sonnet-5-5)",
+      "answer length sized on": "`sonnet` (anthropic/claude-sonnet-5-5)"
+    },
+    "caps": {
+      "generateUsd": 1.2,
+      "scoreUsd": null
+    },
+    "fake": false
+  },
+  "summary": {
+    "arms": [
+      {
+        "arm": {
+          "kind": "call",
+          "alias": "sonnet"
+        },
+        "counts": {
+          "expected": 10,
+          "answered": 10,
+          "void": 0,
+          "failed": 0,
+          "missing": 0,
+          "spentUsd": 0.23394,
+          "words": {
+            "min": 922,
+            "median": 1116.5,
+            "max": 1254
+          }
+        },
+        "swarm": null,
+        "cells": [
+          {
+            "problemId": "mobile-release-cadence",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "local-first-sync",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "oidc-migration",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "eu-log-retention",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "monorepo-decision",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          }
+        ],
+        "overProblems": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "development": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "heldOut": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "runToRun": null,
+        "judge": {
+          "answers": 0,
+          "meanSpread": null,
+          "largest": null
+        },
+        "ceiling": {
+          "answersAt100": 0,
+          "answersScored": 0,
+          "scoresAt100": 0,
+          "scores": 0
+        }
+      },
+      {
+        "arm": {
+          "kind": "call",
+          "alias": "haiku"
+        },
+        "counts": {
+          "expected": 10,
+          "answered": 10,
+          "void": 0,
+          "failed": 0,
+          "missing": 0,
+          "spentUsd": 0.008871500000000001,
+          "words": {
+            "min": 654,
+            "median": 815,
+            "max": 1140
+          }
+        },
+        "swarm": null,
+        "cells": [
+          {
+            "problemId": "mobile-release-cadence",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "local-first-sync",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "oidc-migration",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "eu-log-retention",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "monorepo-decision",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          }
+        ],
+        "overProblems": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "development": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "heldOut": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "runToRun": null,
+        "judge": {
+          "answers": 0,
+          "meanSpread": null,
+          "largest": null
+        },
+        "ceiling": {
+          "answersAt100": 0,
+          "answersScored": 0,
+          "scoresAt100": 0,
+          "scores": 0
+        }
+      },
+      {
+        "arm": {
+          "kind": "swarm",
+          "profile": "cheap"
+        },
+        "counts": {
+          "expected": 30,
+          "answered": 30,
+          "void": 0,
+          "failed": 0,
+          "missing": 0,
+          "spentUsd": 0.5587304449999999,
+          "words": {
+            "min": 590,
+            "median": 728.5,
+            "max": 885
+          }
+        },
+        "swarm": {
+          "endings": {
+            "budget_rounds": 30
+          },
+          "rounds": {
+            "min": 12,
+            "max": 12
+          },
+          "final": 30,
+          "drafts": 0,
+          "retriedShort": 0,
+          "retriedLeak": 1,
+          "leaking": 0,
+          "meanMinutes": 4.715239444444444
+        },
+        "cells": [
+          {
+            "problemId": "mobile-release-cadence",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "local-first-sync",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "oidc-migration",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "eu-log-retention",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "monorepo-decision",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          }
+        ],
+        "overProblems": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "development": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "heldOut": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "runToRun": {
+          "problems": 0,
+          "pooledSd": null,
+          "meanRange": null,
+          "largest": null
+        },
+        "judge": {
+          "answers": 0,
+          "meanSpread": null,
+          "largest": null
+        },
+        "ceiling": {
+          "answersAt100": 0,
+          "answersScored": 0,
+          "scoresAt100": 0,
+          "scores": 0
+        }
+      },
+      {
+        "arm": {
+          "kind": "swarm",
+          "profile": "dev"
+        },
+        "counts": {
+          "expected": 30,
+          "answered": 30,
+          "void": 0,
+          "failed": 0,
+          "missing": 0,
+          "spentUsd": 0,
+          "words": {
+            "min": 534,
+            "median": 838,
+            "max": 1336
+          }
+        },
+        "swarm": {
+          "endings": {
+            "budget_rounds": 30
+          },
+          "rounds": {
+            "min": 12,
+            "max": 12
+          },
+          "final": 30,
+          "drafts": 0,
+          "retriedShort": 4,
+          "retriedLeak": 4,
+          "leaking": 3,
+          "meanMinutes": 5.2788916666666665
+        },
+        "cells": [
+          {
+            "problemId": "mobile-release-cadence",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "local-first-sync",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "oidc-migration",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "eu-log-retention",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "monorepo-decision",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          }
+        ],
+        "overProblems": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "development": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "heldOut": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "runToRun": {
+          "problems": 0,
+          "pooledSd": null,
+          "meanRange": null,
+          "largest": null
+        },
+        "judge": {
+          "answers": 0,
+          "meanSpread": null,
+          "largest": null
+        },
+        "ceiling": {
+          "answersAt100": 0,
+          "answersScored": 0,
+          "scoresAt100": 0,
+          "scores": 0
+        }
+      },
+      {
+        "arm": {
+          "kind": "call",
+          "alias": "local-fast"
+        },
+        "counts": {
+          "expected": 10,
+          "answered": 8,
+          "void": 2,
+          "failed": 0,
+          "missing": 0,
+          "spentUsd": 0,
+          "words": {
+            "min": 764,
+            "median": 1009.5,
+            "max": 2045
+          }
+        },
+        "swarm": null,
+        "cells": [
+          {
+            "problemId": "mobile-release-cadence",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "local-first-sync",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "oidc-migration",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "eu-log-retention",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          },
+          {
+            "problemId": "monorepo-decision",
+            "answers": [],
+            "mean": null,
+            "min": null,
+            "max": null,
+            "sd": null,
+            "range": null
+          }
+        ],
+        "overProblems": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "development": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "heldOut": {
+          "n": 0,
+          "mean": null,
+          "sd": null,
+          "min": null,
+          "max": null
+        },
+        "runToRun": null,
+        "judge": {
+          "answers": 0,
+          "meanSpread": null,
+          "largest": null
+        },
+        "ceiling": {
+          "answersAt100": 0,
+          "answersScored": 0,
+          "scoresAt100": 0,
+          "scores": 0
+        }
+      }
+    ],
+    "comparisons": [
+      {
+        "swarm": {
+          "kind": "swarm",
+          "profile": "cheap"
+        },
+        "call": {
+          "kind": "call",
+          "alias": "haiku"
+        },
+        "rows": [
+          {
+            "problemId": "mobile-release-cadence",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "local-first-sync",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "oidc-migration",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "eu-log-retention",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "monorepo-decision",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          }
+        ],
+        "n": 0,
+        "meanDelta": null,
+        "sdDelta": null,
+        "seDelta": null,
+        "ahead": 0,
+        "behind": 0,
+        "level": 0,
+        "runsAbove": 0,
+        "runsScored": 0
+      },
+      {
+        "swarm": {
+          "kind": "swarm",
+          "profile": "dev"
+        },
+        "call": {
+          "kind": "call",
+          "alias": "local-fast"
+        },
+        "rows": [
+          {
+            "problemId": "mobile-release-cadence",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "local-first-sync",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "api-rate-limiting",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "oidc-migration",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "flaky-test-suite",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "confidential-llm-summaries",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "eu-log-retention",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "teen-reading-programme",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "onboarding-dropoff",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          },
+          {
+            "problemId": "monorepo-decision",
+            "callScores": [],
+            "call": null,
+            "runs": [],
+            "swarm": null,
+            "delta": null,
+            "runsAbove": 0
+          }
+        ],
+        "n": 0,
+        "meanDelta": null,
+        "sdDelta": null,
+        "seDelta": null,
+        "ahead": 0,
+        "behind": 0,
+        "level": 0,
+        "runsAbove": 0,
+        "runsScored": 0
+      }
+    ],
+    "judge": {
+      "answers": 0,
+      "meanSpread": null,
+      "largest": null
+    },
+    "answers": {
+      "expected": 90,
+      "answered": 88,
+      "void": 2,
+      "failed": 0,
+      "missing": 0
+    },
+    "scores": {
+      "expected": 176,
+      "scored": 0,
+      "failed": 0,
+      "missing": 176
+    },
+    "spent": {
+      "generateUsd": 0.8015419450000002,
+      "scoreUsd": 0
+    },
+    "voids": [
+      {
+        "id": "teen-reading-programme/call-local-fast",
+        "note": "238 words of about 900 asked for, after a second attempt"
+      },
+      {
+        "id": "monorepo-decision/call-local-fast",
+        "note": "109 words of about 900 asked for, after a second attempt"
+      }
+    ],
+    "failures": [],
+    "scoreFailures": [],
+    "drafts": [],
+    "leaking": [
+      {
+        "id": "confidential-llm-summaries/swarm-dev--r1",
+        "sentences": [
+          "If the model produces conflicting outputs across repeated runs or low-confidence scores, the summary is flagged for manual review."
+        ]
+      },
+      {
+        "id": "onboarding-dropoff/swarm-dev--r2",
+        "sentences": [
+          "If results are inconclusive for both experiments, the team will ship the 'Connect Data Source' simplification (if engineering audit revealed specific technical errors) as a high-confidence fix, while scheduling further research for long-te…"
+        ]
+      },
+      {
+        "id": "confidential-llm-summaries/swarm-dev--r3",
+        "sentences": [
+          "If the variance exceeds a set threshold, the summary is flagged as 'low confidence.' Phase 2 is manual review.",
+          "The staff member reviews only the flagged summaries or a random 10% sample of high-confidence ones."
+        ]
+      }
+    ],
+    "truncated": [
+      "onboarding-dropoff/call-local-fast"
+    ],
+    "offBudget": [],
+    "retried": [],
+    "commits": [
+      "d37db99"
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "label": "closing",
+  "createdAt": "2026-11-17T04:07:41.309Z",
+  "commit": "d37db99",
+  "profile": "cheap",
+  "arms": [
+    {
+      "kind": "call",
+      "alias": "sonnet"
+    },
+    {
+      "kind": "call",
+      "alias": "haiku"
+    },
+    {
+      "kind": "swarm",
+      "profile": "cheap"
+    },
+    {
+      "kind": "swarm",
+      "profile": "dev"
+    },
+    {
+      "kind": "call",
+      "alias": "local-fast"
+    }
+  ],
+  "runs": 3,
+  "scoresPerAnswer": 2,
+  "problemIds": [
+    "mobile-release-cadence",
+    "local-first-sync",
+    "api-rate-limiting",
+    "oidc-migration",
+    "flaky-test-suite",
+    "confidential-llm-summaries",
+    "eu-log-retention",
+    "teen-reading-programme",
+    "onboarding-dropoff",
+    "monorepo-decision"
+  ],
+  "wordBudget": 900,
+  "runCapUsd": 0.03,
+  "comparisons": [
+    {
+      "swarm": {
+        "kind": "swarm",
+        "profile": "cheap"
+      },
+      "call": {
+        "kind": "call",
+        "alias": "haiku"
+      }
+    },
+    {
+      "swarm": {
+        "kind": "swarm",
+        "profile": "dev"
+      },
+      "call": {
+        "kind": "call",
+        "alias": "local-fast"
+      }
+    }
+  ],
+  "models": {
+    "call:sonnet": "one call of `sonnet` (anthropic/claude-sonnet-5-5)",
+    "call:haiku": "one call of `haiku` (anthropic/claude-haiku-5-5)",
+    "swarm:cheap": "the `cheap` swarm: planner `haiku`, researcher `local`, solver `local`, critic `haiku`, synthesizer `haiku`, fallback `haiku`",
+    "swarm:dev": "the `dev` swarm: planner `local-fast`, researcher `local-fast`, solver `local-fast`, critic `local-fast`, synthesizer `local-fast`, fallback none",
+    "call:local-fast": "one call of `local-fast` (ollama/qwen3.6:35b-mlx)",
+    "judge": "`sonnet` (anthropic/claude-sonnet-5-5)",
+    "answer length sized on": "`sonnet` (anthropic/claude-sonnet-5-5)"
+  },
+  "caps": {
+    "generateUsd": 1.2,
+    "scoreUsd": null
+  },
+  "fake": false
+}

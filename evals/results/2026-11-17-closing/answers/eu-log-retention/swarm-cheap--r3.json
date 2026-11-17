@@ -1,0 +1,54 @@
+{
+  "problemId": "eu-log-retention",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:38:19.962Z",
+  "spentUsd": 0.0212489,
+  "outcome": "answered",
+  "text": "Recommendation: adopt a tiered retention schedule in which application logs and infrastructure logs are kept for 90 days, daily backups for 90 days with per-tenant crypto-shredding of keys at termination, and audit logs for 12 months with personal identifiers pseudonymised after 30 days from termination. Enforcement is by cloud-native lifecycle rules plus a small termination workflow, with evidence kept as deletion receipts and a monthly reconciliation report.\n\nApplication logs: retain for 90 days. Free-text fields typed by users are redacted or replaced with placeholders at ingestion, so they are not stored at all beyond debugging needs; user identifiers are pseudonymised by a keyed hash. The 90-day period matches the existing backup window and is enough for incident debugging without keeping raw content. Assumption: engineering accepts that free text is not logged verbatim, which holds if the debugging need is met by structured error codes.\n\nInfrastructure logs containing IP addresses: retain for 90 days by default. Extension to 12 months is permitted only when a specific security incident is recorded in the SIEM with a written trigger, such as a confirmed breach or an active fraud investigation; if no such incident is open at day 90, IPs are truncated or aggregated. Assumption: the security lead can name the trigger criteria in writing before the first extension is used, since the criteria are not yet defined.\n\nAudit logs: retain for 12 months, meeting the security lead's requirement. Retention is justified as necessary to demonstrate compliance and to establish or defend legal claims, which is the basis in GDPR Article 17(3)(e). Within the audit trail, identifiers are pseudonymised once the customer terminates and the 30-day window closes, so the record remains for integrity while the direct personal data is no longer usable.\n\nDaily backups: retain for 90 days, as today. Each tenant's data is encrypted under a per-tenant key. At termination the tenant key is destroyed, which renders that tenant's backup data unrecoverable; the ciphertext remains in backups until normal expiry at 90 days, after which it is gone. The 90-day window is set by restore needs, not by any legal duty to keep backups that long.\n\nHonouring the 30-day promise: live systems (databases, application and infrastructure logs, search indexes, exports) are purged for the tenant within 30 days of termination. Backups are handled by key destruction on day 0 to 1, so the tenant's data in them is inaccessible well before 30 days, with the ciphertext expiring by day 90. We state this precisely: the contract's deletion promise is met for live data and by key destruction for backups, but the encrypted copies persist until expiry. Whether that satisfies the contract wording is a legal question for the customer contracts; we flag this as an assumption that counsel should confirm.\n\nGDPR concepts the schedule relies on: storage limitation (Article 5(1)(e)) drives the periods above; data minimisation (Article 5(1)(c)) drives free-text redaction and pseudonymisation; data protection by design (Article 25) supports ingestion-time redaction. IP addresses and pseudonymised user identifiers are personal data, because the company can link them to people, so pseudonymisation reduces risk but does not take the data out of scope. Controller or processor status is not confirmed: the company is likely a processor for customer data under Article 28, but this depends on the customer contracts and a data processing agreement, which we have not seen. Crypto-shredding removes access but does not make the ciphertext anonymous, so it is a security measure, not proof of erasure. Legal advice is needed on the controller role, on the Article 17(3)(e) reliance, and on any US state-law differences.\n\nAutomatic enforcement with six engineers: cloud lifecycle rules delete application and infrastructure logs at 90 days and backups at 90 days; audit log pseudonymisation runs as a scheduled job at 30 days after termination; a termination webhook triggers tenant purge of live data and key destruction. Proof: each job writes a deletion receipt (tenant, data class, timestamp, record count) to an append-only store; the cloud provider's activity log records lifecycle and key-deletion events; and a monthly reconciliation job compares active and terminated tenant IDs against remaining data and reports any tenant whose data survives past 30 days. The reconciliation covers backups by key status and audit records by pseudonymisation status, and the report is the compliance artefact. Assumption: the reconciliation maps stored objects to tenants through the tenant ID tag applied at write time, which the team must enforce from day one.\n\nEU and US differences: the schedule applies one standard to both regions to keep the team simple; EU customers' data is subject to GDPR, while US customers' data is subject to state privacy laws and contractual terms. The schedule is therefore set to the stricter regime, and no US-specific periods are added until counsel identifies a requirement.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e835-e638-79fd-b376-229dd2e7426d",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 84,
+    "elapsedMs": 291072,
+    "usage": {
+      "inputTokens": 118258,
+      "outputTokens": 24762,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 45556,
+      "reasoningTokens": 0,
+      "costUsd": 0.0212489
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001745875,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 33,
+      "resolved": 17
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 794,
+  "wordBudget": 900
+}

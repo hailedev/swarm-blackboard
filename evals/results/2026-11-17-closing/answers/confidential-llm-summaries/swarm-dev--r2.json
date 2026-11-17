@@ -1,0 +1,56 @@
+{
+  "problemId": "confidential-llm-summaries",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:07:21.829Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: The firm should adopt a 'Unified API-First' approach with strict consent-based routing. For clients who have provided written consent, summaries should be generated using high-performance hosted APIs (such as Groq or Anthropic) to ensure accuracy and handle long contexts. For non-consenting clients, the firm must avoid sending raw text to third-party models; instead, it should utilize a 'Zero-Retention Enterprise API' tier or a secure, anonymized processing pipeline that guarantees no training on client data. This approach eliminates the need for local hardware maintenance, which is infeasible for the single available staff member, while staying within the $300 monthly budget through the low cost of API inference.\n\nHandling Non-Consenting Clients: The primary constraint is that client agreements forbid sharing contract text with third parties without written consent. Since running a local large language model (LLM) requires significant technical expertise for driver management, Python environment configuration, and hardware troubleshooting, it is not viable for one non-engineer staff member spending only one day a week. Furthermore, local consumer-grade GPUs often struggle with the 40k+ token contexts of 80-page contracts without severe quality degradation due to chunking artifacts. Therefore, for non-consenting clients, the firm should not attempt local inference. Instead, it should negotiate 'Data Processing Agreement' (DPA) or 'Business Associate Agreement' (BAA) terms with API providers that explicitly prohibit data retention and training. If such legal agreements are not feasible for specific high-risk clients, the firm must use a locally run anonymization script (run by the staff member) to strip PII and key identifiers from the text before sending it to the API, or rely on a purely local summary generation if the contract is short enough to fit within strict local context windows. However, given the budget and technical constraints, the primary recommendation relies on obtaining consent for all contracts where possible, and using zero-retention enterprise tiers for those who refuse.\n\nCost Model: The total monthly cost of $300 must cover API usage, minimal tooling, and potential amortization if local anonymization hardware is purchased. Assuming 300 contracts per month with an average length of 10 to 80 pages, the average page count is estimated at 45 pages. With approximately 250 words per page, this equals 11,250 words per contract, or roughly 22,500 tokens per contract (including input and output overhead). For 300 contracts, the total monthly input volume is approximately 6.75 million tokens. Using Groq’s Llama-3-70B model at $0.90 per million input tokens, the inference cost for input is approximately $6.08. Adding output token costs (typically lower or included in bundled pricing) brings the total API cost to roughly $15-$20 per month. Even if we double-process contracts for self-correction (generating a summary and then verifying it), the cost remains under $40 per month. This leaves over $260 of the $300 budget buffer. If local hardware is required for anonymization, a used NVIDIA RTX 3090 (24GB VRAM) can be purchased for approximately $800. Amortized over three years (36 months), this equals $22.22 per month. Electricity and cooling add roughly $10 per month. Total local hardware cost is ~$32/month. Combined with API costs, the total is under $75/month, well within the $300 limit.\n\nQuality Assurance: To ensure summaries are good enough to rely on, the firm will implement an automated 'Self-Correction' loop. The API first generates a summary. A secondary, cheaper model (or the same model via a different endpoint) then extracts key clauses from the original text and compares them against the summary. If the confidence score of this verification is below a defined threshold, the contract is flagged for manual review. The staff member has one day (8 hours) per week to review these flagged contracts. Given that the automated check can filter out 90%+ of accurate summaries, the staff member will only need to manually verify a small fraction of contracts, likely fewer than 10-20 per month. This makes the quality check feasible within the time budget. For non-consenting clients, the same verification process applies, but the output is reviewed for PII leakage before being delivered.\n\nTriggers and Monitoring: The recommendation will change if the volume of contracts exceeds 600 per month, which would double API costs and potentially overwhelm the staff member’s ability to review flagged items. It would also change if the consent rate drops below 20%, forcing a heavy reliance on local hardware or complex anonymization workflows that exceed the technical capacity of one staff member. Additionally, if API prices for high-quality models rise above $2.00 per million tokens, the cost model may break. The firm should monitor monthly API bills and the percentage of contracts flagged for manual review. A sudden spike in flags indicates quality degradation, while a drop in consent rates signals a need for legal intervention or a shift to local processing.\n\nAssumptions: This recommendation assumes that 'non-consenting' clients can be handled via zero-retention enterprise APIs with proper legal agreements. If this is not legally permissible, the firm must pivot to a hybrid model where non-consenting contracts are summarized locally, which increases technical burden and reduces quality. It also assumes that the staff member can manage basic Python scripts for API integration but does not need to manage GPU drivers. The budget includes a $300 cap all-in; any hardware purchases are amortized over three years.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e886-787a-755c-986f-5f46f1af728b",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 75,
+    "elapsedMs": 352619,
+    "usage": {
+      "inputTokens": 103555,
+      "outputTokens": 19558,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2686,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 2,
+      "short": false,
+      "retriedFor": [
+        "short"
+      ],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 23,
+      "resolved": 15
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 871,
+  "wordBudget": 900
+}

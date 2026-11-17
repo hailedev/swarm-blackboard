@@ -1,0 +1,54 @@
+{
+  "problemId": "confidential-llm-summaries",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:12:47.506Z",
+  "spentUsd": 0.018352475,
+  "outcome": "answered",
+  "text": "Recommendation: run a split. Summaries for consenting clients are produced by a hosted API under a written data-processing agreement, and summaries for non-consenting clients are produced entirely on a locally run open-weight model on one workstation GPU, with no contract text leaving the firm. The local path is the default for any contract whose consent status is unknown.\n\nConsent handling: at intake every contract is tagged with the client's written consent status from a register maintained by the operations lead. Contracts tagged consenting, and only those, go to the API. Contracts tagged refused, pending or missing go to the local queue. Unknown status defaults to local. Automated clause-reading is not used to decide consent, because it is unreliable on nuanced sharing language. Before any API use, counsel must confirm the provider's terms exclude training on and retention of the data beyond abuse monitoring, and that the consent letters cover that provider.\n\nHardware and software: one used RTX 3060 16GB or RTX 4060 Ti 16GB (about $350), amortised over 36 months to roughly $10 a month, plus about $10 a month electricity. Ollama or a similar single-binary runtime serves a 7B to 8B instruct model quantised to 4-bit, with 8k to 32k context. Long contracts are split into overlapping chunks of about 6k tokens, each chunk summarised, and the chunk summaries merged in a second pass.\n\nCost model (assumptions visible): 300 contracts a month, average 25 pages, about 10,000 input tokens and 500 output tokens each, so about 3 million input and 150,000 output tokens a month. Assumption: 60% consent, so 180 contracts go to the API and 120 stay local. Assumption: API price about $1.50 per million input and $6 per million output (a mid-tier model), giving about $5.40 for input and $0.90 for output, roughly $7 a month. Hardware amortisation about $10, electricity about $10, and runtime and tooling about $0 (open source). Total about $27 a month, well inside $300, leaving headroom for a higher-tier API model (for example one at 10 times the price, about $70) or for a second GPU. Staff time is one day a week, of which roughly 6 hours go to processing and about 3 hours to quality review; processing capacity on the local GPU, at roughly 10 minutes per contract, is about 35 hours a month, enough for 210 local contracts.\n\nQuality check before reliance: a gold set of 20 contracts, manually annotated by the staff member with the key obligations, dates, parties and termination terms, is run through each model version and each path before go-live. Each summary is scored against the gold set for missed obligations, wrong dates, wrong parties and invented clauses. Ongoing, 5 randomly selected summaries per week are checked against the source for about 10 minutes each. A summary with any critical error is re-run; if more than 2 critical errors appear in a month's sample, the batch is flagged and the path is reviewed. Summaries are not relied on for legal advice until a path meets the acceptance threshold on the gold set, which is zero critical errors in the gold set and at most 10% minor omissions.\n\nWhat would change the recommendation: rising non-consenting volume. Above about 70% of intake (210 contracts a month), local capacity is exhausted within the staff member's day, so the firm must either add a second GPU, shorten summaries, or decline lower-priority work. Rising critical error counts on the local path would point toward a larger local model or toward the API for that work, if consent allows. A large change in API prices or a move to a much larger context window would change the cost of the split but not the local default. The firm will notice these through three monthly signals: the consent register count, the local queue length against the 35-hour capacity figure, and the critical error count from the weekly sample. Monthly API spend above about $50 would prompt a review of routing, since it would mean the consent rate is higher than assumed or the model tier has been raised.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7e7-b288-79f1-b475-db730da825dd",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 83,
+    "elapsedMs": 283657,
+    "usage": {
+      "inputTokens": 97821,
+      "outputTokens": 23776,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 40895,
+      "reasoningTokens": 0,
+      "costUsd": 0.018352475
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2686,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001385275,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 36,
+      "resolved": 14
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 676,
+  "wordBudget": 900
+}

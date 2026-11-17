@@ -1,0 +1,32 @@
+{
+  "problemId": "oidc-migration",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:46:54.651Z",
+  "spentUsd": 0.000855,
+  "outcome": "answered",
+  "text": "Recommendation: migrate authentication in a strangler pattern over the quarter, using the identity provider's credential-migration hook for lazy, login-time migration of bcrypt hashes, with the monolith remaining the system of record for sessions until a single, reversible cutover flag flips. Do not attempt a big-bang switch. Each step below ships behind a feature flag so that any failure can be rolled back to the previous state within an hour.\n\nStep 1 (weeks 1-2): Stand up the identity provider in a non-production tenant, configure an OIDC client, and build a thin adapter in the monolith. After this step, nothing user-facing has changed; the monolith still authenticates everyone locally, and the provider is connected only to a staging environment. Rollback is trivial: disable the client.\n\nStep 2 (weeks 2-3): Implement the credential-migration hook on the provider side. On a login attempt for an unknown user, the provider calls a monolith endpoint that verifies the submitted password against the existing bcrypt hash and, on success, returns the profile and the password so the provider can store its own hash. Deploy the endpoint behind a flag, off by default. After this step, the endpoint exists but is dark; rollback is disabling the flag and the provider hook.\n\nStep 3 (weeks 3-4): Add a routing layer in front of login. Initially 0% of users are routed to the provider. Route a small internal cohort of engineers and staff accounts first. Verify that migrated users can log in, that failed hook calls fall back to local login, and that audit logging captures both paths. After this step, the company has two working login paths and can shift traffic between them by configuration.\n\nStep 4 (weeks 4-7): Ramp the percentage of users routed through the provider, starting at 1%, then 10%, then 50%, then 100% over several weeks, watching error rates, login latency and support volume at each stage. Each increase is a configuration change, and any stage can be reverted in minutes. Users who log in during this window are migrated lazily: their password is verified against bcrypt and re-stored in the provider, and a migrated flag is set on the local record. Users who never log in remain unmigrated and continue to use the local path, which keeps the local login endpoint alive throughout.\n\nHow users who do not log in are handled: they are not forced to reset passwords, and their bcrypt hashes stay where they are. Lazy migration only moves credentials when a user authenticates, so dormant accounts are never disturbed. Routing remains in place for them. Near the end of the quarter, the company can run a background pass for accounts that are still unmigrated and inactive, but this is optional and should be a deliberate product decision, since it either requires keeping the local hash path alive for them or accepting a password reset for a small, identifiable set of dormant accounts. Surface this to the business as a known trade-off rather than deciding it silently.\n\nSessions while both systems are live: the monolith keeps its server-side sessions for users it has authenticated locally, and users authenticated through the provider receive an OIDC-issued token that the monolith exchanges for a local session on first contact. This means every request is still authorised by one session store, which keeps the authorisation logic in one place during the transition. Logout must revoke both the local session and the provider session, otherwise a user can remain signed in on one side. Session lifetimes should be aligned deliberately, and the design should treat a missing or stale provider token as a request to re-authenticate rather than as an error.\n\nPoint of no return: the cutover in which the provider becomes the sole authority for authentication and the monolith stops accepting local password verification. Reach it only once the migrated percentage is at or near 100% and the error budget has been held for several weeks. Even then, keep the local bcrypt verifier and the rollback flag in place for a defined soak period, because reverting the flag restores local login within an hour. The true point of no return is deleting the bcrypt hashes and the verifier, and this should happen only after the soak period has ended with no regressions.\n\nCleanup after the point of no return: remove the local password verification path and the migration endpoint, drop or null the bcrypt hash column under a reviewed migration, delete the routing layer and its flags, retire the local login pages, and remove the temporary session bridge once all sessions are provider-issued. Document the final architecture and the residual dormant-account decision. Caveats and open questions: confirm that the provider's hook can carry the verification securely and that its rate limits can handle the peak login volume; confirm data-protection obligations for storing credentials at a third party; and agree with the business how dormant accounts are treated before the quarter ends.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2699,
+    "usage": {
+      "inputTokens": 1015,
+      "outputTokens": 1507,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.000855
+    },
+    "latencyMs": 9992,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 815,
+  "wordBudget": 900
+}

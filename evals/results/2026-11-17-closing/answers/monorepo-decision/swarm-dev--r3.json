@@ -1,0 +1,54 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T09:14:17.469Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Move to a Protocol-Gated Monorepo. The company should consolidate the 12 repositories into a single workspace managed by Turborepo. This approach eliminates semantic drift by enabling parallel, file-level dependency resolution while preserving team-owned deployment schedules through decoupled build triggers. Staying in the current multi-repo structure fails to address the root cause of late-breaking changes, and a 'Big Bang' migration violates the one-sprint constraint by halting all feature work.\n\nSolving the Shared-Library Propagation Problem: The core issue is that shared library changes take days to propagate because consumers rely on published version pins rather than immediate code availability. In a monorepo with Turborepo, the build graph is derived from the source tree, not registry versions. When a consumer updates its reference to a shared library, the CI system instantly detects the file-level change and triggers parallel test runs for all dependent consumers. This replaces the sequential 'publish-wait-test' cycle with immediate validation. Breaking changes are caught in the pull request, preventing them from reaching production. The 'Protocol-Gated' aspect ensures that while code is shared, deployment events remain decoupled: a library update triggers a build, but does not force an immediate redeploy of all consumers, allowing teams to maintain their own cadence.\n\nMigration Plan Within One Sprint: The migration will be executed as a shallow, incremental move to avoid blocking feature work for more than one sprint. The total stoppage is limited to a single 'Infrastructure Sprint' where dedicated engineers handle the consolidation, while feature teams continue development on long-lived branches or in parallel isolated environments. Step 1 (Days 1-2): Platform engineers initialize the Turborepo workspace, importing existing TypeScript and Go modules into a unified directory structure. They configure local workspace links for the three shared libraries, replacing npm/go module references with file-relative paths. Step 2 (Days 3-5): CI pipelines are refactored to use Turborepo’s caching and task graph. Instead of separate pipeline definitions per repo, a single configuration file defines tasks for all packages. Remote caching is enabled to accelerate builds. Step 3 (Days 6-10): Teams migrate their local development environments to work within the monorepo. They update their build scripts to use Turborepo commands. A 'shallow' migration means consumers do not need to refactor code logic, only reference paths. Step 4 (Days 11-12): Integration testing is performed across all five teams. The 'Protocol Gate' is enforced: any PR modifying a shared library must pass tests in all dependent consumer repos before merging. Step 5 (Days 13-14): Go-live and monitoring. Deploy ownership remains with each team; the CI system generates separate deployment artifacts for each app/library, allowing independent trigger-based releases.\n\nAddressing CI Costs: Finance’s concern is addressed through efficiency gains rather than just volume reduction. Initial CI costs may rise slightly (10-15%) during the first week due to cache warmup and the initial run of all 12 packages. However, long-term savings are substantial. Turborepo caches build outputs based on file content hashes. If a change only affects Library A, Consumer B’s build is restored from cache or skipped entirely if no files changed. This eliminates redundant environment setups and parallel test executions for unchanged code. We expect a 30-50% reduction in monthly CI minutes once the cache is stable. This shift moves spending from idle waiting time to active computation, which is more efficient and predictable.\n\nRisks and Costs: The primary risk is the 'blast radius' of library changes. In a monorepo, a small fix in a shared library can trigger rebuilds of all consumers. To mitigate this, we enforce strict internal package boundaries using workspace protocols that limit visibility to only necessary consumers. Another risk is cultural friction; 30 engineers must adapt to a shared codebase. We address this by keeping deploy triggers decentralized. Teams still own their release schedules. The cost is the one sprint of infrastructure effort and the temporary disruption during migration. If teams resist, adoption will be slow, but the parallel CI benefits will still accrue over time. The solution balances technical efficiency with operational autonomy.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e8c4-7b25-74fd-b979-94679955a943",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 74,
+    "elapsedMs": 304343,
+    "usage": {
+      "inputTokens": 91881,
+      "outputTokens": 16905,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2691,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 24,
+      "resolved": 5
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 660,
+  "wordBudget": 900
+}

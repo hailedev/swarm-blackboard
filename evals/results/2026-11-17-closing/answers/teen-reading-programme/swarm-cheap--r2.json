@@ -1,0 +1,54 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:59:59.662Z",
+  "spentUsd": 0.018892749999999996,
+  "outcome": "answered",
+  "text": "Recommendation: run a six-week, hands-on maker programme called Teen Makers Lab for 12 teens aged 13 to 17, meeting for 90 minutes each Thursday, with a single librarian facilitating and a small volunteer team handling snacks and tech support. Participants build a short tangible project each week (a cardboard arcade game, a simple circuit with a light or buzzer, a stop-motion or podcast episode), and reading and writing enter through the project brief rather than as a set text. Non-reading teens come because the room is a place to make things with friends and to get a finished product, not a place to read.\n\nWeek-by-week plan: Week 1, introductions and a build-a-badge circuit kit (about $15 per kit, shared in pairs). Week 2, cardboard arcade machine design with a written game rulebook. Week 3, podcast recording of a 5-minute episode on a topic the group chooses, with scripting and editing. Week 4, stop-motion animation with a written storyboard. Week 5, peer showcase where teens present their work to families and friends. Week 6, a graduation session with certificates, a take-home zine of the group's work, and a library card sign-up. Each session runs 90 minutes with a 10-minute window at the start for anonymous slips.\n\nRecruitment: the librarian spends the first two weeks before launch contacting schools, youth sports clubs, after-school care centres and youth workers, asking them to post a flyer or announce the programme. Assumption: at least two of these bridge institutions will agree to host a sign-up table or announcement; if none does, sign-up moves to the branch's front desk and social media. Teens are invited to bring a friend. The message is 'make a thing, get a certificate, free snacks', not 'come read'.\n\nBudget ($500 total): $150 for bulk snacks (about $25 per week for 12 teens, bought from a warehouse club). $100 for low-cost maker supplies such as cardboard, tape, printed backgrounds and recycled props. $100 for printing: posters, flyers, sign-up slips and the final zine. $150 reserve for circuit kits, replacement supplies or a late-stage overrun. Assumption: the branch's existing tablets and free apps cover recording and animation, so no software is bought.\n\nOutcome measures beyond attendance: first, a single-page pre and post survey in weeks 1 and 6 asking about reading confidence and enjoyment on a 1 to 5 scale, with an anonymous self-chosen code so pairs can be matched. Second, a project-quality rubric scored by the librarian on each finished artefact (completion, a written component, and a presentation), tracked across weeks. Third, library card sign-ups and any item borrowed in the six weeks, drawn from circulation records. Fourth, a recommend-to-a-friend question in the week 6 survey. The manager reads as evidence of change a rise of at least one point on the reading-confidence scale for at least half of paired completers, with card sign-ups among non-visitors. Because a six-week pilot cannot prove causation, the manager should treat this as a signal to repeat, not as proof.\n\nFit to four librarian hours a week: 1 hour on Tuesday for preparation and tech checks; 1.5 hours on Thursday for the session, including the 10-minute slip window; 1.5 hours on Friday for admin, sorting slips and planning the next week. Assumption: this uses all four hours with no spare time, so any outreach beyond the first two weeks must be done by volunteers. Volunteers are drawn from a teen advisory board or local university students in education or media; they handle snacks, equipment setup and supervision, but do not take on recruitment or data entry.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e813-ad7c-7c2d-be7a-b4468028c5d0",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 74,
+    "elapsedMs": 233520,
+    "usage": {
+      "inputTokens": 98364,
+      "outputTokens": 20631,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 43854,
+      "reasoningTokens": 0,
+      "costUsd": 0.018892749999999996
+    },
+    "confidence": 0.55,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0013539749999999999,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 30,
+      "resolved": 17
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 590,
+  "wordBudget": 900
+}

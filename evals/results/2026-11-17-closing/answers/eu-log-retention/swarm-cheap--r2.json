@@ -1,0 +1,54 @@
+{
+  "problemId": "eu-log-retention",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:56:06.139Z",
+  "spentUsd": 0.019114975,
+  "outcome": "answered",
+  "text": "Recommendation: adopt a tiered retention schedule in which live application logs are kept 30 days, infrastructure logs 30 days, audit logs 12 months with identifiers pseudonymised, and daily backups 90 days, with the 30-day deletion promise honoured in all live systems through an automated offboarding job and with backups stated in the contract as expiring on their own 90-day cycle.\n\nApplication logs. Raw application logs containing user identifiers and free text are kept 7 days, after which free text is dropped and identifiers are masked or hashed, and the masked form is kept up to 30 days for incident investigation and billing disputes. Assumption: the masked form is still personal data under GDPR (salted hashes and partially redacted text can be re-linked), so it is retained on the same 30-day clock as the rest of the operational data rather than as anonymised statistics. The 7-day raw window reflects that free text is the highest-risk field and rarely needed beyond triage.\n\nInfrastructure logs containing IP addresses are kept 30 days from creation. IP addresses are treated as personal data where the company can link them to a person, so the 30-day period is justified by the operational need to investigate abuse and outages within a month, not by any statutory period.\n\nAudit logs are kept 12 months to meet the security lead's requirement. Assumption: this rests on legitimate interests under Art. 6(1)(f), with a documented balancing test, because the company must be able to show who accessed customer data and when. Audit records store user identifiers only as pseudonymised tokens; the mapping key is held separately with restricted access, so the year-long record is not a copy of raw application logs. Art. 17(3)(d) is not used as a general retention basis: it applies only to specific logs needed for an identified legal claim, and those are preserved on a per-case hold rather than by default.\n\nBackups are kept 90 days, as today. Backups are retained for disaster recovery under Art. 32 security requirements, which the company states as a technical necessity rather than as a legal erasure exception.\n\nHonouring the 30-day promise. On termination, an offboarding workflow deletes the tenant's data from live databases, application logs and infrastructure logs within 30 days, and it runs daily so that any missed run is caught and retried. Because the job runs daily and not continuously, the contract states a target of 30 days with a daily sweep, not an instantaneous guarantee. Backups are not purged individually; the contract states that customer data persists in encrypted backups until the 90-day cycle expires, and that it is not restored into live systems after termination. Crypto-shredding is used only where per-tenant keys are practical; the company does not claim that backups are deleted within 30 days.\n\nEnforcement and proof. Storage lifecycle rules on log and backup buckets expire objects automatically. A scheduled deletion job for offboarded tenants runs daily and writes a deletion receipt per tenant: tenant identifier, systems touched, record counts, timestamp and job version. Lifecycle configuration changes and expiry events are written to immutable (WORM) audit storage. To test the live pipeline, the team runs a quarterly rehearsal: a dummy tenant with realistic volume is terminated and its data is checked for removal across live stores and logs within the 30-day window. This is weak evidence on its own, since a dummy tenant does not prove deletion for every real tenant, so it is paired with the daily receipts, which cover every real termination. Receipts and job logs are kept for the duration of the audit log period.\n\nGDPR concepts. The company is likely a processor for customer data under Art. 4 and Art. 28, and a controller for its own operational data such as access and infrastructure logs. The 30-day deletion promise is a contractual term under Art. 28(3)(g), which requires the processor to delete or return data at the end of the services; it is not a GDPR deadline. Storage limitation under Art. 5(1)(e) justifies the short periods for application and infrastructure logs. Art. 30 requires the retention periods to be recorded in the records of processing, which this schedule satisfies. Assumption: the customer contracts and data processing agreements leave retention to the company, so no customer instruction overrides the schedule; if a customer requires a different period, the schedule is adjusted for that tenant.\n\nWhat the policy does not claim. It does not claim that backups are erased within 30 days, that masked logs are anonymous, or that crypto-shredding has been verified for a six-person team. It does not claim full GDPR compliance, which requires legal review that the team does not currently have.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e80f-dadb-7e09-b28a-269aeb91258a",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 78,
+    "elapsedMs": 250527,
+    "usage": {
+      "inputTokens": 112965,
+      "outputTokens": 21384,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 39103,
+      "reasoningTokens": 0,
+      "costUsd": 0.019114975
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001700575,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 773,
+  "wordBudget": 900
+}

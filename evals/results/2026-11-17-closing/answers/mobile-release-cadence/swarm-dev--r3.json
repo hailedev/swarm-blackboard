@@ -1,0 +1,54 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:33:16.827Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Adopt a bi-weekly release cadence supported by a staged rollout protocol and automated pipeline management to make releases routine and reduce hotfix stress. This approach ensures that changes are visible to users gradually, allowing for early detection of issues without full-scale exposure, while automating the submission process removes the bottleneck from the single release manager.\n\nRelease Cadence and Frequency: The team will shift from a 3-5 week cycle to a strict two-week cadence. This frequency is chosen because it balances the need for rapid feedback with the reality of App Store review times (1-3 days). A two-week window allows engineers to complete meaningful features without rushing, reducing the 'heroic' effort that leads to bugs. It also ensures that even if a release is rejected, there is ample time within the cycle to re-submit and ship in the next window without delaying user value for more than 21 days. This routine makes releases predictable rather than stressful.\n\nHotfix Path and Speed: The primary way to make hotfixes rarer is through staged rollouts. By releasing to only 10% of users first, the team can monitor crash-free sessions and ANR (Application Not Responsive) rates using App Store Connect and Google Play Console dashboards. If a critical issue arises in this small group, the fix can be prepared and submitted as part of the same release cycle or a rapid emergency update that is already in the review queue due to pre-submission strategies. This reduces the need for separate hotfixes. To make hotfixes faster when they are unavoidable, the team will utilize feature flags controlled by remote configuration. This allows immediate rollback of buggy behavior without waiting for App Store approval, effectively bypassing the 2-day review delay for logic-based bugs.\n\nFeature Flag Rules: A change ships behind a feature flag if it alters core user-facing logic, introduces new UI flows, or involves backend-dependent behavior. Direct releases are reserved only for non-functional changes like code refactoring, dependency updates, or visual tweaks that do not affect app stability. This rule ensures that any risky behavior can be toggled off instantly via remote config. Flags must be marked with an expiry date and removed within one release cycle to prevent technical debt.\n\nMeasurable Success in Three Months: In three months, the team will evaluate success using four specific metrics: 1) Release Cadence Consistency: Were releases shipped on time for at least 8 out of 12 cycles? 2) Hotfix Rate: Has the percentage of releases requiring a hotfix dropped below 5%? 3) App Store Rejection Rate: Is the rejection rate under 10%, indicating stable builds? 4) Mean Time to Resolution (MTTR): For bugs found in staged rollouts, is the time from detection to fix under 24 hours using feature flag rollback? These metrics will be tracked via automated release health dashboards.\n\nAddressing Constraints and Roles: The six-engineer team shares release duties. The de-facto release manager role is automated via CI/CD pipelines (e.g., Fastlane) that store signing keys securely in encrypted repository variables, removing the local machine bottleneck. Collective ownership means any engineer can trigger a pipeline build and submission. This prevents burnout for the release manager. For critical bugs, if remote config is unavailable due to offline issues, client-side fallbacks (try/catch blocks with defaults) act as a safety net, ensuring the app does not crash even if flags fail.\n\nAssumption: The team agrees to submit pre-release binaries 72 hours in advance for standard releases. This assumes App Store review queues can handle pre-submitted binaries without significant delay. If this assumption fails and review times increase, the team will revert to emergency-only staged submissions, accepting slower hotfix speeds but maintaining safety.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e89f-5933-7587-860c-c9f02f504312",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 72,
+    "elapsedMs": 277223,
+    "usage": {
+      "inputTokens": 83115,
+      "outputTokens": 15707,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 26,
+      "resolved": 16
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 603,
+  "wordBudget": 900
+}

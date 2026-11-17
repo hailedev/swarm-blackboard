@@ -1,0 +1,54 @@
+{
+  "problemId": "oidc-migration",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:42:12.316Z",
+  "spentUsd": 0.015712399999999998,
+  "outcome": "answered",
+  "text": "Recommendation: migrate with a lazy, verify-locally-then-forward credential hook, bulk-import dormant users in the background, bridge sessions through the monolith acting as an OIDC client, and treat the cutover of local password verification as the single point of no return, reached only after the dormant tail is closed and a rehearsed rollback has been tested.\n\nWeeks 1-2: stand up the identity provider in a non-production tenant, configure an OIDC client for the monolith, and build the migration hook and a stable-ID linkage column (the monolith user ID stored as a custom claim or linked profile ID on the provider, never username or email). Reversal: disable the tenant; nothing in production has changed.\n\nWeeks 3-4: ship the monolith change that keeps local bcrypt verification as the authority and, on each successful login, forwards the plaintext password to the provider's migration hook so it stores its own hash and sets a migrated flag. The hook is called asynchronously with a short timeout (about 2 seconds); if the provider is slow or unreachable, the login still succeeds on the local hash and the migration is retried later. Users are never locked out by the provider. Reversal: feature flag off, which restores the original login path in minutes.\n\nWeeks 5-6: run a bulk job over the 40,000 accounts that imports bcrypt hashes directly where the provider accepts the {bcrypt} format, keyed by stable ID, in batches with checksum reconciliation against the monolith. Accounts that cannot be imported this way are flagged dormant. Users are never forced to reset. Reversal: the import is additive and can be purged by batch ID.\n\nWeeks 7-9: enable OIDC login as an option alongside the local form. The monolith is the OIDC client; after provider authentication it exchanges the code, maps the subject to the internal user, and issues its own existing server-side session cookie, so application code sees no change. Both systems stay live: a session created by either is valid in the monolith, and logout in the monolith calls the provider's end-session endpoint while provider logout triggers back-channel logout that revokes monolith sessions. Token lifetimes are kept short during overlap (access tokens about 15 minutes, monolith sessions idle timeout unchanged) so that stale sessions expire within the hour-scale rollback window. Reversal: remove the OIDC option from the login page.\n\nWeeks 10-11: move dormant users (those not yet migrated) through a proxy: their first login goes to the monolith verifier, which still holds the bcrypt hash, so no reset is needed. Monitor the migrated fraction daily; target over 95 percent migrated before cutover. Reversal: stop the proxy job.\n\nWeek 12: point of no return. Preconditions before crossing: at least 98 percent of active users have a provider credential or a successful OIDC login, the dormant tail is under a defined threshold with a named owner, a full rollback rehearsal has succeeded in staging within an hour, a database backup is verified, and on-call is staffed. Crossing means disabling local password verification in the monolith so the provider becomes the only verifier. From this point a credential-level rollback is no longer possible without a password reset, so the team accepts that a provider outage blocks login for any remaining dormant users; this was flagged as the key business decision to confirm with stakeholders before week 12.\n\nAfter crossing: keep the local bcrypt column read-only for two weeks as a forensic and emergency fallback, then remove the legacy login handler code path, drop the password_hash column, retire the old session store once all sessions have aged out, remove custom claims that are no longer needed, and delete the migration hook and its feature flag. Each cleanup step is taken separately so that any one can be reverted independently.\n\nAssumption: the provider accepts bcrypt hash import in the {bcrypt} format; if it does not, dormant users move through the proxy in weeks 10-11 and the cutover date slips until the tail is closed. Assumption: the three engineers can spend roughly half their time on this, so each phase above fits within its two-week window alongside product work.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e802-6ac3-7998-9690-1652074f339a",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 65,
+    "elapsedMs": 297367,
+    "usage": {
+      "inputTokens": 81252,
+      "outputTokens": 22745,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 38872,
+      "reasoningTokens": 0,
+      "costUsd": 0.015712399999999998
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2699,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001236825,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 38,
+      "resolved": 7
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 675,
+  "wordBudget": 900
+}

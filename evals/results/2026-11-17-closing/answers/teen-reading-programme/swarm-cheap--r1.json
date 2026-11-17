@@ -1,0 +1,54 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:21:03.193Z",
+  "spentUsd": 0.016932475000000002,
+  "outcome": "answered",
+  "text": "Recommendation: run a six-week, low-pressure 'Teen Escape Lab' built around a hosted escape room in week one, followed by small-group puzzle-building that feeds a final public showcase in the library, staffed by one librarian at four hours a week plus four core volunteers and two standby backups.\n\nFormat and content. Each session runs 90 minutes after school, with the first 15 minutes as open arrival, snacks and check-in, then a structured activity. Week 1 is a hosted escape room set in the library using existing books and the meeting room, so participants experience the space as a game rather than a lesson. Weeks 2 to 5 each focus on one puzzle type that teens build in small groups from a template with scaffolded examples: week 2 a riddle box, week 3 a cipher lock using book-based codes, week 4 a physical mechanism, week 5 a digital clue using a free tool. Week 6 assembles the weekly puzzles into one community escape room that families and peers can visit. Teens are drawn by the game and by the chance to build something that others will play, not by the prospect of reading; books appear as the raw material for ciphers and clues.\n\nRecruitment. Sign-up is offline first. Printed flyers and a QR code linking to a phone-friendly form (name and phone number only) are placed with youth sports teams, community centres and school counsellors. Each participant receives two 'bring-a-friend' vouchers, redeemed in person at the week 1 check-in, so peer referral does the recruiting. Assumption: partner organisations agree to display flyers and hand out vouchers at no cost; if a partner declines, recruitment shifts to the remaining channels. Non-user status is recorded by self-report at sign-up, supplemented by a 'no prior library card' question; we do not cross-check library databases, since that needs consent and staff time the plan does not have.\n\nBudget ($500 total). Snacks and drinks, $240, bought in bulk at about $40 a session for six sessions. Craft and puzzle materials, $100: notebooks, card stock, padlocks and cipher wheels. Printing, $60: flyers, templates and the week 6 showcase signage. Prizes, $60: small gift cards at the showcase, about 12 at $5. Digital tools, $40: a paid tier for one puzzle-design app for the week 5 build, if no free alternative suffices. Transport and reserve, $0 to $0 beyond the lines above: the programme uses walk-in participants and the library's own room, so the reserve is held inside the printing and snack lines. Total: $240 + $100 + $60 + $60 + $40 = $500.\n\nOutcome measures beyond attendance. At sign-up and again at week 6, a short anonymous survey asks three items: confidence in finding a book or resource at the library (1 to 5), intent to visit the library in the next month (1 to 5), and whether the teen would recommend the library to a friend (yes or no). A participant counts as changed if their rating moves upward on at least two of the three items. Because there is no control group, the manager should read this as evidence of change among participants, not proof of programme cause; a comparison with the same survey given to non-attending teens at the showcase is a feasible low-cost addition. Teens' own words are gathered on one card per week, completing the sentence 'One thing I learned about the library is...', giving narrative evidence. Survey burden is about two minutes per teen; parental permission is collected on the sign-up form for under-16s.\n\nTime and delegation. The librarian's four hours a week cover planning and facilitation of the main activity and handling sign-up records. Core volunteers, recruited from local colleges or senior centres and trained once in a one-hour session in week 0, take over arrival, snacks, materials set-up and the group rotation from pre-printed guides. Two standby volunteers cover cancellations. Assumption: four volunteers can be recruited for all six weeks; if recruitment falls short, the librarian takes over check-in and the showcase is scaled to one room. The programme is designed so that the weekly tasks, once volunteers are in place, fit within the librarian's four hours, but the margin is thin and the first week should be timed to confirm it.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7f0-12ba-70f2-91d6-7140a16ad224",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 73,
+    "elapsedMs": 230429,
+    "usage": {
+      "inputTokens": 85993,
+      "outputTokens": 18955,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 40155,
+      "reasoningTokens": 0,
+      "costUsd": 0.016932475000000002
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.00142185,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 26,
+      "resolved": 12
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 703,
+  "wordBudget": 900
+}

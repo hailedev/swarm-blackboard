@@ -1,0 +1,54 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:53:26.262Z",
+  "spentUsd": 0.017078074999999998,
+  "outcome": "answered",
+  "text": "Recommendation: move to a fixed four-week release train with a soft freeze in the final week, put every user-facing or network-dependent change behind a remote-config flag by default, ship every release through a staged rollout starting at 5 to 10 percent, and give the release role to two owners who share it monthly rather than rotating weekly.\n\nCadence. Release every four weeks on a fixed day, with the cut-off at the start of week four. Four weeks leaves about 25 days of slack per cycle, enough to absorb a one-to-three-day review, one rejection-and-resubmit cycle (another two to four days) and a staged rollout over several days without anyone rushing. Two weeks is too tight for a six-person team with no QA; six weeks lets integration debt build up. The cadence is kept by trunk-based development: main stays releasable every day. In the final week only new features are held back from main, while bug fixes and hotfixes can still merge, so the freeze never blocks a fix.\n\nRelease ownership. Two release owners share the role and shadow each other each month, so knowledge is not held by one person and the load stays low. Automated CI/CD using Fastlane or Codemagic handles version bumping, signing and asset checks, so the owners spend their time on metadata validation and exceptions, not on building binaries. Each submission is checked against a written pre-submission checklist (screenshots, permission strings, version codes, OS compatibility) and a second engineer peer-reviews the store metadata before submission. Submissions are prepared as drafts ahead of the cut-off so the review window does not hold anyone to a fixed hour.\n\nFeature flags. A change ships behind a remote-config flag if it is user-facing UI, depends on the network or a backend, or adds a new code path that changes state; it is also flagged if it is risky but can be switched off without losing user data. It ships directly only if it is a copy or asset change, a dependency bump with no behaviour change, a fix for a crash that cannot be disabled remotely, or a security patch. Assumption: the flag rule is enforced by the author in code review, with the reviewer confirming the flag decision on each pull request; if reviewers skip it, flag coverage will drop and the three-month review will show it.\n\nHotfixes. Most hotfixes for logic bugs are avoided altogether: a broken feature is turned off through its remote-config flag within hours, with no store submission. The remaining hotfixes that need a binary go through an expedited review request, which typically completes within a day. For native crashes that cannot be flagged, the team relies on the staged rollout: a release is paused at 5 to 10 percent, so the bad build reaches few users before the pause. Assumption: the App Store does not auto-halt a phased release, so the owner pauses it by hand after an hourly check of crash metrics via the store and Crashlytics APIs; the pause takes effect within about one hour, which limits exposure to roughly half a day.\n\nStaged rollout. Each release starts at 5 to 10 percent. The owner checks crash-free sessions hourly for the first 24 hours and twice daily after that. The owner pauses the rollout if the crash-free session rate falls by more than 0.5 points against the previous release, or if a new crash signature affects more than 1 percent of sessions. The owner decides to halt and informs the team; the rollout resumes only after a fix is tested. Full rollout follows after about a week with no alerts.\n\nMeasuring it in three months. Track five indicators against baselines taken today: release interval (baseline three to five weeks, target four weeks, held steadily); share of releases followed by a hotfix (baseline about 25 percent, target under 10 percent); time from defect detection to user fix (baseline about two days or more, target under one day for flag-controlled bugs and under three days for binary hotfixes); crash-free session rate at the first rollout stage (target no worse than the prior release); and the number of rollout pauses that prevented user-visible bugs. Time to mitigation for flagged bugs is logged manually as a Jira entry, since automated logging of flag state per session is not in place. Owners review these numbers at the end of each release and again at the three-month mark. The process is judged to work if the hotfix share falls, the release interval holds at four weeks, and no release needs heroic effort.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7d5-65a5-7d43-8708-ae41b21e9c78",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 95,
+    "elapsedMs": 321740,
+    "usage": {
+      "inputTokens": 106153,
+      "outputTokens": 22455,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 39127,
+      "reasoningTokens": 0,
+      "costUsd": 0.017078074999999998
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001695875,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 29,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 753,
+  "wordBudget": 900
+}

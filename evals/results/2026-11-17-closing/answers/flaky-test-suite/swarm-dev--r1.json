@@ -1,0 +1,54 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:13:45.020Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "The six-week plan reduces flakiness from 8% to under 2% and CI duration from 45 minutes to under 15 minutes, restoring engineering trust within a two-engineer-week budget. Week one establishes the baseline by running the full suite ten times to identify top offenders. Weeks two through three diagnose and quarantine the most impactful tests. Week four implements low-cost fixes for external dependencies. Week five parallelizes the pipeline to cut CI time. The final week institutes a governance rule that quarantines new flakes automatically and requires coverage checks before any deletion.\n\nFor success criterion 1, the baseline measurement occurs in Week 1. The team runs the full 400-test suite ten times, capturing pass/fail logs for every test ID with timestamps. This allows us to calculate the flakiness rate by identifying tests that fail at least once but pass at least once across these runs. We specifically track 'pass on re-run' instances where a failure is immediately followed by a success. The target at week six is a flakiness rate of less than 2% (reducing from the current 8%) and a CI duration of under 15 minutes, down from 45 minutes.\n\nFor success criterion 2, the diagnosis approach follows a 'Flake Quarantine' governance model. Before fixing any root causes, we identify the top offenders responsible for the majority of failures. We run the full suite ten times to distinguish between job-level failures and unique test ID failures. This reveals if the 8% failure rate is driven by a small number of high-frequency offenders or many low-frequency ones. We categorize failures into three root causes: test-induced state pollution (shared mocks/databases), external dependencies (API non-determinism), and infrastructure issues (race conditions). This diagnostic filter allows us to prioritize fixes based on frequency and impact without spending excessive time on deep triage for every test.\n\nFor success criterion 3, the interventions are prioritized by impact. We first quarantine the top 10% of failing test IDs, which likely account for 80% of the failures, moving them to a non-blocking stage or marking them skipped. This restores trust immediately. Next, we fix high-impact tests with simple external dependency issues by stubbing APIs, which is a medium-cost intervention. We leave complex race conditions and state pollution quarantined if fixes require deep refactoring, as these exceed our budget. The total engineering effort is capped at two engineer-weeks: one week for diagnosis and quarantine, and one week for targeted fixes of external dependencies and simple state pollution issues.\n\nFor success criterion 4, the governance rule to prevent decay is the 'Flake Quarantine' policy combined with a 'Coverage Check Gate'. Any test identified as flaky during baseline or future runs is automatically quarantined pending triage. A test remains quarantined until its behavior is verified by another passing test or marked obsolete. This ensures compliance with the constraint that tests may only be deleted if covered. New tests must have an isolated reproduction case, and flake reports are triaged weekly with a SLA for resolution. This low-friction exit ramp protects CI trust while root causes are addressed.\n\nThe plan is structured into five weeks of active work and one week of buffer. Week 1: Baseline measurement (1 engineer-week). Run the suite 10 times, log all results, identify top offenders. Output: List of flaky tests and their root cause categories. Week 2: Diagnosis and Quarantine (0.5 engineer-weeks). Move top offenders to non-blocking stage. Implement automated logging to track future flakes. Week 3: Targeted Fixes (0.5 engineer-weeks). Fix external dependencies for high-impact tests by stubbing. Leave complex races quarantined. Week 4: CI Optimization (1 engineer-week). Implement parallel sharding across 8 runner nodes to reduce wall-clock time by 75%. Implement dependency caching for npm/pip. Week 5: Governance and Review (1 engineer-week). Institute the 'Flake Quarantine' rule. Audit quarantined tests for deletion or fix. Week 6: Buffer and Monitoring. Monitor flakiness rate. Adjust targets if needed.\n\nThe diagnosis approach addresses the critique that automated log parsing is insufficient. We use a hybrid method: automated logging to categorize failures into state pollution, external deps, or infrastructure, combined with manual triage for high-impact offenders. This ensures we do not misdiagnose complex race conditions as simple state issues. The intervention prioritization addresses the critique that 80% of flakiness contributors may not be a small subset. By quarantining the top 10% and fixing external dependencies, we address the most disruptive tests first, ensuring maximum stability gain per engineer-hour.\n\nThe CI time reduction strategy assumes standard cloud providers with limits on runner nodes. We shard the 400 tests into 8-16 jobs, reducing wall-clock time by 75%. This brings the duration from 45 minutes to under 15 minutes. Parallel sharding is prioritized over test selection, as it reduces time regardless of test order. Dependency caching for npm/pip is implemented alongside sharding. The total budget of two engineer-weeks is split: one week for diagnosis and quarantine, and one week for targeted fixes. This leaves no room for deep refactoring of race conditions, which are left quarantined.\n\nThe governance rule ensures that tests are not deleted without coverage. Quarantined tests are marked as skipped but preserved in code. A test is only deleted if a replacement covers the same behavior or the behavior no longer exists. This prevents future decay by creating a low-friction exit ramp for flaky tests. The 'Flake Quarantine' policy automatically disables flaky tests pending triage. New tests must have an isolated reproduction case. Flake reports are triaged weekly with a SLA for resolution.\n\nThis plan addresses the constraint of 8 engineers by leveraging parallel sharding across available runner nodes. The 400-test suite is split into 8-16 jobs, reducing wall-clock time significantly. The budget of two engineer-weeks is strictly allocated: one week for diagnosis and quarantine, and one week for targeted fixes. This ensures we stay within the budget while restoring trust. The plan does not include deep refactoring of complex race conditions, which are left quarantined to save engineering time.\n\nThe final target is a flakiness rate of less than 2% and a CI duration of under 15 minutes. This is achieved by quarantining the top offenders and fixing external dependencies. The governance rule ensures that new flakes are automatically quarantined and triaged weekly. This prevents future decay and maintains engineering trust. The plan is feasible within the two-engineer-week budget, focusing on high-impact interventions first.\n\nThe answer rests on the evidence that running the suite 10 times provides a reliable baseline for flakiness rates. It uses the 'Flake Quarantine' governance model to restore trust immediately. It prioritizes fixing external dependencies over complex race conditions due to budget constraints. It assumes standard cloud provider limits for parallel sharding. The plan is designed to be sustainable, with a governance rule that prevents future decay.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e855-c28d-7e85-a524-0c33e6c96aef",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 81,
+    "elapsedMs": 328110,
+    "usage": {
+      "inputTokens": 99646,
+      "outputTokens": 18000,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.95,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 6
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 1111,
+  "wordBudget": 900
+}

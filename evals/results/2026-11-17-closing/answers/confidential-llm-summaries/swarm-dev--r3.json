@@ -1,0 +1,59 @@
+{
+  "problemId": "confidential-llm-summaries",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:52:35.897Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: The firm should implement a local-only processing pipeline using an NVIDIA RTX 4060 Ti 16GB to handle all 300 contracts, including those from non-consenting clients. This approach ensures complete data sovereignty by never transmitting contract text to third parties, fits well within the $300 monthly budget after hardware amortization, and is technically feasible for a single staff member to manage weekly using Recursive Condensing.\n\nCost Model and Hardware Selection: The firm’s total monthly budget is capped at $300. To satisfy the requirement that some clients refuse consent, we must prioritize local processing over hosted APIs. A hosted API service, even at low per-page rates, would cost between $3 and $30 for 300 contracts, consuming a significant portion of the budget and requiring data transmission that violates the terms of non-consenting clients. Therefore, the strategy is local-only. The recommended hardware is an NVIDIA RTX 4060 Ti with 16GB of VRAM, priced at approximately $390 USD. Amortized over three years (36 months), this equals roughly $10.83 per month. Rounding up for safety and including estimated electricity costs of $5-10/month, the total monthly recurring cost is approximately $20-25. This leaves approximately $275-$280 of the budget entirely free, providing a massive safety margin against future hardware replacements or minor software maintenance costs. The remaining budget is sufficient to cover any eventual cloud backups for non-sensitive metadata or potential API spikes if consent rates change drastically.\n\nHandling Non-Consenting Clients: For clients who do not provide written consent, the firm will process contracts exclusively on-premise. No contract text, PII, or metadata will leave the firm’s network. The RTX 4060 Ti runs open-source models such as Llama 3 8B or Mistral 7B in 4-bit quantization. These models fit within the 16GB VRAM constraint and require no internet connectivity for inference. We use the Ollama framework to manage the local model serving, ensuring that data sovereignty is absolute. This addresses the core legal constraint: even if clients consent, we do not rely on third-party APIs, thereby eliminating the risk of accidental data leakage or violation of strict contractual clauses. The 'local-only' approach is robust; if a client withdraws consent later, the historical summaries remain valid as they were generated under compliant conditions.\n\nWorkflow for 300 Contracts: The staff member has one day (8 hours) per week to process roughly 300 contracts, each ranging from 10 to 80 pages. A naive sequential processing of every page would be too slow given the GPU's memory limits for long contexts. Instead, we implement a 'Recursive Condensing' strategy optimized for the RTX 4060 Ti. For documents over 20 pages, we split the document into manageable chunks (e.g., 10-15 pages each). The model summarizes the first chunk, then the second chunk is summarized along with the first summary, and so on, creating a condensed history. This reduces the context window size dynamically, preventing out-of-memory errors and maintaining global context without exploding token counts. For shorter documents (under 20 pages), we process them in full. The average processing time for a complex 80-page document via recursive condensing is approximately 10-15 seconds on the 4060 Ti. Even with overhead, this allows for roughly 300-400 documents per hour. The staff member can easily process all 300 contracts within 2-3 hours of active compute time per week. The remaining 5-6 hours are dedicated to quality assurance and system maintenance.\n\nSummary Quality Assurance: To ensure summaries are reliable enough for professional services, we implement a Dual-Phase Validation Framework. Phase 1 is automated heuristic screening. We generate three independent summaries for each contract (using slight prompt variations) and compare them for semantic similarity using a lightweight local metric. If the variance exceeds a set threshold, the summary is flagged as 'low confidence.' Phase 2 is manual review. The staff member reviews only the flagged summaries or a random 10% sample of high-confidence ones. Given the high throughput of the GPU, the automated phase takes negligible time (minutes per batch). Manual review of ~30-50 flagged items at 10-15 minutes each takes about 5-8 hours. To stay within the 8-hour limit, we rely on the accuracy of the recursive condensing to reduce flagging rates. If flagging rates exceed 20%, we adjust the prompt engineering. The staff member signs off on the final summaries, ensuring they meet professional standards before being delivered or stored.\n\nOperational Feasibility for Non-Engineer: The recommended stack (Ollama + standard Python scripts) is low-maintenance. The staff member, described as 'technically capable,' can set up the initial environment in a one-time setup effort of approximately 4-8 hours. Ongoing maintenance involves downloading model updates monthly, which takes minutes. The system does not require continuous software engineering; it is a stable inference pipeline. This fits the 'not a software engineer' constraint because no complex codebases, CI/CD pipelines, or third-party API integrations are required.\n\nTriggers for Change and Monitoring: We will monitor three metrics monthly to determine if the recommendation changes: 1) Contract Volume: If volume exceeds 500 contracts/month, the GPU bottleneck may shift to storage/human review time, requiring a hybrid approach for consenting clients. 2) Consent Rates: If consent rates drop below 10%, local processing remains essential; if they rise above 90%, we could consider offloading non-sensitive data to APIs for faster throughput, though local is safer. 3) Model Efficiency: If open-source models significantly improve in efficiency (e.g., 2x speed gain), we can switch models via Ollama without hardware changes. The firm will notice these changes through a monthly dashboard tracking processing times and flagging rates. If processing time per contract exceeds 30 seconds or flagging rates exceed 25%, we re-evaluate the model choice or chunking strategy.\n\nAssumptions and Risks: We assume that the 'technical capability' of the staff member includes basic familiarity with command-line tools and Python, which is necessary for running Ollama. If this skill gap exists, we assume a one-time external consultation cost (covered by the budget margin) to set up the pipeline. We also assume that contract lengths are within 80 pages; significantly longer contracts may require additional chunking logic. The recommendation assumes stable electricity costs and no unexpected hardware failures. The RTX 4060 Ti is chosen for its balance of price, power efficiency, and VRAM capacity, making it the most defensible choice under the $300 monthly cap when amortized.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e8b0-7605-7250-89d8-aefae40c6d92",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 62,
+    "elapsedMs": 314802,
+    "usage": {
+      "inputTokens": 88268,
+      "outputTokens": 17879,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2686,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 2,
+      "short": false,
+      "retriedFor": [
+        "short"
+      ],
+      "leaks": [
+        "If the variance exceeds a set threshold, the summary is flagged as 'low confidence.' Phase 2 is manual review.",
+        "The staff member reviews only the flagged summaries or a random 10% sample of high-confidence ones."
+      ]
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 19,
+      "resolved": 11
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 1034,
+  "wordBudget": 900
+}

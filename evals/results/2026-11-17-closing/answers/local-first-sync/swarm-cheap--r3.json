@@ -1,0 +1,54 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:17:39.769Z",
+  "spentUsd": 0.01797935,
+  "outcome": "answered",
+  "text": "Recommendation: store each note's text and metadata in a local SQLite database that also holds a dedicated sync log, and store attachments as content-addressed files on disk referenced by SHA-256 hash. Sync is optional: each device records every local change in the sync log and exchanges unsynced entries with any peer or store it can reach, starting with local-network peer-to-peer transfer over mDNS and later a hosted endpoint that accepts the same log format. The app is fully usable offline on both phone and laptop, and sync only ever adds data, never gates it.\n\nOn-device storage: SQLite (with WAL) holds notes, a sync_log table with per-device sequence numbers and operation identifiers, and attachment metadata including hash and size. Attachments up to 10 MB live as files named by hash, so duplicates are stored once and only missing hashes are transferred. Rejected alternatives: an embedded document database adds a second storage engine and unfamiliar failure modes for two developers, and storing attachments as BLOBs inside SQLite inflates the WAL and makes incremental attachment transfer harder. Assumption: a Yjs-style CRDT library for text is not adopted in the first six months, because its build size and integration cost are not justified for the first release; text reconciliation is instead handled by the rule below, and the team revisits this only if the conflict behaviour proves inadequate.\n\nConcurrent edits: each note keeps its full text history as operations tagged with device identifier and per-device sequence number, so two devices that edited offline can be merged without losing either side's typed text. When both devices changed the same note, the merged result keeps both versions: non-overlapping edits are applied together, and overlapping edits to the same region are kept as a visible conflict block, with each device's text shown side by side and a one-tap choice to keep one or merge by hand. No typed text is discarded silently. Assumption: the conflict UI is an inline block rather than a separate conflict copy, because inline blocks keep both versions attached to the note the user is editing.\n\nAttachments: content-addressed files with hash-based deduplication, no chunking in the first release. A note references an attachment by hash, so the note can sync before the file does; the UI shows a placeholder until the file arrives. Transfers resume from the last acknowledged byte offset over a plain TCP stream, so a dropped connection on a poor mobile network loses at most one chunk.\n\nMigration to hosted sync: devices get a random device identifier on first launch, which is also the key used in the sync log, so no data needs to be re-keyed. Hosted accounts later link to existing device identifiers; the client authenticates and pushes its existing sync log to the server using the same format, and the server ingests it as a first sync. Existing users notice only a sign-in prompt, with no export or import step. The transport abstraction keeps the client code identical, so only the endpoint changes.\n\nRisks and early tests: (1) merge correctness: a two-device fuzz test with randomized concurrent edits and delayed delivery, asserting that no typed character disappears; a single lost character in a run means the rule is wrong. (2) Clock skew: sequence numbers and causal ordering are used instead of wall-clock time, and a test with devices skewed by hours checks that ordering is unchanged. (3) Storage growth from retained history: meter log size on realistic editing sessions; if history grows faster than notes by a factor that matters on phones, compact history after all peers have acknowledged it. (4) Attachment sync cost: replay a metered workload of 10 MB files over throttled links; if resumption fails to recover more than a single chunk, the transfer design needs chunking. (5) Schema lock-in: keep the sync log format versioned from day one so that the hosted service can read older clients. Each risk is real if the stated threshold is crossed in these tests, and the team checks them within the first two months.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e823-af7e-784e-b71e-5f0509205083",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 88,
+    "elapsedMs": 244515,
+    "usage": {
+      "inputTokens": 106371,
+      "outputTokens": 21334,
+      "cacheReadTokens": 16465,
+      "cacheWriteTokens": 32280,
+      "reasoningTokens": 0,
+      "costUsd": 0.01797935
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001461625,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 38,
+      "resolved": 21
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 667,
+  "wordBudget": 900
+}

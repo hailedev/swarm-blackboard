@@ -1,0 +1,54 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:38:11.393Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Store notes and metadata in SQLite while keeping attachments as separate files on the filesystem. Use Yjs for text synchronization via CRDTs to ensure no text is lost during concurrent edits. The sync service should be introduced by generating unique 'cloud_ids' on the client side when a device first connects, requiring no data migration.\n\nOn-device storage and sync strategy: SQLite is chosen for its robust ACID transactions and native support across iOS and Android, avoiding the bloat issues of storing 10 MB attachments directly in database blobs. Attachments are stored as files on the device, with SQLite holding only metadata such as paths, hashes, and sizes. This separation prevents database file bloat and allows for efficient cleanup of orphaned files. SQLite’s locking mechanisms handle concurrency better than flat file-based JSON systems, providing a reliable foundation for local-first operations.\n\nRejection of alternatives: Realm is rejected due to heavier licensing restrictions and database format lock-in, which complicates future migration. Storing all data in a single SQLite BLOB is rejected because industry best practices indicate that large binary assets cause database bloat and slow down checksumming or backup operations. File-based JSON is rejected because it lacks robust concurrency handling for text edits without external synchronization overhead.\n\nHandling concurrent edits: Yjs, a CRDT library, is selected for automatic text reconciliation. It stores the document state as a payload containing vector clocks and operation IDs, which allows for deterministic merging of divergent states without data loss. When two devices edit the same note offline, Yjs merges the changes based on unique client IDs, ensuring that all text from both versions is preserved in a single unified view. This process is automatic and requires no manual user intervention.\n\nUser interface for conflicts: Since Yjs handles merging deterministically, explicit conflict dialogs are not required for text edits. The user sees a single, merged document containing all changes. If attachment conflicts arise (e.g., different versions attached to the same text note), the system relies on file integrity checks rather than complex resolution UIs, as attachments are managed as separate files.\n\nMigration path from no server to hosted sync: The SQLite schema includes a nullable 'cloud_id' column. Initially, this field remains null for local-only notes. When the hosted service launches and a user connects, the application generates a unique UUID for each existing note upon the first sync interaction. This lazy generation avoids blocking the initial sync and ensures that existing users do not need to migrate their data manually. The 'cloud_id' is generated client-side when offline connectivity detects a peer or cloud endpoint, ensuring global uniqueness without server coordination.\n\nRisks and early detection: The primary risk is identifier collisions if two devices generate the same ID before syncing. To mitigate this, IDs are generated using UUIDs with high entropy, and collision checks are implemented upon sync. Another risk is UI blocking from heavy I/O when loading attachments. This is mitigated by lazy loading text immediately and performing asynchronous hash verification in the background. Early detection involves implementing two local instances of the app that share a network-local mock server to force real race conditions, validating CRDT merging under split-brain scenarios.\n\nSpecifics of implementation: The team should allocate 2 weeks for designing the SQLite schema with the 'cloud_id' column and attachment metadata. Use Yjs adapters to integrate with SQLite. For sync testing, use WebRTC or local IP sockets to simulate network partitions and validate that text edits merge correctly without loss. Ensure that attachment files are referenced by hashes in SQLite to detect corruption or missing files.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e8a3-941c-720b-b043-6b68ec474cd9",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 76,
+    "elapsedMs": 294564,
+    "usage": {
+      "inputTokens": 84980,
+      "outputTokens": 16704,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 589,
+  "wordBudget": 900
+}

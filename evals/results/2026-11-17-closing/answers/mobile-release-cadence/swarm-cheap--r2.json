@@ -1,0 +1,54 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:33:21.498Z",
+  "spentUsd": 0.017855349999999996,
+  "outcome": "answered",
+  "text": "Recommendation: move to a fixed two-week release train with a standing feature-flag layer and a pre-agreed hotfix path, so that releases become a routine calendar event rather than a judgement call, and most fixes reach users through server-side switches rather than a new binary.\n\nCadence: ship on a fixed two-week train, with code freeze on Tuesday of week two, a release candidate built and submitted to review that day, and store release on the following Monday or Tuesday. Assumption: a two-week cycle leaves a full working week of slack after the one-to-three-day review window, which absorbs one rejection-and-resubmit without slipping the train; if two rejections occur in one cycle, the release defers one train. Two weeks is chosen over weekly because six engineers with one part-time release manager cannot run a weekly review-and-soak cycle without heroics, while three to five weeks leaves too many changes per release to diagnose when something breaks.\n\nRejections: when the store rejects a build, the release manager triages within the same day. If the fix is small and the rejection reason is clear, it is patched and resubmitted immediately. If review does not clear by the scheduled release day, the release moves to the next train and the fixed date is kept for the next cycle. Assumption: store rejections are rare enough that most trains clear on the first submission; the team records every rejection so this can be verified at three months.\n\nHotfix path: most post-release problems are handled without a new binary. Every user-visible change lands behind a remote flag or config value, so a bad behaviour can be turned off in minutes from the server. A binary hotfix is reserved for crashes and compile-level faults. For these, the release manager keeps a hotfix-ready branch and a build that is pre-validated against the store's requirements at each train cut, so a fix can be submitted without a full regression cycle. Expect a binary hotfix to still take up to two days to reach users, which is why the team aims to need fewer of them rather than to remove the delay.\n\nFeature-flag rule: a change ships behind a flag when it touches payments, authentication, data persistence or migrations, core navigation (login, home, primary feed), or introduces a new network API. Changes to UI copy, styling, or fixes to non-core flows ship directly. Assumption: this list is the complete set of flagged domains; if a change touches a flagged domain only incidentally, the author flags it, so the default errs toward flagging rather than shipping unflagged.\n\nStaged rollout: use the store's phased release on iOS and staged rollout on Android. For the first three releases, roll out to 5% for 24 hours, then 25% for 24 hours, then full release. Halt the rollout if the crash-free session rate falls below 98% or if two or more new high-priority user reports arrive for the same issue. Assumption: 98% is a provisional floor the team will replace after three releases with a drop of more than one point from the prior release, once it has its own baseline.\n\nOwnership: the release captain role rotates every two weeks among the six engineers. The outgoing captain hands over in a fifteen-minute call that covers in-flight review status, the flag configuration and any open rejection. The release checklist, pre-written review notes and rejection-response steps live in the repository so that any engineer can run a release. Build and crash-monitoring hooks notify the captain automatically.\n\nMeasuring success in three months: first record the current baseline from the last three months of releases, including crash-free rate, number of releases followed by a hotfix (currently about one in four), average time from defect report to user fix, and number of store rejections. Then track against these targets: release interval within a day of the two-week schedule for at least five of six trains; fewer than one in ten releases needing a binary hotfix; defect-to-mitigation under four hours for flagged changes; crash-free rate at or above the baseline; and rejections counted but reviewed only as a cause, not as a pass-fail target. If the hotfix rate and cadence targets are both met, the process is considered working.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7fb-7f6e-7bf6-89c4-f849c32d0f8d",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 79,
+    "elapsedMs": 220010,
+    "usage": {
+      "inputTokens": 88750,
+      "outputTokens": 19715,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 41378,
+      "reasoningTokens": 0,
+      "costUsd": 0.017855349999999996
+    },
+    "confidence": 0.55,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0013912249999999998,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 29,
+      "resolved": 15
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 694,
+  "wordBudget": 900
+}

@@ -1,0 +1,54 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:43:10.051Z",
+  "spentUsd": 0.019569225000000003,
+  "outcome": "answered",
+  "text": "Recommendation: run a six-week, peer-led making programme called Teen Makers Lab for about 15 to 20 participants, meeting once a week for 90 minutes in the existing meeting room, with food as the entry draw, hands-on zine, podcast and cardboard-build projects as the content, a final showcase in Week 6, and a before-and-after measure of self-efficacy, belonging and library use that is collected in person within the six weeks.\n\nWhy teens would come: most non-reading teens are drawn by food, by friends and by making something rather than by books. Each session offers a shared meal, a short hands-on project with a visible product (a zine page, a short audio segment, a cardboard prototype), and a role that gives the teen a job. Graphic novels, manga and audio formats are used as the entry media so that reading is never the stated purpose. Week 1 is a game and snack session; Weeks 2 to 5 each produce one artefact; Week 6 is a showcase for families and the branch manager.\n\nFacilitation and staffing: the librarian gives four hours a week, allocated as two hours facilitating the session and cleanup, one hour on recruitment admin (ambassador messages, social posts, logging attendance), and one hour on design and analysis (reviewing feedback, adjusting materials, preparing the evaluation summary). Assumption: the one-hour admin block is enough for recruitment and logging, because volunteers handle setup, cleanup and sign-in; if it proves too short, ambassador check-ins are shortened to a single weekly message. Volunteers are recruited from local community groups and handle setup, food service and attendance tracking, which are low-skill roles.\n\nRecruitment of teens who do not use the library: peer referral outperforms digital advertising, and recruitment works best inside the places teens already are. The librarian recruits three student ambassadors aged 15 to 17 in Week 1 from local high schools and youth sports clubs, giving each a one-hour briefing and a $10 gift card. Ambassadors invite friends personally and share printed QR-code flyers at schools, sports clubs and fast-food venues. Community-based recruitment yields smaller but more consistent cohorts, which suits a programme of this size. Digital advertising is used only for awareness, since direct conversion is typically under five percent.\n\nBudget ($500 total, each line with a defined function): Food $150 (bulk pizza or sandwiches at about $4 to $6 per person, about $25 per session across six sessions, paid for the first four weeks, with the last two weeks' food covered by the reserve so that attendance is not left to rely on food alone); Peer ambassadors $30 in gift cards for three ambassadors; Printing $50 for flyers and showcase programmes; Materials $40 for craft supplies, with cardboard and recycled items used where possible; Raffle prizes $150 for three $50 gift cards, drawn among attendees who attend at least four sessions, to sustain attendance once the food is no longer the draw; Contingency $80 held for unexpected purchases. Total: $500.\n\nOutcome measures beyond attendance, collected within six weeks: a pre-programme and post-programme single-item visual analogue scale for how much the teen likes coming to the library, and a three-item self-efficacy measure for confidence in making or sharing a creative product; a count of library card sign-ups and of repeat voluntary attendance across Weeks 2 to 6; and a Week 6 question asking what the teen did or made that they would not otherwise have done, recorded as a qualitative artefact. Each instrument takes under five minutes, is completed in person by the librarian or a volunteer, and is compared against the Week 1 baseline. Self-report is susceptible to social desirability, so the branch manager should read the results as indicative of change rather than proof, and the raffle entry is kept separate from the survey so that the survey does not reward favourable answers.\n\nFit check: each element maps to a success criterion. The format and content meet criterion one; ambassador recruitment and school, club and venue outreach meet criterion two; the line-by-line budget meets criterion three and sums to $500; and the baseline, post-programme and behavioural measures meet criterion four. The librarian schedule totals four hours per week, and volunteers take on the roles that do not need professional skill.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e83a-573c-73b9-9fa6-ad5523fc0bc5",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 93,
+    "elapsedMs": 290085,
+    "usage": {
+      "inputTokens": 112921,
+      "outputTokens": 23067,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 44285,
+      "reasoningTokens": 0,
+      "costUsd": 0.019569225000000003
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001633575,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 35,
+      "resolved": 16
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 699,
+  "wordBudget": 900
+}

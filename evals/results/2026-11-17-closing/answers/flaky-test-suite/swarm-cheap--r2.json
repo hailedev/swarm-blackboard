@@ -1,0 +1,54 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:46:33.313Z",
+  "spentUsd": 0.018135425,
+  "outcome": "answered",
+  "text": "Recommendation: spend the first week measuring, quarantine the worst offenders in the same week to restore trust in red builds, diagnose flaky tests by root cause before fixing any, then fix shared-state and timing causes, shard the browser suite, and move redundant browser tests to a nightly tier, all within 80 engineer-hours, with a standing flake budget after week six.\n\nWeek one baseline (about 12 engineer-hours). Instrument CI to emit per-test JUnit XML artifacts for unit, integration and browser stages (Assumption: the existing runners can emit per-test results; if the browser runner cannot, the browser stage is measured per job instead). Record for every run: total duration, per-stage duration, median and p90 CI time, number of whole-pipeline re-runs, and for each failed run whether the same tests pass on an immediate single-test re-run. Store results as a CSV of run id, commit, test id, level, outcome and duration, and back-fill from the last two weeks of CI history. Done when a dashboard shows the baseline flake rate (expected about 8 percent of runs) and median and p90 CI time (expected about 45 minutes) with per-stage splits.\n\nDiagnosis before fixing (about 20 engineer-hours). Build a candidate list of tests that both fail and pass on re-run of the same commit. For each candidate, run it 50 to 100 times in isolation and in shuffled order, against a fixed commit. Classify each confirmed flake into one of: timing or async waits, shared state or test-order dependence, external service or network, fixed ports or data collisions, browser environment, or time-of-day and randomness. Record a reproduction recipe for each. Assumption: isolated and shuffled runs of about 5 to 10 candidates at 10 to 20 seconds per browser test fit in roughly 2 engineer-days of machine time; if the candidate list is longer, the top 20 by failures per week are diagnosed first.\n\nInterventions in order, with engineer-hours. (1) Quarantine the confirmed worst offenders by moving them to a non-blocking job, about 1 hour total. Quarantined tests still run, so this restores red-build trust but does not reduce CI time, and each quarantined test is tracked with its coverage mapping so real regressions in its behaviour remain visible. (2) Fix the top shared-state and timing causes by isolating test data and replacing fixed sleeps with explicit waits, about 30 engineer-hours. (3) Shard the browser suite into three parallel jobs with balanced workloads, about 6 engineer-hours; sharding only after isolation, because sharding shared-state tests multiplies flakiness. (4) Cache dependencies and build artefacts, about 4 engineer-hours. (5) Deletion and consolidation, about 12 engineer-hours: a browser test is deleted only when every assertion it makes maps to a named unit or integration test, or when the behaviour no longer exists; browser CRUD tests that duplicate API contract coverage are rewritten as API tests first. Each deletion is recorded with its covering test id and reviewed by the team. Total about 53 engineer-hours, leaving headroom within 80.\n\nCI time path. Assumption: the 45-minute pipeline is split roughly 15 minutes for unit and integration and 30 minutes for browser tests; the week-one breakdown replaces this assumption. Sharding browser tests into three jobs is expected to bring the browser stage to about 12 to 15 minutes given contention overhead, and caching brings the unit and integration stage down by a few minutes, giving a median of about 25 minutes. Moving redundant browser tests to a nightly tier removes further minutes from the pre-merge path.\n\nWeek-six targets. Flake rate (runs failing on tests that pass on re-run) below 1 percent, measured from the week-one CSV. Whole-pipeline re-runs near zero, measured as re-run count per week. Median CI time under 25 minutes, with p90 under 35 minutes, measured per stage from the dashboard. Each target is compared with the week-one baseline every Friday.\n\nSustainability rule, owned by the engineering lead and reviewed weekly for the first quarter. Any test that both fails and passes on re-run is quarantined within one business day and must be fixed or deleted within one week. No new browser test is merged without a stated reason why integration coverage does not already cover the behaviour. The weekly dashboard review tracks a red-build trust metric (share of red builds that are real failures). A merge is blocked when pre-merge CI time exceeds 30 minutes. A rotating test steward takes about one hour a week for the quarantine queue, funded from the feature budget and reviewed after week six.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e806-f45d-7023-8288-11f7562c365b",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 89,
+    "elapsedMs": 260994,
+    "usage": {
+      "inputTokens": 101638,
+      "outputTokens": 22718,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 36689,
+      "reasoningTokens": 0,
+      "costUsd": 0.018135425
+    },
+    "confidence": 0.55,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0017375250000000002,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 32,
+      "resolved": 17
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 739,
+  "wordBudget": 900
+}

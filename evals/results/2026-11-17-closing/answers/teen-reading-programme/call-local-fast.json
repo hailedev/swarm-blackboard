@@ -1,0 +1,33 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "call",
+    "alias": "local-fast"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T09:16:20.994Z",
+  "spentUsd": 0,
+  "outcome": "void",
+  "why": "238 words of about 900 asked for, after a second attempt",
+  "text": "The Programme Design: Six Weeks of 'Create & Connect' The core concept is a creative workshop series titled 'Create & Connect,' designed not around reading books, but around using library resources to create tangible digital or physical media that teenagers value. This approach bypasses the barrier of 'reading for pleasure' by framing the library as a maker space and social hub rather than a silent repository of text. The programme runs weekly for six weeks, requiring four hours of librarian time per session. Week 1 is an icebreaker focused on personal branding; teens create a digital profile or zine about their interests using library computers and printing services. Week 2 shifts to audio storytelling where participants record short podcasts or soundscapes about their community, learning basic recording techniques. Week 3 involves graphic design basics, allowing teens to create memes, posters, or digital art using public domain assets found in the library’s database. Week 4 is a 'Tech Hacking' session where teens explore how algorithms work and how to curate their social media feeds healthily. Week 5 is dedicated to finalizing projects, whether it's editing the podcasts from Week 2 or designing the zines from Week 1. Week 6 is a showcase event where participants present their creations to peers, family, and community leaders, celebrating their output. This structure ensures high engagement because it offers immediate, tangible results and social interaction, which are primary motivators for this age group.",
+  "detail": {
+    "kind": "call",
+    "modelId": "qwen3.6:35b-mlx",
+    "maxOutputTokens": 2700,
+    "usage": {
+      "inputTokens": 553,
+      "outputTokens": 303,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "latencyMs": 4389,
+    "attempts": 2,
+    "truncated": false
+  },
+  "words": 238,
+  "wordBudget": 900
+}

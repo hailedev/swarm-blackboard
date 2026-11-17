@@ -1,0 +1,54 @@
+{
+  "problemId": "eu-log-retention",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:13:07.594Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "The company shall implement a four-tier retention policy that separates personal data from non-personal metadata to satisfy both GDPR obligations and contractual deletion promises. Application logs containing user identifiers are retained for 30 days, after which all personally identifiable information (PII) is irreversibly deleted or anonymized. Infrastructure logs containing IP addresses follow the same 30-day lifecycle; raw logs with potential PII are purged at day 30, while non-identifiable metadata is preserved for up to one year under legitimate interest for security defense. Audit logs comprising only technical, non-P1 data (timestamps, status codes) are retained for 12 months. Database backups are kept for 90 days, with a mandatory process to ensure that terminated customer data is logically inaccessible within 30 days of contract termination, regardless of the backup rotation cycle.\n\nTo honor the contractual promise that a customer's data be deleted within 30 days of termination, the engineering team must implement a 'Key Escrow and Index Removal' mechanism. Upon receiving a termination request, the system immediately deletes the customer's entry from the active application index and flags their records in the database as 'deleted'. Crucially, for backups, the system removes the encryption keys associated with that specific customer's data from the active key escrow or marks them for immediate cryptographic erasure. This renders the data in past backups logically inaccessible and cryptographically unrecoverable within the 30-day window. While physical overwriting of backup tapes or disks may take up to 90 days as they rotate, the contractual definition of 'deletion' is met through logical exclusion and cryptographic unavailability, satisfying the GDPR requirement for 'reasonable efforts' to erase data from backups.\n\nAutomated enforcement will be managed by a single retention script executed daily by one engineer. This script performs three actions: (1) it purges PII from application logs older than 30 days; (2) it anonymizes IP addresses in infrastructure logs after 30 days, retaining only non-identifiable metadata; and (3) it processes the backup rotation queue, applying cryptographic erasure to terminated customers' data immediately upon deletion requests. The team proves compliance through immutable system logs recording every execution of this script, including success/failure statuses and counts of records processed. Additionally, quarterly 'dry-run' tests will be conducted where a sample of deleted data is attempted to be recovered; these test results serve as evidence that the logical/cryptographic barriers are effective. These logs and test reports constitute the audit trail required by GDPR Article 5(2) (Accountability).\n\nThe policy rests on three core GDPR concepts. First, Data Minimization and Storage Limitation (Article 5(1)(e)) mandate that PII (user IDs, free text, raw IPs) be kept no longer than necessary, justifying the strict 30-day window for active personal data. Second, the Right to Erasure (Article 17) is satisfied not by physical deletion from all media within 30 days, but by logical and cryptographic removal from accessible systems, which is recognized as a 'reasonable effort' given technical constraints on backup rotation. Third, Legitimate Interest (Article 6(1)(f)) justifies the retention of non-PII metadata (system logs, anonymized infrastructure stats) for up to one year for security auditing and legal defense, provided this interest does not override the data subject's rights, which is ensured by removing all identifying PII from these long-term stores.\n\nSpecifically, application logs are retained for exactly 30 days. This short period aligns with the customer deletion contract and minimizes exposure of sensitive free text and user identifiers. After 30 days, no PII remains; only aggregated, non-personal usage statistics may be kept indefinitely if necessary for product improvement. Infrastructure logs, which contain IP addresses considered personal data under EU law (Recital 26, BGH KVR 29/08), are also subject to the 30-day hard delete for raw PII. After this period, only non-identifiable metadata (e.g., server load, non-geolocable timestamps) is retained for security auditing up to one year. This split ensures that the '1-year audit log' request from the security lead is met without violating the 30-day deletion promise, as the long-term logs contain no PII.\n\nFor backups, daily snapshots are retained for 90 days to ensure operational recovery capability. However, the retention schedule includes an immediate trigger: upon customer termination, their data in backups is cryptographically shredded via key destruction or logical index removal. This ensures that while the backup file exists for 90 days, the specific customer's data is unrecoverable within 30 days of termination. This approach balances the engineering team's limited resources with the legal requirement to provide 'reasonable efforts' for erasure in backups, avoiding the technically infeasible and operationally risky goal of physically overwriting every backup layer immediately. The combination of immediate logical deletion and cryptographic unavailability satisfies both the contractual obligation and GDPR compliance.\n\nThe enforcement mechanisms are designed for a six-person engineering team with no compliance officer. A single cron-job script runs daily at 02:00 UTC. This script queries the 'deleted_customer' flag in the database; if true, it initiates key escrow revocation or index deletion for that customer's backup sets. Simultaneously, the script performs age-based purging on application logs and anonymization on infrastructure logs. Evidence of execution is stored in an immutable audit log of the script itself, which records the start time, end time, number of records processed, and any errors. This audit log is itself subject to the same retention policy, ensuring a closed loop of accountability. Quarterly, one engineer runs a verification test against a dummy terminated account to prove that data is indeed inaccessible, documenting the result.\n\nThis policy explicitly acknowledges its limitations. It does not claim that physical overwriting of backup media occurs within 30 days; rather, it claims logical and cryptographic unavailability meets the 'deletion' standard for the purposes of the contract and GDPR Article 17(3)(e). It assumes that IP addresses are treated as PII; if a specific IP is definitively non-personal (e.g., static corporate gateway with no individual link), it may be retained longer, but the safe default is strict 30-day purging. The 1-year retention for non-PII metadata is based on legitimate interest for security and legal defense; if this interest is successfully challenged, the retention period would revert to the necessity standard, likely shorter. The policy ensures that no PII survives beyond 30 days in any accessible format, thereby honoring the core promise of the customer contracts.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e88b-d9e6-7908-85ed-19ff0e332167",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 72,
+    "elapsedMs": 345762,
+    "usage": {
+      "inputTokens": 104483,
+      "outputTokens": 19214,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.92,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 26,
+      "resolved": 7
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 1029,
+  "wordBudget": 900
+}

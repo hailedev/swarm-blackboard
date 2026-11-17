@@ -1,0 +1,54 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:17:49.935Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "The program is a six-week 'Library ARG' (Alternate Reality Game) titled 'Unlock the Branch,' designed to transform the library into an interactive game board for 13-to-17-year-olds who currently do not use it. The format leverages visual puzzles, physical clues, and team collaboration, requiring minimal reading comprehension while providing a high-energy social experience. Recruitment utilizes a low-barrier 'Campus Quest' strategy: trusted student influencers are given QR codes and small incentives to bring their non-library-using friends via peer networks rather than school officials. The $500 budget covers essential materials, refreshments, and tangible takeaways. Outcomes are measured through pre- and post-program portfolio comparisons and attitude surveys, ensuring the branch manager receives evidence of behavioral change rather than just attendance counts.\n\nThe programme design shifts from traditional literacy activities to a gamified Escape Room/ARG structure (H21) because recent research shows teens aged 13-17 prefer digital-first and social engagement models over silent reading rooms. This format minimizes the literacy barrier by relying on visual puzzles, physical clues, and team collaboration, making it accessible to non-readers. The weekly structure consists of a 4-hour block: the first 30 minutes are for registration and warm-up games; the next 2.5 hours involve solving weekly puzzles using library resources (e.g., finding specific book metadata or using reference materials to unlock clues); the final hour is reserved for a 'Showcase' where teams present their solutions and earn points. A cumulative leaderboard tracks progress, culminating in a Week 6 Grand Finale where participants showcase their final 'artifact' (a digital or physical creation from the puzzles) and receive rewards.\n\nRecruitment targets teens who do not use the library today by bypassing traditional marketing channels that often feel exclusionary. Instead of posters, the programme uses a peer-to-peer 'Campus Quest' model where 5-7 trusted student influencers are identified to invite their friends. To ensure these influencers bring non-library users, they receive physical 'Invitation Lockboxes' and QR codes; friends scan the code to register interest and unlock a small prize (like a snack voucher) at the first session. This leverages peer trust and avoids social media algorithmic fatigue. The physical reward of the lockbox itself serves as the initial hook, while the gamified nature of the programme appeals to the desire for social competition and instant gratification common in this demographic.\n\nThe $500 budget is allocated to maximize engagement and tangible takeaways while staying within limits. $180 is allocated for weekly refreshments (pizza slices/drinks, budgeted at approximately $12 per session for 10-15 teens), which is a critical draw for this age group. $150 is designated for 'High-Value' Incentives, including local food vouchers ($20 value x 7 winners/participants) and affordable tech accessories (LED headbands, cheap fidgets) that serve as tangible rewards for solving puzzles. $100 funds the 'Maker Kit' allowance for basic craft supplies (foam sheets, markers, tape) used in weekly puzzle props; these are partially reusable but require restocking. The remaining $70 covers promotional materials (stickers, custom bookmarks for Peer Ambassadors) and contingency costs. This allocation ensures no single category overruns while prioritizing food and tech incentives that matter most to teens.\n\nOutcome measurement focuses on 'Library Comfort' and 'Self-Efficacy' rather than just attendance. To measure attitude change toward the library itself, a brief pre- and post-program survey is administered, using a visual Likert scale (e.g., smiling/frowning faces) to assess comfort levels with the library space. This is more effective for non-readers than text-heavy surveys. Additionally, teens create 3-5 simple digital artifacts (photos/video clips) per week using library tablets or smartphones to solve puzzles. The 'Digital Footprint' portfolio serves as evidence of skill acquisition and confidence growth; comparing Week 1 artifact quality/confidence to the Week 6 showcase piece provides tangible proof of growth. This visual comparison, combined with the pre/post survey, offers the branch manager clear evidence of behavioral and attitudinal change.\n\nThe librarian's four weekly hours are strictly allocated to ensure effective facilitation and data collection. In Week 1, the librarian spends 2 hours on planning/setup (designing puzzle clues, preparing 'Locker' props) and 2 hours on facilitation (Intro & Puzzle 1). For Weeks 2-5, the librarian spends 3.5 hours facilitating sessions (running the escape room/ARG, monitoring group dynamics) and 0.5 hours on admin/maintenance (reviewing feedback, updating clue boards, compiling digital artifacts). In Week 6, the focus shifts to Celebration/Assessment: 2 hours run the final showcase and post-program assessment, while the remaining 2 hours are dedicated to debrief/data entry, compiling the evidence of change for the branch manager. Volunteers from high school service clubs handle setup/breakdown and assist with registration and peer-to-peer data collection during sessions, freeing the librarian to focus on facilitation.\n\nThe recruitment plan ensures that the specific target demographic is reached by relying on physical 'Invitation Lockboxes' and QR codes rather than digital ads which may be ignored. The lockboxes are given to trusted student influencers who are tasked with inviting 3 non-library-using friends each. This peer-to-peer approach leverages existing social bonds, reducing the friction of visiting a new space. The 'unlocking' mechanism provides immediate gratification, encouraging attendance even for those skeptical of library programs. By focusing on the physical hook of the lockbox and the social pressure/peer support of inviting friends, the programme bypasses the alienation often felt by non-users in traditional library settings.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e891-208b-77d4-a2dc-6036a6970a05",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 74,
+    "elapsedMs": 282339,
+    "usage": {
+      "inputTokens": 89722,
+      "outputTokens": 15851,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 24,
+      "resolved": 11
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 862,
+  "wordBudget": 900
+}

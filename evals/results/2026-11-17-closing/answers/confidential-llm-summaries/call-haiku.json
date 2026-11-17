@@ -1,0 +1,32 @@
+{
+  "problemId": "confidential-llm-summaries",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:47:12.786Z",
+  "spentUsd": 0.0007322,
+  "outcome": "answered",
+  "text": "Recommendation: run a split architecture. Contracts from clients who have consented in writing go to a hosted API model, chosen for quality and low operating burden. Contracts from clients who have not consented, or whose consent status is unknown, are processed entirely on a locally run open-weight model on a single workstation that never sends text outside the firm. Non-consenting contracts are never routed to the API, and the routing decision is made by a rule keyed to a consent register, not by the staff member's judgement on each document. This matters because the contractual restriction is about third-party disclosure, and a hosted API is a third party even if it does not train on the data.\n\nCost model (monthly, all assumptions explicit): volume of 300 contracts averaging 35 pages, roughly 25,000 tokens of input each including overhead, so about 7.5 million input tokens and 300 summaries of about 800 output tokens, roughly 0.24 million output tokens. Assume the firm's consent rate is about 50 percent, so 150 contracts go to the API. At an assumed frontier-tier price of $3 per million input tokens and $15 per million output tokens, the API share costs about 150 times 25,000 tokens, or 3.75 million input tokens at $11.25, plus about 0.12 million output tokens at $1.80, giving roughly $13 a month. Even at a pessimistic 100 percent consent and double the assumed prices, the API cost stays under $60. Local hardware: a workstation with a 24 GB GPU, around $2,500 to $3,000, amortised over 36 months is about $80 to $85 a month; electricity at roughly 300 watts for a few hours a day is under $10. Staff time is the real cost: one day a week is about 4 hours a week, which the budget does not price directly and which must be treated as an internal allocation. Total external spend is therefore around $100 a month, comfortably inside $300, with headroom for a second GPU or evaluation tooling.\n\nChecking quality before reliance: build a gold set of 40 to 60 contracts, stratified by length, type and client, and have a qualified lawyer write reference summaries and a short list of must-catch items per contract (term, termination, liability caps, indemnities, auto-renewal, governing law, notice periods). Score each candidate model on factual accuracy against the source (every figure and date checked), coverage of must-catch items, and hallucination rate, where any claim not traceable to the text counts as an error. Require that summaries link each claim to a page reference so a reviewer can verify in seconds. Set a release threshold, for example zero hallucinated figures on the gold set and at least 95 percent must-catch coverage, and re-run the suite whenever a model or prompt changes. In production, a reviewer checks a random sample each week and every summary feeding a high-value decision.\n\nWhat would change the recommendation: if consent rates rise above roughly 90 percent and the firm is comfortable with the API's data terms, moving everything to the API is cheaper and simpler, and the local box can be retired. If volume grows several-fold, hardware still fits but staff time and throughput become the constraint, which favours the API. If API prices fall sharply, the API share becomes even more attractive. Conversely, if local model quality falls behind on the gold set after a new release, or a consent-refusing client's contract is found in an API log, the split must be revisited. The firm would notice these through the monthly consent register reconciliation, the weekly sample audit scores, the per-document API invoices, and a quarterly review of published vendor price and data-handling terms.\n\nOpen questions: confirm with counsel that the consent wording covers the specific API provider's sub-processors, check whether any clients' terms require deletion or audit rights, and decide who signs off on summaries as legal advice, since a summary is a finding aid and not a substitute for reading the contract.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2686,
+    "usage": {
+      "inputTokens": 1052,
+      "outputTokens": 1254,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0007322
+    },
+    "latencyMs": 7916,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 654,
+  "wordBudget": 900
+}

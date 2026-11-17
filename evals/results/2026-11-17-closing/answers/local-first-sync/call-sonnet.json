@@ -1,0 +1,32 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "call",
+    "alias": "sonnet"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:43:54.291Z",
+  "spentUsd": 0.020244,
+  "outcome": "answered",
+  "text": "**Recommendation.** Store everything in SQLite on each device, model note text as a CRDT (Automerge or Yjs, pick one in week one), keep attachments as immutable content-addressed blobs on disk, and sync through a small, dumb replication protocol that works the same over any transport. Ship release one with no server, then add a hosted relay that speaks that same protocol. The hosted service becomes just another peer that is always online, so existing users never migrate anything.\n\n**On-device storage.** Use SQLite on both phones and laptops, via one cross-platform wrapper so both developers work against a single schema. Keep three kinds of rows: notes (id, CRDT document bytes or an append-only log of CRDT changes, derived plain-text snapshot for search and display), attachment metadata (note id, SHA-256 hash, size, name, MIME type), and sync state (per-peer progress). Attachment bytes live in files named by their hash, not in the database, so a 10 MB file never bloats the database or gets rewritten on a text edit. Use a full-text index over the derived snapshot. SQLite gives you transactions, crash safety, and a mature tool on every platform, which matters most with two developers and no time to debug a custom store. Rejected: a key-value or document store such as IndexedDB or Realm, because you would lose ad hoc queries and migrations tooling and gain nothing; raw files per note, because atomic multi-file updates and search become your problem.\n\n**Sync strategy.** Sync exchanges CRDT changes, never whole notes. Each device keeps a per-note version summary (the CRDT's vector or heads). To sync, two peers swap summaries, then send each other the changes the other lacks. Because CRDT changes merge commutatively and idempotently, order, duplication, and retries are harmless, so the transport can be crude. For release one, offer file-based or peer-to-peer sync (export or import a sync bundle, local-network pairing, or a user-chosen folder such as iCloud or Dropbox) if you want any multi-device story before the server exists; if even that is too much, ship single-device first, but build the change-exchange layer now because the server will reuse it unchanged. Attachments sync separately: after the metadata arrives, a device fetches missing blobs by hash, resumable and in chunks, on Wi-Fi by default. Content addressing means identical files deduplicate and a retried upload is a no-op. Rejected: last-write-wins by timestamp, which silently drops text and is exactly what customers said they will not accept; operational transform, which needs a central server to order operations and so contradicts offline-first and no-server; whole-note three-way merge, which produces conflict markers in plain prose constantly.\n\n**Reconciling concurrent edits and what the user sees.** Text is merged character-level by the CRDT, so two devices that both edited the same note offline end up with both sets of edits interleaved sensibly, and nothing is lost by construction. Most of the time the user sees nothing: the note simply updates, perhaps with a brief 'merged changes from Laptop' indicator. The real conflict cases are (a) two edits to the same sentence, which merge into something syntactically odd but complete, and (b) scalar fields such as the title or a deleted flag. For (a), keep per-note version history (cheap, since the CRDT log is the history) and show a non-blocking banner, 'This note was edited on two devices; review merged result', with a diff against each side and one-tap revert. For (b), use last-writer-wins with the device name shown, and make delete a soft tombstone that a later edit can resurrect, since edit-beats-delete loses less data than the reverse. Attachments never conflict because they are immutable and addressed by hash; removing one is just metadata.\n\n**Path to a hosted service with no user migration.** Design for it now. Give every device a random device id and every note a UUID, never a database auto-increment. Make the sync protocol transport-agnostic and authenticated per device. Then the hosted service is a relay and store: it accepts changes and blobs, persists them, and serves them to a user's other devices. When a user signs up, their app uploads its existing local CRDT log and blobs as ordinary sync, and other devices catch up the same way. Nothing is transformed, so there is no migration step. Add end-to-end encryption keyed on the client if privacy is a selling point, since the server then needs to store only opaque changes. Keep the server small: object storage for blobs, a database for change logs, a thin authenticated API.\n\n**Risks and early tests.** First, CRDT document growth: history and tombstones accumulate and slow loads. Test in the first month by scripting a note through 100,000 edits and measuring size and open time on a low-end phone; if it is bad, plan snapshot compaction before launch. Second, CRDT library maturity and mobile bindings, including the native or WASM footprint; spike both candidates on both platforms in week one and pick on measured memory and startup. Third, merge results that surprise users: run an internal fuzz test of random concurrent edits, then dogfood with the two developers editing the same notes offline weekly, and watch how often the review banner confuses people. Fourth, attachment sync on poor connections and large libraries: test resumption by killing the network mid-transfer, and cap per-device bandwidth. Fifth, schema evolution once users exist: version the stored format and the protocol from day one, and test upgrading from every released version. Sixth, scope: with two people and six months, the first thing to cut is peer-to-peer sync in release one, not the sync-ready data model.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-sonnet-5-5",
+    "maxOutputTokens": 2700,
+    "usage": {
+      "inputTokens": 987,
+      "outputTokens": 1827,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.020244
+    },
+    "latencyMs": 18453,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 922,
+  "wordBudget": 900
+}

@@ -1,0 +1,54 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:09:46.477Z",
+  "spentUsd": 0.020090649999999998,
+  "outcome": "answered",
+  "text": "Recommendation: take the middle path. Consolidate the three shared internal libraries and their direct consumers into a single monorepo workspace (a Go workspace for the Go side and a pnpm or Nx workspace for the TypeScript side, joined in one repository), and leave the other nine repositories multi-repo. The decisive reasons are that a full monorepo move would force all five teams to change tooling and deploy coordination at once, which breaks the one-sprint limit and the requirement to keep team-owned deploys, while pure multi-repo with cross-repo CI does not remove the coordination cost that causes the lag: a library change still ships as a version bump that consumers adopt later. The middle path puts the change that hurts most, shared-library edits, into one atomic commit with its consumers, and touches nothing else.\n\nShared-library propagation is fixed specifically by atomicity. A library API change and the updates to every direct consumer land in one pull request in the workspace, so a consumer cannot silently fall behind the library, and the required consumer test suites run as a merge gate on that pull request, so breakage is caught before merge rather than after a version bump. For the nine external repositories, the library publishes a pre-release tag alongside each stable release; external teams that opt in run their own CI against the pre-release before the stable bump, which moves most late breakage forward in time. The opt-in is voluntary, so this part is a best effort and is stated as a risk below.\n\nMigration plan. Phase one runs in parallel with feature work and blocks no one: the library teams, roughly six engineers, create the workspace, move code in, update import paths in consumer repositories, configure path-filtered CI and set up codeowners, about five engineer-days of work spread across the sprint. Assumption: consumer teams accept import-path changes landing on their feature branches without a freeze, and merge conflicts from concurrent edits are resolved by the library teams' migration script. Phase two is the cutover on one day chosen by the affected teams: they switch their dependency references to the workspace and merge a single atomic pull request. Assumption: each affected consumer team needs about one day of blocked work, roughly three engineer-days in total, which fits within the one-sprint allowance. Deploy ownership: each package in the workspace is versioned and released independently and tagged per package, so a team can deploy on its own schedule after cutover. Assumption: a team whose release train is mid-cycle on cutover day defers its deploy by one cycle rather than deploying the new library version early.\n\nCI cost. Path filtering and affected-only test runs (Turborepo or Nx for TypeScript, package-level caching for Go) keep each library pull request to roughly a dozen or fifteen jobs rather than running everything. The added cost comes from the consumer test matrix on each library change and from pre-release checks for external consumers. Estimated monthly CI minutes rise by roughly ten to twenty percent for the affected subset, against a baseline that has not been measured and should be measured before cutover. Finance should be given the measured baseline and a monthly cap alert, and the estimate should be revisited after the first month.\n\nRisks and costs. First, the cutover day may cost more blocked engineer-days than estimated if consumer rebases conflict badly; mitigation is a scripted migration kit and a dry run in a staging branch. Second, the workspace adds tooling a learning curve for engineers new to workspaces; mitigation is scaffolding scripts and review guidance. Third, the middle path leaves nine repositories with the old lag, so external consumers still see some late breakage if they do not opt in to pre-releases. Fourth, CI spend will rise, and the measured figure may exceed the estimate. Tripwires for reversal: if the workspace does not cut late breakage for the affected consumers within two release cycles, or if monthly CI spend rises beyond twenty-five percent of baseline, the company should revisit whether a broader consolidation or a dedicated cross-repo consumer matrix is worth its cost.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e81c-8471-76ce-9675-cdf7045fc8d9",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 75,
+    "elapsedMs": 241019,
+    "usage": {
+      "inputTokens": 109911,
+      "outputTokens": 20932,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 47398,
+      "reasoningTokens": 0,
+      "costUsd": 0.020090649999999998
+    },
+    "confidence": 0.55,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2691,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0016139250000000002,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 676,
+  "wordBudget": 900
+}

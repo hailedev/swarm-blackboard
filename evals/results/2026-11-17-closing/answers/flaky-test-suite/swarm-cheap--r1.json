@@ -1,0 +1,54 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:08:03.846Z",
+  "spentUsd": 0.017402549999999996,
+  "outcome": "answered",
+  "text": "Recommendation: spend the first week measuring, diagnose flaky tests by isolated re-runs and log clustering before touching any test, quarantine the worst offenders immediately so red builds mean something again, then fix the top causes by category and cut CI time with caching, unit-first fail-fast and conditional browser sharding, and hold the suite healthy with a quarantine-and-ownership rule. The whole plan uses no more than two engineer-weeks (10 engineer-days) spread across six weeks.\n\nWeek one (baseline, 1.5 engineer-days): instrument CI to record per-test pass, fail and duration for every run over a rolling two-week window, so the baseline is not an arbitrary single week. Flaky is defined as failing in one run and passing on an immediate re-run of the same commit; intentional xfails and skips are excluded. Record overall run failure rate, the share of failures that pass on re-run (currently about 8 %), median and p90 end-to-end time, and separate provisioning/setup time from execution time. Also estimate the cost of flakiness as re-runs per engineer per week multiplied by 45 minutes, which gives the hours lost and the case for the work.\n\nWeek-six targets: the share of failing runs that pass on re-run falls from about 8 % to under 1 %; median end-to-end CI time falls from 45 minutes to 25 minutes or less; no red build is re-run more than once on average; every quarantined test has an owner and a decision within 14 days. Targets are measured with the same instrumentation used in week one so they compare directly.\n\nDiagnosis before fixing (weeks one and two, 2 engineer-days): tag every test that failed then passed on re-run and re-run each flagged test five times in an isolated runner. A test that fails in isolation is a probable code fault; a test that passes in isolation but fails under full-suite ordering is a shared-state or order-coupling fault, not infrastructure noise, so the isolation result alone is not decisive. Cluster the remaining failures by level (unit, integration, browser) and by signature from logs: race conditions on network or DOM (typically browser element-not-found or timeouts), shared database fixtures and ports, global clock dependence, and random ordering. Capture browser and driver versions and step-level traces so each test gets a probable cause and a confidence level before any change.\n\nInterventions in order, with engineer-time: (1) quarantine the worst flaky tests into a non-blocking job with an owner, about 0.5 day, so builds stop going red spuriously. (2) Fix browser race conditions with explicit waits and stable selectors, about 2 days. (3) Add per-test data isolation and fixtures for shared database and port state, about 2 days. (4) Remove global clock and random-order dependence in unit and integration tests by injecting time and seeding, about 1 day. (5) CI speed: cache dependencies and build artefacts, which saves roughly 30 to 60 seconds per run, and run unit tests first with fail-fast so broken logic stops the pipeline early, about 1 day together. (6) Browser sharding is attempted only if the week-one timing data shows tests can run in under twice their serial wall-clock time without shared-state conflicts; otherwise it is dropped and the week-six target relies on caching and ordering. Total: about 8.5 to 9 engineer-days, within the 10-day cap, with 1 day held for verification and documentation.\n\nDeletion rule: a test may be deleted only when a named other test or check covers the same behaviour, or when the behaviour is gone from the product. Each deletion is recorded in the pull request with the replacing test's name or the removed feature, and the reviewer checks the named replacement exists and exercises the same behaviour before approving. Assumption: with eight engineers, the reviewer is whichever engineer owns the touched area rather than a designated senior, and any test removal needs a second approval from a different owner.\n\nPost-plan health rule, enforced after week six: any test that fails intermittently is moved to the quarantine job within one working day and assigned an owner. The owner must fix or delete it within 14 days; a test still quarantined after 14 days is deleted under the deletion rule or escalated to the team lead. Quarantine is reviewed in a weekly 15-minute meeting alongside a flakiness and CI-time dashboard. Any new test that touches a shared or timing-sensitive resource must pass 20 consecutive runs in CI before it merges. These rules are written into the contributing guide so they are enforced without fresh debate each time.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7e4-78b1-7c84-ab52-3bea16347632",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 73,
+    "elapsedMs": 211411,
+    "usage": {
+      "inputTokens": 97566,
+      "outputTokens": 18424,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 39898,
+      "reasoningTokens": 0,
+      "costUsd": 0.017402549999999996
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001639875,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 25,
+      "resolved": 13
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 744,
+  "wordBudget": 900
+}

@@ -1,0 +1,54 @@
+{
+  "problemId": "oidc-migration",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:42:39.045Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Execute a phased migration over twelve weeks using a hybrid strategy. Active users will migrate their credentials via an on-login hook during normal traffic, while inactive accounts are bulk-imported in the background to ensure the Identity Provider (IDP) holds all necessary hashes for verification. The transition maintains zero downtime by keeping the monolith as the primary verifier until the Point of No Return, after which the IDP takes over exclusively. Sessions are bridged using short-lived tokens to prevent disruption.\n\nPlan: Weeks 1-2 focus on Infrastructure Setup and Hook Development. Engineers configure the hosted IDP with a custom password hash algorithm or database connection script capable of accepting raw bcrypt hashes. Develop the migration hook that extracts the salt and hash from the monolith's database and pushes them to the IDP’s user attributes via API. Verify this integration in staging using a sample user set. End state: The IDP is configured to accept and store existing bcrypt hashes without modification, and the hook logic is unit-tested.\n\nWeeks 3-4 implement the Dual-Authorization Mode. Deploy code that allows authentication against either the monolith’s local database or the IDP. If a user logs in via the monolith, the system triggers a background job to push the bcrypt hash to the IDP. During this phase, the monolith remains the source of truth for access control. End state: The system can authenticate users via both systems simultaneously, ensuring that if the IDP fails, the monolith still grants access.\n\nWeeks 5-8 execute the Active User Migration and Inactive Bulk Import. For active users, the on-login hook migrates their credentials automatically. To address inactive users who do not log in during this period, initiate a background batch process that exports all remaining bcrypt hashes from the monolith and imports them into the IDP in small, non-blocking chunks. Monitor database load to ensure no performance degradation occurs for live traffic. End state: 100% of user credentials exist in the IDP. The monolith’s database remains intact and readable.\n\nWeeks 9-10 introduce the Session Bridge. Update the application to issue OIDC ID Tokens from the IDP upon successful login. For existing server-side sessions that are still valid, implement a lightweight bridge that maps the monolith’s session cookie to a temporary, short-lived OIDC token from the IDP. This prevents users from being logged out during the transition. End state: All new logins generate OIDC tokens, and active legacy sessions are seamlessly bridged to the new auth flow.\n\nWeeks 11-12 conduct Traffic Cutover and Decommissioning. Switch read-heavy traffic to verify IDP performance. Then, switch authentication traffic exclusively to the IDP. The monolith database is set to read-only mode to preserve data integrity for audit purposes. If any critical failure occurs within one hour of this switch, revert the config flag to resume monolith-based authentication. Once stable for 24 hours, declare the Point of No Return. End state: The monolith no longer handles authentication requests.\n\nExisting User Migration: Active users are migrated automatically on their next login without a password reset. The monolith verifies the password locally using bcrypt, then sends the exact salted hash to the IDP via a secure API hook. The IDP stores this hash in a custom attribute. Inactive users who do not log in during the quarter are handled by the bulk import process initiated in Weeks 5-8. This ensures that even dormant accounts have their hashes stored in the IDP, allowing them to authenticate via the IDP upon their next login without needing to reset passwords.\n\nSession Behavior: During the dual-active phase, existing server-side sessions remain valid because the monolith still holds the user’s credentials. When a user with an active session makes a request, the system verifies the session against the monolith. To transition to OIDC, the 'Session Bridge' issues a short-lived OIDC token from the IDP linked to the validated user. This ensures that session continuity is maintained while shifting the trust anchor to the IDP. New logins generate fresh OIDC sessions immediately.\n\nPoint of No Return (PoNR): The PoNR is reached after exclusive traffic switching in Week 12, with the monolith database set to read-only. It is reached safely by first verifying IDP stability and keeping the monolith as an immediate rollback source. If a critical failure occurs within one hour of the switch, engineers revert the authentication flag to use the monolith. Cleanup occurs post-PoNR: after 30 days of stability, the monolith’s password hash tables are archived and removed, and any legacy migration hooks in the IDP are decommissioned.\n\nConstraints Addressed: The plan spans one quarter (12 weeks) with three part-time engineers. No planned downtime is required; the dual-active mode ensures zero interruption. No forced password resets occur because the IDP accepts pre-hashed bcrypt outputs. Reversibility is maintained by keeping the monolith online and set to read-only, allowing immediate rollback within an hour if the IDP fails.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e8a8-12c9-7dc7-904c-6c467ce094f0",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 69,
+    "elapsedMs": 267642,
+    "usage": {
+      "inputTokens": 79452,
+      "outputTokens": 15229,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.9,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2699,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 24,
+      "resolved": 16
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 804,
+  "wordBudget": 900
+}

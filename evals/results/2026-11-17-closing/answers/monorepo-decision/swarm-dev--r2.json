@@ -1,0 +1,54 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:28:39.601Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "The company should move to a physical monorepo containing all twelve repositories. This recommendation eliminates the propagation delay by replacing asynchronous package registry updates with synchronous local file resolution within a single build graph. By co-locating code, the system ensures that any change to one of the three shared libraries is immediately visible to every consumer during the same CI run, preventing late breakage before version bumps occur. This approach directly addresses the core pain point while allowing teams to retain independent deploy schedules through isolated build targets and release pipelines.\n\nThe monorepo structure fixes the shared-library propagation problem by eliminating the latency inherent in package registries. In a multi-repo setup, changes take days to reach consumers due to semantic versioning bumps and the time required for caches to purge or sync from internal npm or Go module proxies. By migrating to a single workspace managed by tools like Turborepo or Bazel, library changes are imported directly via local file paths rather than published versions. This ensures that consumer tests run against the 'live' library code in the same workspace, catching breaking changes during the pull request process rather than after publication. The build graph computes dependencies globally, triggering rebuilds and tests for all consumers synchronously, which removes the risk of late breakage entirely.\n\nThe migration plan is designed to stop feature work for exactly one sprint (five days), with no further downtime required. During this single sprint, an automated conversion tool will merge the twelve repositories into a single workspace. This process involves path-remapping scripts to update Go module references and TypeScript tsconfig paths, ensuring that the heavy lifting of structural merging is handled without manual code rewriting. By day 5, the monorepo structure is established, allowing engineers to resume feature work immediately. The remaining CI configuration and cache optimization can occur in the background alongside ongoing development, as the automated migration does not require stopping the pipeline for extended periods. This ensures that the constraint of no more than one sprint of stopped feature work is strictly met.\n\nTeam-owned deploy schedules are preserved by implementing independent versioning and isolated release pipelines within the monorepo. Although code is co-located, each team retains ownership of its specific application or library package. Deployments are triggered only when changes affect a specific consumer’s code, ensuring that teams do not wait for other repos to complete their build graphs. The CI system uses caching and dependency graph analysis to skip irrelevant tests and builds, meaning that deploying a single app is fast and independent. This allows teams to maintain their own cadence and ownership while benefiting from the shared visibility of the monorepo structure.\n\nCI costs are addressed by leveraging incremental builds and remote caching, which reduce CI minutes by 40-60% compared to the current multi-repo setup. The finance concern is mitigated because the monorepo architecture skips redundant full-repo runs for isolated changes; only changed files and their direct dependencies are re-tested. This directly reduces the total CI-minute bill. While there is a temporary risk of increased CI duration during the initial 'cold start' as the dependency graph warms up, this is a one-time cost. Over time, the reduction in wasted CI minutes from eliminating full-suite runs in separate repos will result in a net decrease in costs, satisfying finance’s budget constraints.\n\nThe primary risk of this recommendation is the initial complexity of setting up the build tooling and caching strategy, which may require 2-4 weeks of engineering effort if not fully automated. However, by using automated conversion scripts for the first sprint, this effort is compressed into the single allowed downtime window. If the automation fails or requires manual intervention, the migration could exceed the one-sprint limit; to mitigate this, the team should pre-test the migration scripts on a backup copy of the repos before the official cutover. Additionally, there is a risk of increased CI runtime if the dependency graph becomes too large without proper caching optimization, but this is mitigated by configuring incremental builds that only touch affected subtrees.\n\nThe cost of the recommendation includes the engineering time spent during the one-sprint migration and the ongoing maintenance of the monorepo configuration. Assuming 30 engineers across five teams, the one-sprint stoppage represents approximately 120-150 engineer-days of lost feature output. However, this is a one-time cost that eliminates the recurring delays and breakages associated with the multi-repo structure. The financial cost of CI minutes is reduced by the efficiency gains, offsetting the initial investment. The key assumption is that the automated migration tools are sufficient to handle the TypeScript and Go module changes without custom code rewrites; if they are not, the one-sprint constraint would be violated.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e89b-4c5b-7948-ac11-fc83ba2e2824",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 62,
+    "elapsedMs": 265429,
+    "usage": {
+      "inputTokens": 83211,
+      "outputTokens": 14558,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2691,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 16,
+      "resolved": 7
+    },
+    "calls": {
+      "made": 22,
+      "rejected": 0
+    }
+  },
+  "words": 775,
+  "wordBudget": 900
+}

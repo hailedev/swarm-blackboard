@@ -1,0 +1,54 @@
+{
+  "problemId": "oidc-migration",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:22:27.574Z",
+  "spentUsd": 0.018880695,
+  "outcome": "answered",
+  "text": "Recommendation: run the migration as a lazy, login-time credential migration behind a feature flag, keep the monolith authoritative until a late, tested point of no return, and retire the legacy login path only after every active user has been moved or is safely parked on the legacy path with an archived hash.\n\nPhase plan across the quarter (13 weeks, three engineers at roughly 40% time, about 150 engineer-hours in total). Weeks 1-2: stand up the hosted IdP in a staging tenant, confirm its migration hook accepts a foreign bcrypt hash, and measure its latency, rate limits and failure behaviour; if it does not accept raw bcrypt hashes, fall back to verify-then-set through a short-lived client-credentials token, and treat that path as needing extra protection in logs and retries. After this, the monolith is unchanged. Weeks 3-4: add the OIDC login path behind a feature flag defaulting to off, with the monolith still verifying every password; after this, nothing user-visible has changed. Weeks 5-6: enable the hook for a 1% cohort of internal and beta users; a failed migration leaves the user on the monolith path, so a failure is reverted by flipping the flag within an hour. Weeks 7-9: widen to 10%, 50% and then 100% of active users in steps of about one week each, with a dashboard tracking migrated, not-yet-migrated and failed counts. Weeks 10-11: run the dual-validation period, with the monolith verifying passwords against its own hashes and the IdP mirroring state, and rehearse the rollback. Week 12: the go/no-go review. Week 13: the point of no return and cleanup.\n\nExisting passwords move without a reset. On a successful login on the monolith path, the monolith verifies the password against its bcrypt hash and then creates the credential in the IdP, so the user is migrated the first time they log in after their cohort opens. Users who do not log in during the quarter are not migrated proactively; they stay on the monolith login path, and their bcrypt hashes stay in the monolith's database. Assumption: the IdP will accept the monolith's bcrypt hash directly, which is the cheapest path; if it does not, the verify-then-set fallback applies, and the migration rate is capped to stay within the IdP's limits. Assumption: the number of dormant users who return after cutover is small enough to be served by the retained monolith path described below.\n\nSessions while both systems are live. The monolith keeps its server-side sessions, and the application accepts either a monolith session cookie or a valid IdP OIDC token as equivalent for authorisation. A session established in one system is not automatically honoured by the other; instead, a login in either system creates a mirror record in the other where the login is recognised, so that users are not logged out at the cohort boundary. Logout in either system writes a revocation entry that both check. Access tokens are short-lived (15-60 minutes) and refresh tokens are used for longer sessions, so that users are not kicked out mid-session. Assumption: the revocation list is a shared store checked on each request; the plan does not allow login to proceed when that store is unreachable beyond a short bounded window, which is set at five minutes, after which affected logins fail closed and are retried. This keeps revocation guarantees intact at the cost of a brief, bounded login outage for the affected users.\n\nPoint of no return. It is the moment the IdP becomes the sole verifier of passwords for new logins, which is reached by switching the feature flag so that the monolith no longer verifies or writes passwords. It is reached only after the go/no-go checklist passes: every active user has either been migrated or is on the dormant path with a verified archived hash; a restore of the monolith user table from a backup taken the same day has been tested; the rollback has been rehearsed within the hour; and migration error rates are below an agreed threshold for two weeks. Before the switch, the password column is copied to a read-only archive table rather than dropped. Assumption: the archived hashes are retained for the policy period, after which dormant users who have not logged in are asked to use account recovery rather than a forced reset.\n\nCleanup after the point of no return. In the four weeks after the switch, the monolith's login and session code is removed in small reviewed changes, the live password column is replaced by a masked or archived copy under the retention rules, legacy sessions are revoked, and secrets used only by the monolith login path are rotated and deleted. Monitoring runs for a further four weeks to catch residual dependencies on the old path, such as scripts or internal tools that still read the password column, and any such dependency is moved onto the IdP before the archive is made read-only for good.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e827-6abb-7654-af6f-5e4a6f5aea5d",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 78,
+    "elapsedMs": 287801,
+    "usage": {
+      "inputTokens": 112477,
+      "outputTokens": 24012,
+      "cacheReadTokens": 12897,
+      "cacheWriteTokens": 33141,
+      "reasoningTokens": 0,
+      "costUsd": 0.018880695
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2699,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0016006,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 29,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 815,
+  "wordBudget": 900
+}

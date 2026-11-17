@@ -1,0 +1,54 @@
+{
+  "problemId": "oidc-migration",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:56:21.068Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "The migration plan executes over 13 weeks using three part-time engineers, shifting authentication from a monolithic bcrypt database to a hosted OIDC provider without downtime or forced resets. The strategy employs a server-orchestrated lazy backfill mechanism where credentials migrate on-demand during user logins, ensuring zero impact on inactive accounts. No planned downtime is required; the system remains live throughout, with reversibility guaranteed by maintaining the monolith as the authoritative source until the final cutover.\n\nThe plan begins with a two-week preparation phase (Weeks 1-2). Engineers configure the hosted IdP to accept OIDC flows and implement the authentication hook. This hook is designed for server-to-server communication using mutual TLS, ensuring that password verification details do not traverse the public internet. Simultaneously, engineers instrument the application to support dual-source authentication logic. During this phase, no user data moves; the monolith remains the sole truth. At the end of Week 2, the infrastructure is ready, but traffic still flows exclusively through the monolith.\n\nThe active migration phase spans Weeks 3 through 10 (eight weeks). Authentication becomes a hybrid process. When an existing user logs in, the IdP initially queries its own store. If no record exists, it triggers a secure fallback to the monolith. The monolith verifies the password against its bcrypt hash. Upon success, the monolith triggers the server-orchestrated lazy backfill: it sends the verified credential securely to the IdP, which hashes it using its own salt and stores the new hash. From this point forward, the user authenticates directly via the IdP. This process repeats for every active user. Users who do not log in during these eight weeks remain solely in the monolith database. Their accounts are untouched, satisfying the constraint of zero impact on non-logins. The team monitors latency and error rates closely, reverting any changes within an hour if anomalies arise.\n\nDuring this transition, session management handles both old and new identities seamlessly. Existing sessions issued by the monolith remain valid until they expire or are explicitly revoked. New logins generate OIDC tokens via the IdP. The application maintains a unified cookie domain to distinguish between legacy sessions and new OIDC-backed sessions. If an existing session expires mid-quarter, the user is redirected to login; this triggers the lazy migration flow, creating an IdP record and issuing a new token without requiring a password reset. This ensures that inactive users in the monolith do not disrupt active sessions, and active users transition smoothly without awareness.\n\nThe final phase occurs in Weeks 11-13. By Week 11, engineers estimate that approximately 85-90% of active users have migrated via the lazy backfill, leaving only dormant accounts in the monolith. The Point of No Return (PoNoR) is reached by disabling external write access to the monolith authentication tables while keeping them readable for audit purposes. This step is reversible within an hour if a critical bug is discovered, as the code path to the monolith remains compiled and the database connection strings are retained in configuration. At this stage, no new users can be created via the monolith, ensuring data consistency.\n\nIn Week 12, engineers enforce the final cutover. The application’s authentication logic is updated to bypass the monolith entirely for login verification, relying exclusively on the IdP. The monolith is placed in read-only mode for user data. This transition is tested under load to ensure OIDC performance meets SLAs. The team monitors for any failed auth attempts that might indicate unmigrated users still attempting access; however, since inactive users never log in, their dormant status causes no friction. Any issues found here are addressed by temporarily re-enabling monolith write access, a step fully reversible within the hour constraint.\n\nCleanup and decommissioning occur in Week 13, only after the system has run stably on OIDC for one week with zero errors. The Point of No Return is formally crossed: the monolith authentication database is disconnected from the network or dropped, depending on compliance requirements for archival. All legacy code paths for bcrypt verification are removed. The hosted IdP now holds the source of truth for all active users. Dormant accounts that never logged in are archived and purged according to retention policies, leaving no active credentials in the monolith.\n\nThis plan addresses the security risk identified in critiques by ensuring the monolith initiates the sync rather than exposing endpoints to external triggers. The 'Server-Orchestrated Lazy Backfill' prevents plaintext transmission risks by using mTLS and secure hooks. It resolves session continuity by allowing dual-session validity until expiration, preventing lockouts. The rejection of batch import for inactive users avoids unnecessary infrastructure overhead, focusing resources on active traffic. The reversible steps ensure that any failure can be rolled back within an hour, protecting the business from downtime.\n\nAssumption: The hosted IdP’s secure hook supports receiving user credentials via a trusted server-to-server API using mutual TLS, allowing the monolith to push hashes after local verification. This rests on the capability of modern OIDC providers to handle credential import securely without exposing public endpoints for password validation. If this assumption fails, the lazy sync must be replaced by a bulk export/import job, which violates the zero-impact constraint for inactive users.\n\nAssumption: Approximately 85-90% of active users will log in at least once during the eight-week migration window. This rests on typical SaaS engagement metrics where most active users access the system weekly or bi-weekly. If login frequency is significantly lower, a larger portion of users remains in the monolith, potentially requiring a post-quarter batch import to fully decommission the legacy system, extending the timeline beyond the quarter.\n\nAssumption: The monolith’s database can handle increased read load from fallback verification queries without performance degradation. This rests on the assumption that only a subset of login attempts triggers the monolith check (those failing IdP lookup). If high concurrency causes latency spikes, the fallback rate limiting must be adjusted to throttle non-idp traffic temporarily.\n\nAssumption: Session cookies are scoped to the application domain rather than subdomains, allowing seamless recognition by both legacy and new auth flows. This rests on standard OIDC cookie practices. If cookies are split by subdomain, additional redirect logic is needed to map old session identifiers to new OIDC tokens during the transition.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e87d-8e74-7a13-8f5d-2d82e1992253",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 66,
+    "elapsedMs": 276055,
+    "usage": {
+      "inputTokens": 75380,
+      "outputTokens": 16081,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.95,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2699,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 22,
+      "resolved": 13
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 1025,
+  "wordBudget": 900
+}

@@ -1,0 +1,54 @@
+{
+  "problemId": "confidential-llm-summaries",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:33:28.886Z",
+  "spentUsd": 0.0187257,
+  "outcome": "answered",
+  "text": "Recommendation: run a split. Contracts from clients who have consented in writing go to a hosted API under a zero-retention enterprise tier; every contract from a client who has not consented, or whose consent status is unknown, is summarised by a locally run open-weight model on a dedicated machine that has no outbound network access during processing. No contract text leaves the firm for a non-consenting client at any point.\n\nNon-consenting handling: contracts are logged on receipt with the client's consent status. If written consent is not on file within five business days of receipt, the contract is treated as non-consenting and processed locally. If consent arrives later, the contract is kept on the local path or moved by an approved secure transfer; it is never sent to an API without the consent being verified. Each local run is recorded with a data-flow note confirming network interfaces were disabled, so the firm can evidence compliance.\n\nCost model (monthly, all-in). Assumptions: 300 contracts averaging 40 pages, about 20,000 tokens each, so roughly 6 million input tokens a month; output about 1,000 tokens per summary. Assumption: consent rate of 60%, so 180 contracts go to the API and 120 stay local. API cost at $1.50 per million tokens blended: about $9 for input plus about $1 for output, roughly $10 a month, with a $20 allowance for enterprise-tier overhead and retries, so $30. Local hardware: a single RTX 4060 Ti 16GB workstation at about $1,500 total, amortised over 36 months, is about $42 a month; electricity at about $8 a month. Local total about $50. Combined: about $80 a month, well under the $300 ceiling, leaving headroom for the staff time budgeted separately and for a buffer.\n\nQuality check before reliance: a reviewer checks a random 10% sample of each week's summaries, plus every summary for contracts over 60 pages, against a rubric covering parties, dates, payment terms, term and termination, liability caps, indemnities, governing law and missing standard clauses. Threshold: if more than 5% of sampled summaries contain a material error on a rubric item, the sample rises to 25% and the local model is reviewed. Each review takes about 15 minutes, so about 30 reviews a month, roughly 7.5 hours a month, fitting within one day a week for the staff member. Summaries are used for internal tracking and triage, not as a substitute for reading the contract before advice is given.\n\nChunking for long contracts: local processing splits contracts into overlapping sections of about 4,000 tokens, summarises each, then merges the section summaries with a final pass; this keeps 80-page documents within the model's working context. The staff member runs a fixed script rather than writing code, with the procedure written down step by step.\n\nWhat would change the recommendation, and how the firm would notice. Volume above about 450 contracts a month: monitored through the monthly intake count; if sustained, the local machine becomes a bottleneck and a second unit or a larger GPU is needed. Consent rate falling below about 10%: monitored from the consent register each month; if so, the hardware is underused and the case for keeping a local machine weakens, so the firm would consider a private-cloud rental only if it fits the budget. API price changes: checked quarterly against the vendor's price list; a rise above about 50% would move more work to local processing. Quality failure: the weekly sample error rate; sustained failure above the threshold would prompt an upgrade to a 24GB card to run larger models, reviewed at each monthly meeting.\n\nReview cadence: the staff member reviews the cost model, volume, consent register and quality sample once a month, and the firm revisits the whole recommendation each quarter.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e830-ba48-7588-b8ee-d4958e9f7d77",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 98,
+    "elapsedMs": 338925,
+    "usage": {
+      "inputTokens": 116238,
+      "outputTokens": 24865,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 42828,
+      "reasoningTokens": 0,
+      "costUsd": 0.0187257
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2686,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0014556750000000002,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 33,
+      "resolved": 17
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 618,
+  "wordBudget": 900
+}

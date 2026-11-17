@@ -1,0 +1,54 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:01:29.208Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "This six-week plan addresses the degradation of the web product’s CI pipeline by stabilizing the test suite and reducing execution time within a strict two-engineer-week constraint. The strategy relies on establishing a rigorous baseline, isolating high-impact failures, and implementing automation to restore trust in the build system. We will prioritize fixing state-related flakiness in unit and integration tests while quarantining complex browser race conditions, using parallel sharding to reduce CI time from 45 minutes to under 30 minutes.\n\nSuccess Criterion 1: Measurable Targets and Baseline Measurement. In Week 1, we establish the baseline by executing all 400 tests in isolated, non-blocking audit runs rather than a single blocking pipeline execution. This allows us to capture pass/fail rates across three iterations per test without stalling the engineering workflow. We will measure the current flakiness rate (approx. 8%) and average CI duration (45 minutes). By Week 6, our targets are: reducing flaky tests in the main suite to under 2% (fewer than 8 tests), achieving a stable CI time of under 30 minutes, and ensuring that no test fails more than once in ten consecutive runs. These metrics will be tracked via a dedicated dashboard visualizing pass rates over time.\n\nSuccess Criterion 2: Diagnosis Approach. Before fixing anything, we must identify which tests are flaky and why. We employ an automated Root Cause Analysis (RCA) script that parses test logs for specific error patterns such as 'timeout', 'stale element', 'assertion failure', and network errors. This removes the subjectivity of manual triage. For each flaky test identified in the baseline audit, we categorize the root cause into one of three buckets: timing/race conditions (common in browser tests), state pollution/data isolation issues (common in integration/unit tests), or environmental drift. This classification is critical because it determines whether a test should be fixed or quarantined.\n\nSuccess Criterion 3: Prioritized Interventions and Costs. We address the flaky tests using the 'Low-Hanging Fruit' strategy chosen for its pragmatic fit within the two-engineer-week budget, prioritizing high-frequency failures with low-fix complexity first. The interventions are ordered as follows: First, we fix unit and integration tests suffering from state pollution, as these are deterministic to resolve by enforcing data isolation in setup/teardown routines. Second, we quarantine browser tests identified as complex race conditions that cannot be fixed within the budget; these are moved to a separate non-blocking suite to stop them from failing the main gate. Third, we delete duplicate tests where coverage is maintained by other stable tests, adhering to the rule that behavior must still be covered. The total engineer-time for diagnosis and remediation is capped at 80 hours (two weeks for one engineer, with light support from another). Fixing state pollution accounts for ~40 hours; quarantining race conditions takes ~20 hours; and deleting duplicates takes ~20 hours.\n\nTo reduce CI time from 45 minutes, we implement Parallel Sharding in Week 2. We split the 400 tests into four shards distributed across parallel runners. This leverages available compute resources to cut runtime by approximately 60%, targeting a new baseline of 18-20 minutes for test execution. The remaining time is absorbed by startup overhead and caching. We also optimize dependency caching (npm/browser binaries) to save 5 minutes, though sharding provides the bulk reduction. This intervention costs 2 engineer-weeks if done separately, but we integrate it into the diagnostic workflow to minimize context switching. The total CI time including setup will be under 30 minutes.\n\nSuccess Criterion 4: Sustainable Hygiene Rule. To prevent decay, we implement a Flakiness Quarantine Rule: any test failing two or more times in its last ten CI runs is automatically tagged as flaky and moved to the non-blocking quarantine suite. This rule is enforced by the RCA script’s output. The main pipeline remains blocking only for stable tests. New tests must pass three consecutive runs before being merged into the main suite. This creates a feedback loop where flakiness is caught early, preventing the accumulation of noise that erodes trust in the build system.\n\nAssumption: The two-engineer-week budget allows for one engineer to focus primarily on diagnostics and remediation while the other handles essential feature work that may involve CI configuration updates. This split ensures that the critical path of fixing high-frequency flakes is not stalled by unrelated product demands. If feature work exceeds 50% of capacity, we will defer the deletion of duplicates, focusing only on fixing and quarantining active tests.\n\nAssumption: The automated RCA scripts can successfully parse logs for the three identified root cause categories with at least 80% accuracy. If parsing fails for specific browser errors, manual review is used as a fallback, increasing time cost but preserving diagnostic quality. This assumption is critical because accurate categorization drives the prioritization of fixes versus quarantines.\n\nThe plan ensures that by Week 6, the team regains trust in the CI pipeline. The combination of reducing flakiness to under 2%, cutting CI time to under 30 minutes, and enforcing a strict quarantine rule creates a sustainable testing environment. The interventions are prioritized by impact and cost, ensuring maximum reliability with minimal engineering effort.\n\nConfidence: We are moderately confident in this plan because it relies on proven techniques (sharding, isolation fixes) but depends on the accuracy of automated log parsing within a tight budget. The assumption about RCA accuracy is the primary risk; if manual intervention is required more often than expected, the timeline for diagnosis may slip. However, by quarantining rather than attempting to fix every flake immediately, we mitigate the risk of incomplete fixes breaking the build further.\n\nIn conclusion, this six-week plan provides a clear path from a broken pipeline to a stable, fast, and trustworthy CI process. By focusing on data-driven diagnosis, prioritizing high-impact fixes, and enforcing hygiene rules, we address the root causes of flakiness and the performance bottlenecks of the pipeline simultaneously. The team will achieve the stated targets within the two-engineer-week constraint, restoring confidence in the automated testing infrastructure.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e881-c4cd-7545-bd18-b924c8e46715",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 69,
+    "elapsedMs": 308138,
+    "usage": {
+      "inputTokens": 92449,
+      "outputTokens": 17288,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 25,
+      "resolved": 11
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 1
+    }
+  },
+  "words": 981,
+  "wordBudget": 900
+}

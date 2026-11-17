@@ -1,0 +1,54 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:58:11.567Z",
+  "spentUsd": 0.016057375000000002,
+  "outcome": "answered",
+  "text": "Recommendation: store each note as a Yjs CRDT document in a single SQLite database on every device, with attachments kept as separate content-addressed files whose SHA-256 hashes are recorded in the note's manifest. Sync is a convenience layered over this local store: the app is fully usable offline, and the same binary Yjs updates and hash-addressed file transfers are later sent through a hosted endpoint rather than a peer channel, so no user data is converted at any point.\n\nStorage: SQLite in WAL mode holds the binary Yjs document per note, a manifest table of attachment hashes, and a metadata table. SQLite handles BLOBs well beyond the 10 MB attachment limit, and it runs natively on iOS, Android and desktop. Assumption: the team uses one well-maintained SQLite wrapper on each platform, so the two developers maintain one storage code path. Rejected: a file-per-note store, which gives no transactional guarantee across the text and manifest update; and a server-first document database, which breaks offline use. Durability: each edit is committed in a transaction before control returns to the UI, with WAL checkpointing at a bounded interval; the team measures keystroke-to-commit latency during implementation and loosens the policy only if battery or latency measurements demand it.\n\nReconciliation: Yjs merges concurrent text edits automatically, so two offline edits to the same paragraph converge without a manual merge screen. Example: on a laptop the user types 'milk' at the start of a paragraph while, offline on a phone, they type 'eggs' at the end; on reconnection both insertions survive in a deterministic order, and no typed character is discarded. Snapshots of the document are taken when the update history exceeds a threshold, using a 24 hour or 50 KB trigger, so that a peer returning after a long offline period loads one snapshot rather than replaying many patches. Assumption: the 24 hour and 50 KB thresholds are starting values to be validated by load tests, not measured facts.\n\nConflicts in attachments: an attachment is stored once per hash, and a manifest entry is a unique set member. If both devices replace the same attachment slot with different files, both hashes survive in the manifest, and the note shows a 'File conflict' notice with both versions and a choice to keep one. No text is ever discarded by the attachment layer, and text conflicts never produce a blocking dialog. Attachments transfer lazily, after text, so a slow mobile connection never delays text sync. Assumption: the manifest is authoritative and the attachment pointer is synced no later than the file bytes, so a note never references a file the other device lacks; the pointer and the file transfer are scheduled separately, with the text update always sent first.\n\nMigration: the sync protocol is identical in the no-server and hosted stages. Each note has a stable random identifier generated locally and used as the Yjs document ID. In the no-server stage, devices exchange updates over a direct or bucket-based channel; in the hosted stage, the same updates go to a hosted endpoint, and the account is linked by OAuth to the existing note identifiers, which the server indexes on first upload. Users never export or import anything. Assumption: an account created after the first release can adopt existing local identifiers without ownership ambiguity, since there is only one user per device at launch.\n\nRisks and early tests: (1) Merge history growth. Test: replay a month of simulated realistic edits per note and record the stored size; redesign if a typical note exceeds 1 MB of history after snapshotting. (2) Data-format lock-in. Test: keep a golden corpus of binary documents and verify every release still loads them; redesign if any release cannot read the previous format. (3) Sync correctness bugs. Test: a two-device harness that injects random offline edits and disconnects and checks convergence and zero lost characters; any divergence stops the release. (4) Attachment storage cost. Test: measure total attachment bytes per user on a realistic set of notes; redesign if hosted storage cost per paying user exceeds the subscription price. (5) Offline device storage limits. Test: measure database size on a low-storage phone after a year of simulated use; redesign if the app is forced to purge text. Each test runs before the first paying customers arrive, within the six-month window.\n\nSummary of rejected options: a file-per-note store (no transactional safety), a server-first design (violates offline use), and operational-transformation or manual three-way merge UIs (they add conflict screens that the CRDT model makes unnecessary for text). The recommendation rests on one data format that serves every stage, so the team can ship the no-server release and add hosted sync without a migration step that existing users would notice.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7da-4e77-7048-bc18-6c8fa9536c77",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 88,
+    "elapsedMs": 285302,
+    "usage": {
+      "inputTokens": 101271,
+      "outputTokens": 21134,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 36883,
+      "reasoningTokens": 0,
+      "costUsd": 0.016057375000000002
+    },
+    "confidence": 0.78,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0016079250000000003,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 25,
+      "resolved": 15
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 782,
+  "wordBudget": 900
+}

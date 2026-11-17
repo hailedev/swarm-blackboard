@@ -1,0 +1,32 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:47:55.065Z",
+  "spentUsd": 0.0008125,
+  "outcome": "answered",
+  "text": "Recommendation: take a middle path. Keep the twelve repositories, but move the three shared libraries and the consumers that depend on them into a single monorepo-style workspace with one build graph, rather than migrating everything. Stay multi-repo for the other services, and fix propagation by making shared-library changes testable against every consumer before a version is published. This is the least disruptive option that targets the actual pain, which is shared-library changes breaking consumers late, not the number of repositories as such.\n\nThe deciding reasons are these. The pain is concentrated: three shared libraries, not twelve repositories. A full monorepo move for 30 engineers across five teams would require rewriting CI, tooling, and ownership boundaries for everything, which will not fit inside one sprint of stopped feature work and would disrupt team-owned deploy schedules. A middle path confines the change to the code that actually causes breakage. It also respects the constraint that teams keep their deploy cadence, because each service still deploys from its own repository on its own schedule, and only the library-consumer edges change. Finally, it limits CI cost growth, since you only run full consumer matrices when a shared library changes, not on every commit in every repo.\n\nHow this fixes the shared-library problem specifically. Today a library change is merged, published as a new package version, and only then do consumers upgrade and discover breakage, often days later. The fix has three parts. First, place each shared library in the same workspace as its consumers so a change to the library can be built and tested against all consumer code in one pull request, with failures surfaced before merge. Second, use a single version-resolution policy, so consumers reference the workspace version during development and a published version only at release, which removes the gap between publish and discovery. Third, require a consumer smoke test in the library's CI, so a library release is blocked when a known consumer fails. Breaking changes then become visible in the review of the change that causes them, not after a version bump.\n\nMigration plan within one sprint. Week one: inventory the consumers of the three libraries and pick one library as the pilot; set up the workspace with a shared build tool that supports TypeScript and Go, with caching, and configure a consumer test matrix. This work is done by a small platform group of two to three engineers, so feature work in the five teams is largely unaffected. Week two: migrate the remaining two libraries and wire their consumer tests into CI, then cut over library publishing so releases are produced from the workspace. Teams do not move their service repositories; they keep their own deploy pipelines and schedules, and only adopt the workspace dependency reference. Total feature-work interruption is limited to a short onboarding session per team, roughly half a day each, which fits inside the one-sprint limit. Deploy ownership is unchanged: each team still decides when its service ships.\n\nCI cost. The change does add CI work in one specific place: a library change triggers builds of its consumers. To control minutes, use affected-only builds, so a commit runs only the packages whose inputs changed, and remote build caching, so unchanged work is not repeated. Consumer matrices run only on changes to shared libraries, which should be a small fraction of commits. Finance should expect the total to rise modestly rather than fall, because the matrix runs are new spend, but the bill should stay bounded. I would set a budget alert and measure minutes per merge in the first month, since I cannot give a verified figure without the team's current build durations.\n\nRisks and costs of this recommendation. The middle path leaves two repository models in place, which means two sets of conventions, and engineers will need to know which edge is a workspace edge and which is a published-version edge. Cross-language tooling is the largest technical risk: TypeScript and Go have different dependency managers, and a single build graph across both is harder than within one language, so the pilot must prove the tooling before the other libraries move. Consumers that are not in the workspace still see the old propagation delay, so the benefit is partial until they are added. There is also a coordination cost: a library change that breaks a consumer now requires the library owner to engage the consumer team before merge, which slows some changes deliberately. Open questions are whether the consumer count per library is small enough for full matrices, and whether any team has a hard reason to stay on an independent versioning scheme. If propagation pain persists after the three libraries are fixed, the next step would be a fuller monorepo, but that decision should wait for evidence.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2691,
+    "usage": {
+      "inputTokens": 1055,
+      "outputTokens": 1414,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0008125
+    },
+    "latencyMs": 9566,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 793,
+  "wordBudget": 900
+}

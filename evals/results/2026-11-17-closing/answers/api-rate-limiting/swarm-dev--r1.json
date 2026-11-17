@@ -1,0 +1,54 @@
+{
+  "problemId": "api-rate-limiting",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:31:08.637Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Implement a Local Token Bucket algorithm with asynchronous anti-entropy synchronization across three regions. This design satisfies the sub-5 millisecond latency constraint by performing all rate checks in local memory, ensuring high availability during storage outages by falling back to local state rather than failing closed, and managing global quotas through eventual consistency bounds.\n\nAlgorithm Selection: The Local Token Bucket is chosen because it natively supports bursty traffic patterns required by paying plans (up to 600 requests per minute) and free accounts (60 per minute). Unlike fixed window counters, which impose artificial boundaries that can cause burst amplification at window edges, the token bucket allows clients to consume up to the full quota in a single burst (e.g., 2 seconds of allowance for paying users) without delay. The algorithm relies on simple floating-point arithmetic to calculate elapsed time and refill tokens, an operation that completes in under one millisecond. This efficiency ensures the limiter adds negligible latency compared to the five-millisecond budget.\n\nState Distribution and Inaccuracy: State is held primarily in local in-memory structures within each of the three regions. To maintain a view of the customer's global quota, regions exchange usage deltas asynchronously via an anti-entropy sync process. This design implies eventual consistency; strict global consistency is rejected because synchronous cross-region writes to a central store like Redis exceed the 5ms latency constraint due to network round-trip times. The resulting inaccuracy is bounded by the replication lag window. In the worst-case scenario where all three regions are momentarily unaware of recent usage, a client could over-limit by up to 100% of their quota (e.g., allowing 120 requests instead of 60 for a free user) before reconciliation catches up. This risk is mitigated by pre-funding local buckets with a conservative fraction of the total quota.\n\nHandling State Store Failure: When the central state store is slow or unreachable, the system enters an outage mode where it continues to serve requests using only the local token bucket. The API remains responsive because no synchronous network calls are made for decision logic. If the local bucket drains due to sustained traffic during the outage, the region returns a 429 Too Many Requests status. This 'fail-open' approach prioritizes availability, preventing the API from taking down service due to infrastructure failure, while accepting temporary over-limiting that is corrected once global synchronization resumes.\n\nClient Visibility and Retry Logic: Clients learn their limits via standard HTTP headers (X-RateLimit-Limit, X-RateLimit-Remaining) included in every response. When a client exceeds their local quota, they receive a 429 status code with a Retry-After header. This header is calculated locally as (tokens_needed - current_local_tokens) / refill_rate, ensuring the value reflects the actual time until tokens are refilled. This calculation occurs in under one millisecond. The approach ensures clients back off correctly even when global state is stale, aligning with HTTP/2 standards and preventing client-side retry storms.\n\nInaccuracy Assessment: The design's primary weakness is the potential for over-limiting during synchronized bursts across regions. Because global state is not updated synchronously, simultaneous requests to different regions may all be allowed if local buckets have available tokens. For a paying customer limited to 600 requests per minute, this could result in approximately double the allowed traffic (1200 requests) if bursts hit all three regions simultaneously before anti-entropy sync resolves the drift. This is an acceptable trade-off given the strict latency and availability constraints.\n\nAssumption: Anti-Entropy Sync Frequency: It is assumed that regions synchronize usage deltas every 10 seconds. This frequency balances the need for global consistency with the overhead of network traffic. If sync intervals were longer, over-limiting risks would increase proportionally; if shorter, network load would rise without improving the primary latency guarantee.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7c0-8ba4-7f13-8712-8d88aa428006",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 82,
+    "elapsedMs": 350648,
+    "usage": {
+      "inputTokens": 102373,
+      "outputTokens": 18647,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 24,
+      "resolved": 10
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 610,
+  "wordBudget": 900
+}

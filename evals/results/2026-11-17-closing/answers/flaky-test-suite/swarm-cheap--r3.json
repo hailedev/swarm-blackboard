@@ -1,0 +1,54 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:27:49.958Z",
+  "spentUsd": 0.018392035,
+  "outcome": "answered",
+  "text": "Recommendation: spend the first week measuring, then run a bounded diagnosis of the flaky tests, quarantine the worst offenders out of the blocking path, fix the top shared-state and wait-based causes, and move browser tests off the critical path, so that by week six the blocking pipeline is under 25 minutes and fewer than 2% of runs fail on tests that pass when re-run.\n\n>Week one: baseline. Instrument CI to record every test attempt (pass, fail, duration, attempt ID, runner and browser version) across all runs for the week. Compute three numbers: the run-level flake rate (share of failed runs in which at least one test passes on re-run, aggregated from per-test data so it is directly comparable to the 8% figure), median and p90 end-to-end CI time, and time spent per pipeline stage. Assumption: one week of roughly 400 tests gives enough runs to be indicative; the baseline is re-checked at week three once about 30 runs per test group have accumulated, and the week-six comparison uses the same definition.\n\n>Week six targets: run-level flake rate below 2%; median blocking-path CI time below 25 minutes, with the full suite including browser tests below 35 minutes; no full-pipeline manual re-runs logged; every quarantined test has an owner and a deadline.\n\nDiagnosis before fixing. Take the tests that failed in week one and replay each 20 times in a fresh container, with the same tests also run in a shared-state configuration, so that isolated failures can be separated from order-dependent ones. Tag each flaky test by cause class: timing or waits, shared browser or database state, external network or service, resource contention, or environment differences such as browser version or node. Rank tests by flake frequency multiplied by the pipeline minutes each failure wastes. Diagnosis is capped at 2 engineer-days. A test failing in isolation is only treated as a fix candidate after its cause class is recorded; an isolated failure without a cause is quarantined and not fixed blind.\n\n>Interventions in order of benefit per hour. (1) Quarantine the top flakers from the blocking path, with an owner and a one-week deadline to fix or delete, costing about 0.5 engineer-days; quarantine after three consecutive failures or three failures in ten runs, not two, to avoid hiding real regressions. (2) Split CI into a fast blocking lane of unit and integration tests and a separate browser lane; unit tests are typically the largest share of duration, so running them in parallel on two to four containers costs about 1 engineer-day. (3) Fix the top shared-state causes by resetting application state in fixtures and using unique data namespaces per test, about 3 engineer-days. (4) Fix the top wait-based causes by replacing fixed sleeps with explicit condition waits, about 2 engineer-days. (5) Shard the browser suite across parallel runners and cache dependencies and build artefacts, about 2 engineer-days. (6) Remove duplicated coverage only where a named test covers the same behaviour. Total about 8.5 engineer-days, inside the two engineer-week ceiling, with the remainder held for measurement and review.\n\n>Deleting tests: a test may be removed only when a named replacement covers the same behaviour or the behaviour no longer exists, and the deletion is recorded in the pull request. Assumption: browser tests can move to a post-merge or nightly tier if the team accepts it; if not, sharding alone must carry the time reduction.\n\n>Restore-trust rule. A red build is never re-run as a whole. The engineer records the failing test name and cause class, then re-runs only the failed tests in a fresh container. A test that passes on that re-run is marked as flaky and quarantined automatically, with its owner notified.\n\n>Long-term rule to stop decay. Every new test must pass 20 consecutive isolated runs before it merges. Any test that fails and then passes on re-run is auto-quarantined with an owner and a one-week deadline to fix or delete. A weekly flake dashboard is reviewed in the team meeting, and a fixed budget of about 10 percent of one engineer's time per sprint is reserved for flake maintenance, so the work does not depend on spare capacity.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e82b-cef8-7142-a9bc-c75cab9dbcd4",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 95,
+    "elapsedMs": 322380,
+    "usage": {
+      "inputTokens": 115640,
+      "outputTokens": 24068,
+      "cacheReadTokens": 4331,
+      "cacheWriteTokens": 39205,
+      "reasoningTokens": 0,
+      "costUsd": 0.018392035
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.0016643250000000001,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 31,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 687,
+  "wordBudget": 900
+}

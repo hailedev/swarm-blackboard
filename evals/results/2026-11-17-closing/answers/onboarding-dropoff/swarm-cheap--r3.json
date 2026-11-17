@@ -1,0 +1,54 @@
+{
+  "problemId": "onboarding-dropoff",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:48:03.786Z",
+  "spentUsd": 0.018406675,
+  "outcome": "answered",
+  "text": "Recommendation: treat connecting a data source as the most likely cause of the drop-off, verify that with a funnel-based diagnostic in weeks one and two, and then test deferring that step behind sample data in weeks three and four, while a second experiment tests whether a guidance or invite change lifts completion in parallel on a separate traffic split.\n\nRanked likely causes. (1) Connect data source: it needs credentials, OAuth permissions or existing data, so it carries the most technical and cognitive friction of the five steps. Confirmed if its step-to-step drop-off is clearly the largest and users who stall there show repeated attempts or time on page without progressing; ruled out if its drop-off is no higher than the others. (2) First dashboard: users who reach it with no data may see no value and leave, so this is the next suspect. Confirmed if drop-off concentrates here among users who connected successfully; ruled out if it is small. (3) Invite teammates: a social step that users may skip or find pointless as a solo evaluator. Confirmed if drop-off clusters at invites and invite-skippers complete at lower rates; ruled out if invites are rarely reached or completion is unaffected by invite behaviour. (4) Workspace name: a low-friction step, plausibly confusing only if the purpose is unclear; ruled out if its drop-off is under a few percent. (5) Account creation: lowest prior likelihood, since it is standard and mostly complete before any value is shown; ruled out if its drop-off matches typical sign-up abandonment.\n\nAssumption: the diagnostic rests on the funnel numbers already available, not on recordings or interviews, which the team does not yet have. Week one: break down per-step drop-off by segment (team size, acquisition channel, device), measure time spent per step, and pull error and support-ticket logs for the connect step. Decision rule: if connect-step errors or tickets account for most of its drop-off, treat it as technical and fix the integration path first; if drop-off is high with few errors and long dwell time, treat it as cognitive and prioritise guidance and sample data. Week two: run five to eight short user interviews or in-product prompts asking stalled users why they stopped, and recruit them from the drop-off cohort. Assumption: five to eight responses are enough to name the dominant reason, though they cannot size it; the sizing comes from the experiments.\n\nExperiment 1 (weeks three and four): defer the connect-data-source step until after the first dashboard, offering a sample dataset immediately after workspace naming. Control is the current order; treatment is the reordered flow with sample data. Hypothesis: technical friction at connect is the primary driver, so letting users see value first raises setup completion. Primary metric: setup completion rate within seven days. Sample: at roughly 1,200 sign-ups a month, each arm gets about 300 users in two weeks, which is enough to detect a large relative lift of about 15 percent or more at 80 percent power. Assumption: smaller effects will not resolve in two weeks, so a modest true lift may read as inconclusive.\n\nExperiment 2 (weeks three and four, separate traffic split): add a short guidance panel and an optional skip for invite teammates, keeping every step present. Hypothesis: part of the drop-off is social and orientation friction at invites that clearer purpose and an optional path reduce. Primary metric: setup completion rate, with guardrails on invite rate and first-dashboard quality. Sample: about 300 users per arm over two weeks. Running it on a split that does not overlap Experiment 1 avoids contamination; if overlap cannot be avoided, the experiments run sequentially and the second is shortened to fit.\n\nShipping decision at the end of four weeks. Ship a variant if its completion lift is at least 10 percent relative with a confidence interval excluding zero, and no guardrail (invite rate, dashboard quality, support volume) worsens by more than 5 percent. Roll back if the treatment is significantly worse on completion or breaches a guardrail. Iterate if the direction is positive but the interval is wide: extend the test rather than ship. Inconclusive results, where the interval spans zero or steps move in mixed directions, default to shipping only the change with the lower regression risk, which is deferring connect behind sample data, because it removes no functionality and keeps the option to revert. Interview evidence can justify a ship only as a tie-breaker, never on its own.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e83e-c465-7678-9789-e4d8ff329dd9",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 93,
+    "elapsedMs": 293731,
+    "usage": {
+      "inputTokens": 106136,
+      "outputTokens": 22957,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 42539,
+      "reasoningTokens": 0,
+      "costUsd": 0.018406675
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2680,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001422875,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 34,
+      "resolved": 15
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 735,
+  "wordBudget": 900
+}

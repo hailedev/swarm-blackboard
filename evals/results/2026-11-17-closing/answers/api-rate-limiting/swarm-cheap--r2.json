@@ -1,0 +1,54 @@
+{
+  "problemId": "api-rate-limiting",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:20:20.555Z",
+  "spentUsd": 0.019381075,
+  "outcome": "answered",
+  "text": "Recommendation: enforce each customer's plan limit with a token bucket whose capacity equals the full per-minute allowance and whose refill rate is allowance divided by sixty per second, with admission decided against a fast local bucket in each region and reconciled asynchronously with a shared regional store. This accepts bounded over-admission in exchange for a predictable five-millisecond budget and continued service during store outages.\n\nAlgorithm. A token bucket fits bursty clients because capacity equals the full minute's allowance: a paying client at 600 per minute has a bucket of 600 tokens refilled at 10 per second, so a scheduled job can spend all 600 in two seconds and then wait. Fixed window counters would also allow a burst but suffer a boundary effect in which a client can send nearly twice its limit across two adjacent windows, and sliding window logs store every timestamp (about 6,000 per client at the top tier) and sort on each request, which does not fit the five-millisecond budget. Free clients get a bucket of 60 refilled at one per second. Token bucket is also cheap: one read-modify-write of two numbers per decision.\n\nState and regional sharing. Each region keeps a regional store (an in-memory key-value store colocated with the regional fleet) holding the token count and last-refill timestamp per customer. The admission check runs against a local in-process bucket that is seeded from the regional store and refreshed about once per second, so the hot path costs roughly 0.1 to 0.5 milliseconds and never waits on a network round trip. Each region's share of the quota is set to the plan limit divided by three as its normal allowance, and surplus can be borrowed from a peer region only when that peer reports unused tokens. Because a client's requests can land anywhere, a client that spreads traffic evenly can consume up to three times its plan within one minute; we accept this as the cost of low latency. Assumption: real clients concentrate traffic in one or two regions, so the typical overshoot is well under 2x; if a paying customer is shown to exceed 2x its plan persistently, the reconciliation interval is shortened from one second to half a second.\n\nStore slow or down. The regional store call has a timeout of two milliseconds and is never on the critical path. When the store is unreachable, each region falls back to its local bucket, which is capped at the region's share of the plan plus a 20 percent burst margin, so a single client can be admitted at most about 1.2 times the plan in each region. Free-tier clients fall back to a stricter cap at the same proportion. A circuit breaker opens after three consecutive timeouts and retries the store every ten seconds. The API keeps serving in every case: rejection happens only when the local bucket is empty, and the limiter never returns an error to the caller because of its own failure. When the store recovers, each bucket adopts the smaller of its local count and the store count so that the merge can only tighten limits, not reset them.\n\nClient contract. Every response carries X-RateLimit-Limit with the plan's per-minute value, X-RateLimit-Remaining with the local bucket's remaining tokens, and X-RateLimit-Reset with the seconds until the bucket is full again. A rejected request returns HTTP 429 with a JSON body naming the limit and a Retry-After header in whole seconds, computed as the time until one token is available plus a random jitter of zero to two seconds so that many clients released at the same moment do not retry together. Clients should treat Remaining as advisory, because a region may under-report while tokens are being borrowed. Bursty clients are expected to back off on 429 and resume after Retry-After.\n\nKnown errors and their size. Over-admission: up to 3x the plan limit for a perfectly spread client, typically under 1.5x for real traffic, and up to 1.2x per region during store outages. Clock skew between regions is kept under 50 milliseconds with NTP, which shifts refill by under 0.1 percent for a one-minute window, so it is minor. Hot keys: a single customer's bucket receives at most its plan rate in one region, around 100 operations per second at the top tier, which a regional store handles without difficulty. Memory: about 64 bytes per active client, roughly 64 megabytes per million clients, which is negligible. The main unresolved business question is how much over-admission paying customers will tolerate; until that is answered we assume a limit of 2x and treat anything above it as an incident.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7b7-539f-7bc8-ace3-26b5dcee3670",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 89,
+    "elapsedMs": 306730,
+    "usage": {
+      "inputTokens": 112812,
+      "outputTokens": 24040,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 45163,
+      "reasoningTokens": 0,
+      "costUsd": 0.019381075
+    },
+    "confidence": 0.45,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001568275,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 34,
+      "resolved": 21
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 764,
+  "wordBudget": 900
+}

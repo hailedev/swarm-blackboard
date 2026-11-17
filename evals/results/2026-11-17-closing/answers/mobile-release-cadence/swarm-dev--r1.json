@@ -1,0 +1,54 @@
+{
+  "problemId": "mobile-release-cadence",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:57:35.248Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Adopt a bi-weekly release cadence supported by pre-submission staging tracks and strict feature flagging to make hotfixes rarer and faster, validated by tracking release frequency, hotfix rate, and review rejection rates over three months.\n\nRelease Cadence\n\nWe will shift from the current ad-hoc cycle of three to five weeks to a fixed bi-weekly cadence, submitting releases every two weeks. This rhythm is sustainable for six engineers without dedicated QA because it breaks work into small, manageable batches that reduce context-switching and allow time for peer review before submission. The bi-weekly interval provides a buffer against the one-to-three-day App Store review window; by submitting early in the cycle, we ensure the build is either live or rejected with enough lead time to address issues before the next scheduled release. This prevents the 'heroics' of rushing fixes and makes shipping feel routine rather than stressful.\n\nHotfix Strategy\n\nTo make hotfixes rarer and faster, we replace ad-hoc emergency submissions with a Pre-Submit & Staged Rollout workflow using App Store Connect TestFlight (iOS) and Internal Testing Tracks (Android). Every build, including potential hotfixes, is submitted to these internal tracks first. This decouples validation from the production release pipeline, allowing us to test builds without triggering the standard review queue. If a bug is found during pre-submission testing, we fix it locally before any public submission. If a bug slips through to production, we use server-side feature flags to immediately disable the risky functionality, avoiding the two-day wait for an app store update. For critical binary fixes that cannot be disabled via flags, we submit updates to the Internal Testing Track, which often requires little to no review time if the codebase has been recently seen by the store, allowing the fix to reach testers instantly and then promote to production faster than a standard cold start.\n\nFeature Flag Rules\n\nA change ships behind a feature flag if it is risky, UI-heavy, or new functionality that has not been fully validated. Specifically, any code change that modifies user-facing interfaces or introduces new logic paths must be flagged by default. This ensures that if the build passes review but fails in production, we can toggle the feature off instantly without a binary update. Changes are shipped directly to the store only if they are simple configuration updates, bug fixes for non-UI logic (e.g., backend toggles), or security patches where flagging is impossible. All other changes go through the flag gate first. This rule separates the risk of bad code (mitigated by flags) from the risk of store rejection (mitigated by pre-submission staging).\n\nSuccess Metrics in Three Months\n\nIn three months, we will evaluate the process using three specific metrics. First, Release Frequency: we target more than two releases per month to confirm the bi-weekly cadence is stable and sustainable. Second, Hotfix Rate for Store Submissions: we target a hotfix rate below 5% of all releases, measuring how often we need an immediate binary fix versus using flags. Third, Review Rejection Rate: we track the percentage of submissions rejected by the store, targeting near zero to validate build stability and pre-submission testing efficacy. These metrics provide a clear data-driven view of whether the process has reduced stress and improved reliability.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e847-89e0-7751-8031-80dbe4d4b052",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 67,
+    "elapsedMs": 290351,
+    "usage": {
+      "inputTokens": 93674,
+      "outputTokens": 15248,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.8,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 19,
+      "resolved": 2
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 534,
+  "wordBudget": 900
+}

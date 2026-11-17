@@ -1,0 +1,54 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:29:41.485Z",
+  "spentUsd": 0.018677174999999997,
+  "outcome": "answered",
+  "text": "Recommendation: stay multi-repo for the nine application repositories, but move the three shared libraries into a single library workspace repository, and validate every library change against live consumer branches before anything is published. A full monorepo would cost more than one sprint of stopped feature work and would force a shared deploy cadence on five teams that want to keep their own schedules. The middle path fixes the actual pain, which is late breakage of shared-library changes, without touching the consumer repositories' histories or deploy pipelines.\n\nShared-library propagation. Today a library change is published, consumers bump a pinned version days later, and breakage surfaces after the bump. Under the plan, a developer opens a PR in the library workspace. A GitHub Action opens draft PRs in each consumer repository that imports the library, pointing the manifest at the library PR branch (go mod replace for Go consumers, a pnpm override for TypeScript consumers). Each consumer runs its own test suite against those drafts. Breakage is therefore caught on the library PR, before any version exists. Assumption: go mod replace and pnpm overrides work across the nine consumers' toolchains, private registry and auth setup; the first week of the migration verifies this on one library and two consumers, and if it fails the fallback is a nightly job that publishes a prerelease tag and runs the same consumer suites against it.\n\nGating. To avoid coupling every library merge to the slowest or flakiest team, the library PR is blocked only by a pre-approved set of integration tests, one per consumer team, marked required. Other consumer runs are non-blocking and report to the library PR. Assumption: each of the five teams nominates one required integration test in week one; a consumer that declines is non-blocking and its owner is notified.\n\nMigration plan within one sprint. Day 1 to 2: inventory the consumers of each library and their pinned versions, and enable the replace/override mechanism on one library. Day 3 to 4: move the three libraries into the workspace with history preserved using git subtree split, roughly 10 to 15 engineering hours in total. Day 5 to 6: add the cross-repo draft-PR workflow, about 6 hours. Day 7 to 8: a script rewrites the manifests of the nine consumers in one pass, each team reviews and merges its own PR, about 1 to 2 hours per team and 6 to 8 hours overall, spread across 30 engineers. Feature work stops for no one; the only cost is the sprint's partial attention of two engineers, well under one sprint of stopped feature work in total.\n\nDeploy ownership. Deploy triggers stay per service and per team, unchanged. A library merge triggers only test workflows in consumers. Consumer deploy triggers remain bound to pushes and pull requests inside the consumer's own repository, so no library event can start a production deployment. The draft consumer PR is promoted only when the owning team merges it into its main branch, so a team keeps its schedule and decides when to take a new library version.\n\nCI cost. Path filters run consumer suites only for consumers that import the changed library, so a typical library change hits three to five consumers. Assumption: each consumer suite costs about 10 to 15 minutes, so each library PR adds roughly 50 to 75 minutes. Under a typical few dozen library PRs a month this adds on the order of a few thousand minutes, a modest increase, which Finance should see as a cost of avoiding late production breakage. Caching the Go build cache and the TypeScript package store keeps the increase near the low end. Monitoring the monthly minutes against the budget line is part of the plan.\n\nRisks and costs, stated plainly. The cross-language replace/override mechanism is not yet proven and is the main technical risk; the week-one spike exists to find out early. Required consumer tests can slow library merges when a consumer suite is flaky, so non-blocking status must be enforced for flaky suites. Draft-PR automation adds a maintained workflow that someone must own. The CI cost increase is real and bounded, not zero. Finally, the library workspace will not eliminate the need for teams to take library updates on their own cadence, so some consumers will still lag behind the library HEAD; that lag is now visible and tested rather than hidden until the bump.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7f7-5062-7c91-b865-089faecb438c",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 87,
+    "elapsedMs": 274185,
+    "usage": {
+      "inputTokens": 108827,
+      "outputTokens": 22852,
+      "cacheReadTokens": 4275,
+      "cacheWriteTokens": 40137,
+      "reasoningTokens": 0,
+      "costUsd": 0.018677174999999997
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2691,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.00149,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 32,
+      "resolved": 16
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 727,
+  "wordBudget": 900
+}

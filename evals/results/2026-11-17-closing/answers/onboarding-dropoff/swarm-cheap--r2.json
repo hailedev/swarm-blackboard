@@ -1,0 +1,54 @@
+{
+  "problemId": "onboarding-dropoff",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T06:05:45.456Z",
+  "spentUsd": 0.017559224999999998,
+  "outcome": "answered",
+  "text": "Recommendation: treat the drop-off as mainly a technical and deferral problem concentrated at the Connect Data Source step, run a two-week diagnostic built on existing funnel and error data plus short exit-intent surveys, then run two parallel experiments that make Connect optional and move Invite after the first dashboard, and ship whichever variant clears a pre-set bar.\n\nLikely causes, ranked. First, Step 4 (Connect a data source): credential complexity, API permission scopes and missing immediate feedback are the usual blockers in B2B onboarding. Confirming evidence: high HTTP 4xx/5xx counts during the connection handshake, or sessions that end without interaction for more than 30 seconds at this step. Ruling out: error rates near zero and abandonment concentrated in users who never reach the connector screen. Second, Step 3 (Invite teammates): social latency and ambiguity about who to invite cause users to defer. Confirming evidence: a drop-off spike right after the invite modal opens, or exit-survey answers citing uncertainty about who to invite or privacy. Ruling out: Step 3 drop-off close to Step 4 drop-off for solo signups. Third, Step 5 (first dashboard) and Step 2 (naming) are least likely to be the main cause; Step 2 is a quick check for a bug or a confusing field. Confirming for Step 5: users who connected data but stop while building. Ruling out: Step 5 completion above 90% among users who reach it.\n\nTwo-week diagnostic plan. Week one, the designer and one engineer (about 12 hours each) segment the existing funnel by team size (solo versus multi-user signups) and device, and pull error logs and timing for Step 4. The second engineer (about 8 hours) pulls support tickets from the last 60 days tagged to onboarding. Week two, the designer launches a three-question multiple-choice exit-intent survey at Steps 3 to 5 with pre-set answers such as no access, need to check with a manager, connection failed, not sure who to invite, and an open field for other, aiming for at least 150 responses. Unincentivised intercept emails to recent non-completers yield about 20 to 30 interviews over the window; interviews are a supplement rather than the core evidence. Deliverable on day 10: a one-page ranking of causes with the segment counts behind each.\n\nExperiment 1, weeks three and four: make Connect Data Source optional. Hypothesis: removing the credential hurdle from the critical path lifts setup completion. Control runs the current flow. Variant A places Connect after dashboard creation, with sample data pre-loaded and a persistent Demo Mode banner inviting the user to connect. Primary metric: setup completion rate within 7 days. Sample: a 25% relative lift from a baseline of about 60% needs roughly 630 users per arm, roughly 1,260 in total, which fits within two weeks at about 40 signups a day split 50/50 with some margin for the 10% of traffic excluded.\n\nExperiment 2, weeks three and four, running in parallel on separate signup cohorts: move Invite Teammates after the first dashboard, shown as a Share your dashboard action with a Why invite tooltip. Hypothesis: removing social pressure from technical setup improves completion without hurting team activation. Primary metric: completion within 7 days; guardrail: teammate invites sent within 14 days, which must not fall more than 2 points. Sample: the same order of magnitude, about 600 to 650 per arm. Because the two experiments split the same users, assign each user to one experiment via a hash on signup ID so their effects do not overlap, and check interaction only in the analysis.\n\nDecision at the end of four weeks. Ship a variant if its lower 95% confidence bound for relative completion lift is above zero and the guardrail metrics (teammate invites and 14-day activation) do not drop more than 2 points. If the result is inconclusive, meaning the interval includes zero but the point estimate is positive and the guardrails hold, ship the lower-risk variant only if the survey data also shows fewer technical-error answers; otherwise keep the control and run one more two-week iteration with a larger effect size target. If a variant lowers activation, drop it regardless of completion. Only keep iterating when the survey points to a cause the variant did not address; otherwise ship the lower-risk option.\n\nAssumption: the business accepts a minimum lift of about 5 points in completion as worth shipping, and no separate churn guardrail is required beyond 14-day activation. If the business sets a higher bar, the sample requirement rises, and the two-week window may not read a smaller lift.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e817-3db0-7108-bb96-4bbad474d706",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 97,
+    "elapsedMs": 345789,
+    "usage": {
+      "inputTokens": 110260,
+      "outputTokens": 24297,
+      "cacheReadTokens": 4275,
+      "cacheWriteTokens": 38555,
+      "reasoningTokens": 0,
+      "costUsd": 0.017559224999999998
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2680,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001591725,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 32,
+      "resolved": 10
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 747,
+  "wordBudget": 900
+}

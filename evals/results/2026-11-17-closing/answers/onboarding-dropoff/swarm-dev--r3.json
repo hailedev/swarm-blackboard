@@ -1,0 +1,54 @@
+{
+  "problemId": "onboarding-dropoff",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T09:09:13.117Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "Recommendation: Execute a sequential two-phase plan to resolve the 40% setup drop-off. Phase 1 is a two-week diagnostic using funnel analytics and on-exit micro-surveys to identify the primary friction point. Phase 2 is a two-week A/B test of the highest-leverage intervention, prioritizing deferral of the 'Invite Teammates' step if Step 3 shows high loss or simplification of the 'Connect Data Source' if Step 4 is the bottleneck. The decision framework prioritizes statistical significance but defaults to heuristic strength from diagnostics in case of inconclusive results.\n\nStepwise Drop-off Analysis and Evidence\n\nThe most likely cause of drop-off is Technical/UX Friction at Step 4 (Connect Data Source). Heuristic evidence indicates that permission anxiety, API complexity, and fear of breaking existing systems cause silent abandonment where users do not proceed to the dashboard. This is supported by general B2B SaaS benchmarks showing this step often has the highest attrition rate among those who reach it. Secondary evidence suggests social pressure at Step 3 (Invite Teammates) creates a permission barrier for solo founders or small leads, leading to premature churn. Tertiary causes include Value Misalignment at Step 1, where users sign up impulsively but find no immediate incentive, and Identity Pressure at Step 2, where naming a workspace feels like a significant commitment for a tool not yet used. To rule these out: confirm High Technical Friction if funnel data shows the largest absolute drop in volume at Step 4 or if exit surveys cite 'complexity' or 'time'. Rule it out if Step 3 or 1 show higher loss. Confirm Social Pressure at Step 3 if Step 2 to 3 drop-off is highest and surveys cite 'not enough team members' or 'admin burden'.\n\nTwo-Week Diagnostic Plan\n\nWeek 1 focuses on granular funnel analysis to isolate the step with the highest absolute drop-off volume. Analyze the per-step conversion rates of the last 1,200 sign-ups to calculate the exact number of users lost at each transition (Account to Workspace, Workspace to Invite, etc.). Identify the 'leakiest' step based on absolute count, not just percentage rate. This grounds the diagnosis in actual product data rather than general benchmarks. Week 2 deploys targeted in-app micro-surveys (on-exit) specifically to users who drop off at the identified leakiest step. These surveys should ask one question: 'What prevented you from finishing setup?' with options including 'Too complex', 'Not enough time', 'Don't have a team yet', and 'Value unclear'. Use only on-exit pop-ups, as post-abandonment email surveys have response rates below 2%, whereas in-app micro-surveys achieve 10-15% response rates within the two-week window. This provides qualitative confirmation of the quantitative funnel data.\n\nExperiment 1: Deferred Invite\n\nHypothesis: Deferring or making optional the 'Invite Teammates' step increases activation because it removes social pressure and admin burden, allowing users to achieve a quick win first. Variant: Move Step 3 (Invite) to after Step 5 (Dashboard), or make it optional with a 'Skip' button that still counts as completion for the flow progression. Primary Metric: Percentage of total sign-ups completing Step 5 (Activation). Sample Size: With ~40 sign-ups per day, a two-week test yields ~560 users total; split this into Control (~280) and Variant (~280). This sample size is sufficient to detect a Minimum Detectable Effect (MDE) of roughly 10-15% lift with 80% power. Decision: If p<0.05, the change is significant. If results are inconclusive, proceed to Experiment 2 or use diagnostic insights.\n\nExperiment 2: Simplified Data Source\n\nHypothesis: Simplifying the 'Connect Data Source' step reduces technical friction and permission anxiety. Variant: Replace the complex data connection wizard with a guided demo mode or pre-connected sample data, allowing the user to build the dashboard first. The actual connection is deferred until after the dashboard is built. Primary Metric: Percentage completing Step 5. Sample Size: ~280 per variant over two weeks. This experiment addresses the secondary hypothesis that Step 4 friction is the primary blocker. If Experiment 1 was inconclusive or showed negative impact, this becomes the primary test for the next cycle, or it runs sequentially if time permits (though with 40 users/day, sequential testing is safer to ensure power).\n\nDecision Framework for Shipping\n\nAt the end of four weeks, apply the following logic. If either experiment yields statistical significance (p<0.05), ship the winner immediately. If both are inconclusive, deploy the change with the highest expected value based on the diagnostic phase. Prioritize 'Deferred Invite' if Step 3 was identified as the primary leak in the funnel analysis or if exit surveys highlighted social/admin burden. Prioritize 'Simplified Data Source' if Step 4 showed the highest absolute loss or surveys cited complexity/technical issues. If neither experiment is run due to inconclusive diagnostics, default to the 'Deferred Invite' change, as heuristics suggest social pressure is a more universal barrier for small teams than technical complexity, and deferral carries low risk of negative impact. The decision rests on maximizing user value over statistical purity when resources are constrained.\n\nAssumption: Making a step 'optional' or 'deferred' satisfies the constraint 'nothing may be removed'. If this is interpreted strictly as removal, the 'Deferred Invite' experiment would violate constraints. The plan assumes that deferral is permissible; if not, the 'Simplified Data Source' experiment is the only valid primary test.\n\nAssumption: The 1,200 monthly sign-ups are evenly distributed across the week. If traffic is sporadic, the sample size for the two-week window may fluctuate, requiring adjustment in statistical interpretation.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e8bf-32f4-72d7-8dbf-2f488b5b0143",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 96,
+    "elapsedMs": 346152,
+    "usage": {
+      "inputTokens": 98526,
+      "outputTokens": 19965,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2680,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 26,
+      "resolved": 5
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 887,
+  "wordBudget": 900
+}

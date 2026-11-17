@@ -1,0 +1,32 @@
+{
+  "problemId": "api-rate-limiting",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:08:12.558Z",
+  "spentUsd": 0.0008544,
+  "outcome": "answered",
+  "text": "Recommendation: enforce each customer's quota with a token bucket whose capacity equals the per-minute allowance and whose refill rate is that allowance divided by 60 per second. Keep the bucket state in a regional in-memory store with asynchronous replication between the three regions, and fail open with a local fallback limiter when that store is slow or unreachable. This meets the 5 ms budget and the availability requirement, at the cost of approximate global accuracy that the design must state plainly.\n\nWhy a token bucket: the company's clients send bursts. A fixed-window counter resets at the minute boundary, so a client can send 2x its limit by spending the end of one window and the start of the next, and it also rejects a legitimate job that wants its full minute in two seconds only if the window is already partly spent. A sliding-window log is exact but stores one timestamp per request, which is expensive at 6,000 requests per minute across many customers. A leaky bucket smooths output and so penalises exactly the bursts the clients legitimately need. A token bucket with capacity equal to the minute's allowance lets a client that has been idle accumulate a full allowance and spend it instantly, then refills steadily at the sustained rate. It is cheap (two numbers per customer: tokens and last-update time), it is exact for a single node, and its burst behaviour matches the stated usage pattern. The free tier (60 per minute) is the same algorithm with a smaller capacity.\n\nState and multi-region sharing: each request performs one read-modify-write on the customer's bucket. Placing that in one global store would put a cross-region round trip (often 50 to 150 ms) on every request, so it is ruled out by the latency budget. Instead each region holds its own bucket for each customer and the regions exchange counts asynchronously, roughly every 100 to 500 ms. Each region is then allotted a share of the quota, for example a third each, and can spend its share locally with no coordination. Because DNS may send one client to any region, a client that sends everything to one region can use the whole quota there, while a client spread evenly can briefly exceed the global limit by up to the replication lag times the request rate. The inaccuracy is therefore bounded by (regions - 1) x replication interval x the customer's peak rate. For a paying customer at 6,000 per minute bursting at 100 requests per second with a 500 ms lag, the worst-case overrun is on the order of 100 to 200 requests above the limit within a window. That is a real error and the design accepts it; a customer who needs exact enforcement would be better served by routing their hostname to a single region, which we would document as an option rather than the default.\n\nFailure behaviour: every limiter call has a hard timeout of about 2 ms, so a slow store can never consume the whole 5 ms budget. If the store times out or errors, the request is admitted and checked only against the local in-process fallback bucket, which is a conservative per-node token bucket at a fraction of the plan limit. The circuit breaker opens after a short run of failures so that the limiter stops waiting on a dead store and the added latency falls to near zero. The API therefore keeps serving; the trade-off is that during an outage a customer can exceed its quota by a bounded factor, which we consider acceptable compared with rejecting all traffic. The limiter's own metrics and alerts must fire on fallback mode so that overrun during an outage is visible to the team.\n\nWhat the client sees and how it learns its limit: every response carries RateLimit-Limit (the plan's per-minute allowance), RateLimit-Remaining (tokens left in the local bucket, rounded down), and RateLimit-Reset (seconds until the bucket is full again). Responses that are rejected return HTTP 429 with a Retry-After header in whole seconds, computed as the time until one token has refilled, and that value is a floor, not a guarantee, because a sibling region may already have spent the customer's tokens. Clients should retry with exponential backoff and jitter, starting no sooner than Retry-After, and should prefer to smooth their own bursts when the Remaining header is low. Free-tier clients receive the same headers with a limit of 60.\n\nCaveats and open questions: the regional share split (static versus adaptive) is not yet decided and affects how quickly a customer's quota shifts toward the region carrying its traffic. The fallback capacity under outage must be sized against real traffic before launch, and the team should measure actual replication lag and the true overrun before publishing any accuracy promise to customers. Whether to offer single-region pinning as a paid feature for customers needing exact limits is a product decision still open.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2692,
+    "usage": {
+      "inputTokens": 1054,
+      "outputTokens": 1498,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0008544
+    },
+    "latencyMs": 9426,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 815,
+  "wordBudget": 900
+}

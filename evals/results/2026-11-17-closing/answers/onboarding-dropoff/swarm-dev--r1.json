@@ -1,0 +1,56 @@
+{
+  "problemId": "onboarding-dropoff",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T07:36:12.121Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "We recommend running two parallel experiments in weeks three and four: deferring the 'Connect Data Source' step to reduce technical friction before initial value, and simplifying the 'Build First Dashboard' step with a guided scaffold to reduce cognitive load. The first two weeks are dedicated to a rapid diagnostic phase to confirm these specific bottlenecks using session replays and exit-intent surveys, ensuring the experiments target the actual root causes of the 40% drop-off rate.\n\nRanked causes of drop-off start with 'Connect Data Source' (Step 4) as the most likely culprit. In B2B SaaS, mandatory technical integration often blocks perceived value, creating a high-friction barrier that users abandon before they understand the product's utility. Evidence to confirm this includes session replays showing error retries, long pauses at configuration fields, or survey responses citing 'Technical Error' or 'Confusing UI'. The second likely cause is 'Build First Dashboard' (Step 5), where a blank canvas creates cognitive overload and intimidation. This is confirmed by drop-offs occurring after successful data connection, with replays showing hesitation in layout choices or surveys citing 'Lack of Clarity'. Lower-priority causes include 'Invite Teammates' (Step 3) hesitation due to social pressure or delay, and 'Create Account' (Step 1) or 'Name Workspace' (Step 2) friction, which are typically low-risk administrative tasks unless severe validation errors exist.\n\nThe two-week diagnostic plan proceeds in parallel tracks to gather evidence without delaying the experiment phase. Days 1-3: Engineers perform a quantitative sweep of the existing funnel data to rank steps by absolute drop-off. They install a session replay tool targeting the top identified high-drop-off step and deploy an exit-intent survey on Step 1 and that specific high-friction step. The survey is triggered only when a user attempts to navigate away or remains inactive for 30 seconds, asking a single question: 'What stopped you?' with options like 'Technical Error', 'Confusing UI', or 'Lack of Relevance'. Days 4-7: Designers and engineers analyze the session replays to distinguish between technical failures (visible errors) and cognitive overload (mouse hesitation). They also review existing support logs for known blockers. Days 8-14: The team synthesizes qualitative data from replays and surveys with the quantitative funnel ranking to confirm the primary bottleneck hypothesis, which determines the specific variants for the subsequent experiments.\n\nExperiment 1 targets Step 4: 'Connect Data Source' deferral. The hypothesis is that reordering steps to allow users to view a demo dashboard or build initial visualizations before connecting real data will increase setup completion. Variant A (Control) follows the current order: Account, Workspace Name, Invite Teammates, Connect Data Source, Build First Dashboard. Variant B (Test) reorders to: Account, Workspace Name, Build Initial View (using demo data or skipping connection temporarily), Connect Real Data Source, Invite Teammates. The primary metric is Setup Completion Rate. With 1,200 sign-ups per month, we have approximately 600 sign-ups over the two-week test period. Assuming a baseline completion rate of 60% (720 completions monthly, so ~360 in two weeks), detecting a minimum detectable effect (MDE) of 10-15% relative lift requires approximately 300 users per variant. This sample size is achievable within the 600 new sign-ups.\n\nExperiment 2 targets Step 5: 'Build First Dashboard' simplification. The hypothesis is that providing a pre-populated scaffold or guided template reduces cognitive overload. Variant A (Control) keeps the blank canvas approach. Variant B (Test) offers a guided wizard with pre-filled dummy data and one-click layout options, ensuring the step remains mandatory but easier. The primary metric is also Setup Completion Rate. To manage the 600 available sign-ups across two experiments, we split the traffic: 300 users for Experiment 1 (150 Control, 150 Test) and 300 for Experiment 2 (150 Control, 150 Test). This split ensures each experiment has sufficient power to detect moderate effects while respecting the constraint that nothing is removed from the setup flow.\n\nThe decision framework for shipping at the end of four weeks relies on statistical significance and qualitative validation. If Experiment 1 yields a p-value < 0.05 with sufficient power showing improved completion, we ship the reordering of steps immediately. If Experiment 2 shows significant improvement, we ship the simplified dashboard builder. If both are significant, we prioritize the one with the larger effect size or lower implementation cost. If results are inconclusive (p > 0.05), we default to the status quo unless qualitative evidence from the diagnostic phase strongly suggests a high-value pivot. For example, if replays show clear technical errors in Step 4 that require immediate fixing but do not show lift in completion due to small sample size, we fix those bugs as a non-A/B change. If neither experiment is significant and qualitative data is ambiguous, we extend the tests by two weeks with increased traffic or pivot to investigating other potential bottlenecks identified in the survey data.\n\nThis plan respects all constraints: nothing is removed from setup; steps are only reordered or deferred (Exp1) or simplified via scaffolding (Exp2). The team size of two engineers and one designer is sufficient for a two-week diagnostic (surveys, replay analysis) and building/configuring two A/B test variants. The four-week timeline fits the requirement that each experiment needs at least two weeks to read, with the first two weeks dedicated to diagnosis. The 40% drop-off rate justifies the aggressive focus on improving setup completion through targeted interventions.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e86a-1ab5-7cbd-8dc4-8f36addcfb81",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 79,
+    "elapsedMs": 341923,
+    "usage": {
+      "inputTokens": 106168,
+      "outputTokens": 19109,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2680,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 2,
+      "short": false,
+      "retriedFor": [
+        "leak"
+      ],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 24,
+      "resolved": 9
+    },
+    "calls": {
+      "made": 25,
+      "rejected": 0
+    }
+  },
+  "words": 872,
+  "wordBudget": 900
+}

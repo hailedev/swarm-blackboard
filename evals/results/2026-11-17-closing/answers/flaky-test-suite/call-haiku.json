@@ -1,0 +1,32 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:47:04.867Z",
+  "spentUsd": 0.0009293,
+  "outcome": "answered",
+  "text": "Recommendation: run a measure-first, six-week programme that spends the two engineer-weeks in three bounded phases: baseline and diagnosis in weeks one and two, targeted fixes in weeks three to five, and a guardrail rollout in week six. Aim to cut the flaky-failure rate from roughly 8 % of runs to under 1 % of runs, and bring end-to-end CI time from 45 minutes to around 20 minutes for the pull-request pipeline, with the full browser suite allowed to run separately on merge. The goal is to restore trust in a red build, which matters more than any single number.\n\nWeek one is measurement only, with no fixes. Pull the last 90 days of CI history and compute: the share of runs that fail and then pass on an immediate re-run (the flaky-failure rate, which is the true baseline rather than the raw failure rate), the failure count per test over that window, the wall-clock time per stage (install, unit, integration, browser, teardown), and how many re-runs each red build triggers. Also record median and 90th-percentile pipeline duration. Set up per-test result logging so every test's pass, fail, duration and retry outcome is stored from now on. Targets at week six: flaky-failure rate below 1 % of runs; median pull-request pipeline under 20 minutes; 90th percentile under 30 minutes; re-runs per red build reduced to near zero; and no test quarantined for more than two weeks.\n\nDiagnosis comes before any fix, because fixing the wrong test wastes the budget. Rank tests by flake count from the logged history and keep only those that have both failed and passed on identical code. For each candidate, classify the cause using the failure output and the test code: timing and waits (fixed sleeps, unawaited promises, animation or network races), shared state (tests that depend on order, leaked database rows, global variables, a shared browser session), environment (time zone, locale, port collisions, unseeded randomness, clock), and real product bugs that happen to be intermittent. Confirm suspected causes by running the top twenty candidates a hundred times in isolation and in a randomised order on a clean runner. Expect the browser tests to account for most of the flakes and a small cluster of shared-state or timing defects to account for most of those; this pattern is typical but must be verified, not assumed.\n\nInterventions, in order of value per engineer-hour, with estimated cost. First, quarantine the worst offenders immediately: move any test that fails flakily more than three times in a week out of the blocking pipeline into a non-blocking job that still reports, which costs about half an engineer-day and is the single largest trust gain. Second, fix the top cause clusters, such as replacing fixed sleeps with explicit waits on conditions, isolating test data per test, and seeding randomness: about four engineer-days. Third, delete or merge redundant browser tests whose behaviour is already covered at integration or unit level, but only after confirming the replacement covers the same behaviour; this costs about two engineer-days including review. Fourth, parallelise and shard the browser suite and cache dependencies to cut wall-clock time, about three engineer-days including pipeline changes. Fifth, reserve the remaining time for a retry-count review and for the real product bugs the diagnosis exposed, which are fixed in the normal feature queue rather than charged to this budget. The total of the first four items is roughly nine to ten engineer-days, leaving headroom within the two-week allowance for the diagnosis and reporting work.\n\nOn CI time, the largest levers are running only the affected tests on pull requests where the tooling allows it, sharding browser tests across parallel runners, caching the dependency install and build artefacts keyed on lock files, and moving the slowest browser suite to a post-merge job with a fast smoke subset gating the pull request. Measure each change separately against the week-one baseline so the gains are attributable and any regression is visible.\n\nCaveats and open questions. The 8 % figure is a rate across all runs, so a small number of tests may account for most of it; the diagnosis may reveal that a few browser tests are far more costly than their value, which changes the deletion decision. Deletion must be justified case by case against coverage, and the team should record for each removed test which replacement covers its behaviour. The two-week budget assumes the team can protect that time from feature pressure; if it cannot, the quarantine and sharding steps should be done first because they deliver most of the value.\n\nThe rule that keeps the suite healthy afterwards: no test may be merged into the blocking pipeline without passing a repeat run of ten consecutive executions in CI, and any test that fails flakily twice in a rolling two-week window is automatically moved to quarantine with an owner assigned and a seven-day deadline to fix or delete it. The dashboard of flaky-failure rate and pipeline duration is reviewed in the weekly retro, and a red build is only re-run after its failing test has been inspected and recorded. This converts the one-off clean-up into an enforced, measurable standard that the team can hold itself to.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2700,
+    "usage": {
+      "inputTokens": 1058,
+      "outputTokens": 1647,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0009293
+    },
+    "latencyMs": 10214,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 861,
+  "wordBudget": 900
+}

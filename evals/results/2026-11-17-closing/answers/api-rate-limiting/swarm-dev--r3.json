@@ -1,0 +1,54 @@
+{
+  "problemId": "api-rate-limiting",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:42:07.585Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "We recommend implementing a Local-First Sliding Window Counter architecture with a Fail-Open grace mechanism. This design balances the strict need for global quota enforcement with the latency constraints of a distributed system and the bursty nature of legitimate traffic. The core algorithm uses two fixed time windows (previous and current) to approximate a sliding window, checked locally for sub-millisecond response times, while a centralized state store reconciles the total usage across regions asynchronously.\n\n1. Algorithm Selection: Sliding Window Counter vs. Alternatives\n\nWe reject the Exponential Moving Average (EMA) because it calculates a smoothed rate that mathematically cannot enforce a hard 'N requests per minute' limit, allowing indefinite overflow during bursts [H5, H9]. We also reject the pure Sliding Window Log due to the latency overhead of maintaining and sorting timestamp lists, which risks exceeding the 5ms constraint under high throughput. The chosen algorithm is a Sliding Window Counter implemented with two fixed windows: a 'previous' window (0-30s) and a 'current' window (30-60s). This approach suits bursty clients because it allows a client to consume their full quota in a short burst (e.g., 2 seconds) without immediate throttling, provided the total over the minute does not exceed the plan limit. Unlike Token Buckets which require complex synchronization for global quotas, this counter model provides a bounded approximation of the sliding window that is computationally cheap and predictable.\n\n2. State Location and Global Quota Sharing\n\nTo meet the <5ms latency constraint across three geographically distributed regions, we implement a Local Cache + Async Replication architecture [H6, H10]. Each region maintains its own local in-memory counter for every active client API key. When a request arrives, Region A checks its local cache. This local check is O(1) and adds negligible latency. The global quota (e.g., 600 RPM for a paying customer) is stored in a high-performance distributed store like Redis Cluster [H6, E2, E5]. After the local allow decision, an asynchronous message is sent to update the global Redis counter. This creates eventual consistency: the three regions share one customer's quota via the central Redis state, but there is a brief window of inaccuracy where double-counting can occur if a client hits multiple regions simultaneously.\n\nThe inaccuracy implied by this design is bounded. The maximum over-sell occurs when a client exhausts their local allowance in Region A and immediately sends traffic to Region B before the global counter updates. If the time between requests is shorter than the replication lag, the global limit may be exceeded by up to 2x the plan rate for that specific window [H24, C22]. However, for bursty traffic (e.g., 600 requests in 2 seconds), this slight over-permitting is an acceptable trade-off compared to the latency penalty of synchronous global locking. The system corrects itself in subsequent minutes as the local counters decay and the global state syncs.\n\n3. Failure Mode: Slow or Unreachable State Store\n\nWhen the Redis store is slow or unreachable, the system must fail open to maintain API availability [H6, E3]. In this scenario, the async replication fails, but the local checks continue to operate based on the last known good state or a local burst allowance. We raise the Safe Local Burst Limit significantly during failures to protect legitimate bursty clients. Instead of the standard plan rate, we allow a higher local cap (e.g., 150% of the plan rate or a fixed high absolute cap like 1000 RPM) for a short grace period [H25]. This allows a bursty client to complete their scheduled job without being throttled by a storage outage. However, this increases risk for DDoS attacks; thus, we implement an adaptive decay where the local limit rapidly reverts to the standard plan rate once the store is reachable again. If the store is completely down for an extended period, we fall back to a conservative hard limit per region to prevent backend exhaustion.\n\n4. Client Visibility and Retry Logic\n\nClients learn their limits via HTTP Headers: `X-RateLimit-Limit` (e.g., 600), `X-RateLimit-Remaining` (local counter value), and `X-RateLimit-Reset` (epoch time when the window resets). When a client is throttled, we return a 429 Too Many Requests status. We reject static Retry-After values (e.g., 30 seconds) because they are punitive for bursty clients who might just need to wait for their bucket to leak [H26, C24]. Instead, we use a Dynamic Local Estimate. The `Retry-After` header is calculated based on the local window's decay rate or the time until the next token becomes available locally. If the store is unavailable, we return a small grace period (1-2 seconds) plus the time until the current local burst window resets [H26]. This allows clients to retry quickly without hammering the system immediately, respecting the bursty nature of their traffic while avoiding the 'killed throughput' issue of long static waits.\n\nSummary of Trade-offs: The design accepts bounded inaccuracy (up to 2x over-sell at boundaries) and temporary over-permitting during outages in exchange for strict <5ms latency and high availability. This is the optimal engineering compromise for a public API serving bursty, legitimate clients.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7cb-0932-78d0-aff1-a98e5c86dd9c",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 71,
+    "elapsedMs": 322094,
+    "usage": {
+      "inputTokens": 90006,
+      "outputTokens": 18635,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.75,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2692,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 24,
+      "resolved": 14
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 833,
+  "wordBudget": 900
+}

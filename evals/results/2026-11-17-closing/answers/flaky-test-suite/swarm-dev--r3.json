@@ -1,0 +1,54 @@
+{
+  "problemId": "flaky-test-suite",
+  "arm": {
+    "kind": "swarm",
+    "profile": "dev"
+  },
+  "run": 3,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T08:47:21.092Z",
+  "spentUsd": 0,
+  "outcome": "answered",
+  "text": "To restore engineering trust and reduce CI friction within a two-engineer-week constraint, we will implement a three-phase plan focusing on data-driven isolation, targeted stabilization, and structural speed improvements. The core strategy avoids broad rewrites by leveraging existing historical logs to identify the root causes of flakiness, prioritizing the removal or fixing of the top offenders to drop the Flaky Build Rate below 2%, while simultaneously reducing CI duration from 45 minutes to under 39 minutes through caching and test suite pruning.\n\nThe baseline measurement plan for Week 1 relies entirely on analyzing the last 20-30 builds' historical logs rather than executing new diagnostic runs, which saves engineering time. We will calculate the Flaky Build Rate by identifying builds that failed but where at least one test passed upon re-run, aiming to establish a precise percentage based on this noise. Concurrently, we will audit CI duration logs to determine the average build time, including warm-up periods, and break down the time spent per test type (unit, integration, browser). This data collection serves as the diagnostic foundation for identifying which specific tests are contributing to the 8% failure rate without expending active engineering hours on blind debugging.\n\nThe diagnosis approach for identifying flaky tests and their root causes involves analyzing historical log timestamps and retry patterns to distinguish between race conditions, environmental issues, and deterministic failures. We will isolate the approximately 32-40 tests that contribute most frequently to the flakiness metric by reviewing their pass/fail history across the last 20 builds. For the top 5-6 worst offenders, engineers will perform targeted headful debugging (1-4 hours per test) to identify specific race conditions or missing waits. This 'why-before-what' approach ensures that fixes are addressed at the root cause rather than masking symptoms, satisfying the requirement to understand why tests fail before applying interventions.\n\nOur prioritized set of interventions focuses on reducing CI time and stabilizing the suite within the 2-engineer-week budget. First, we will implement dependency caching (npm/pip artifacts) and optimize test execution order, estimated at 0.5 engineer-weeks to save 10-15 minutes per build. Second, we will delete low-value, duplicate, or obsolete tests that no longer cover existing behavior, estimated at 0.5 engineer-weeks, which can reduce the suite size from 400 to ~350 tests and save an additional 2-5 minutes. Third, we will fix the top 6 flaky test offenders identified in the diagnosis phase, requiring 1 engineer-week of focused debugging and patching. This combination targets a total reduction of ~15-20 minutes in CI time and addresses the majority of the flakiness burden.\n\nThe target metrics for Week 6 are a Flaky Build Rate of less than 2% (reduced from the current implied ~8% noise rate) and a CI Duration under 39 minutes. The reduction in CI time is achieved through the combined effect of caching and suite pruning, while the flakiness reduction relies on fixing the top offenders and removing low-value tests. We assume that the remaining flaky tests (approximately 27-35) will be managed through the sustainable maintenance rule rather than immediate fixing, as the budget does not allow for complete eradication in this cycle.\n\nTo keep the suite healthy after six weeks, we will enforce a 'Flaky Test Quarantine' rule. Any test failing more than twice in 20 runs will be automatically disabled in the main pipeline and moved to a nightly-only suite until a Jira ticket is created to verify coverage or fix the root cause. This policy includes a CI gate that blocks merges if new tests introduce flakiness, assigning ownership to a rotating 'test quality' engineer. This ensures that test behavior remains covered during the quarantine period and prevents the accumulation of technical debt.\n\nThe rule for maintaining suite health specifically addresses the constraint that tests may only be deleted if something else covers the behavior or the behavior is gone. By quarantining flaky tests rather than deleting them immediately, we preserve coverage while removing noise from the main pipeline. The rotating ownership model ensures that diagnosis and fixes are distributed across the team, preventing a bottleneck and maintaining accountability for test quality in daily feature development.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e8ac-284d-788a-8c70-e8cae29a913a",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 74,
+    "elapsedMs": 282038,
+    "usage": {
+      "inputTokens": 87562,
+      "outputTokens": 15906,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "confidence": 0.85,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 25,
+      "resolved": 4
+    },
+    "calls": {
+      "made": 23,
+      "rejected": 0
+    }
+  },
+  "words": 679,
+  "wordBudget": 900
+}

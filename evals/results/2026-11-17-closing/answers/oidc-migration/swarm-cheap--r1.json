@@ -1,0 +1,54 @@
+{
+  "problemId": "oidc-migration",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:04:32.431Z",
+  "spentUsd": 0.018416725,
+  "outcome": "answered",
+  "text": "Recommendation: run a phased, flag-controlled migration in which the monolith keeps verifying bcrypt hashes, a hosted OIDC provider is brought in alongside it, and each user's credential is moved to the provider only when they next log in successfully. The point of no return is a single runtime flag that stops local password checks for new logins, and it is reached only after safety gates pass. Nothing is bulk-imported and nobody is asked to reset a password.\n\nPhase plan (about 13 weeks, three engineers at roughly 40% time). Weeks 1 to 2: build the identity bridge in the monolith. Add a provider_user_links table mapping the local user_id to the provider's OIDC sub claim, and an is_migrated_to_provider flag on users. Add auth_mode feature flags (legacy, dual, provider_first) read at runtime, so any change reverts in under a minute. After this step, behaviour is unchanged and the rollback is simply to ship nothing. Weeks 3 to 4: wire the provider's credential-import hook behind the dual flag and run it against staging with synthetic accounts, including a bcrypt-verify failure path. True after this step: staging logins migrate correctly and failures fall back to legacy. Weeks 5 to 7: enable dual mode for 1%, then 10%, then 50% of users. In dual mode a successful bcrypt check triggers a background hook call that creates or updates the provider credential, then sets is_migrated_to_provider. Each ramp step is held for at least three days and reverts by flag within the hour. Weeks 8 to 10: move all users to dual mode, make the provider the primary login page for migrated users, and run the rollback drill (flip to legacy, confirm migrated users can still log in via the monolith, flip back). Weeks 11 to 12: safety gates, then point of no return. Weeks 13: cleanup.\n\nCredential movement without a forced reset. The provider receives the plaintext password only in memory, at the moment the user has already proven it against the bcrypt hash in the monolith. The call is an HTTPS POST over TLS, the monolith does not log or persist the password, and the provider hashes it with its own algorithm. No bulk hash import is attempted, because major providers do not accept raw bcrypt hashes for verification. Assumption: the provider's hook accepts a plaintext credential on login and returns success; if it does not, the fallback is that the user keeps logging in against the monolith and the migration stalls for that user, with no lockout.\n\nDormant users (those who do not log in during the quarter) keep their bcrypt hash in the monolith and remain fully usable there. Their provider record can be created as an identity with no credential, so the provider knows the account exists. Assumption: a passwordless or magic-link flow is available for dormant users who prefer the provider; the link is sent to the verified email, and on click the provider issues an OIDC session and the monolith sets is_migrated_to_provider. Failure mode: a user whose email is stale cannot use the link and must contact support. Dormant accounts are not deleted during the quarter; a defined tail decision is taken after the point of no return.\n\nSessions while both systems are live. Existing monolith sessions stay valid. When a request reaches a protected resource, the app looks up provider_user_links: a mapped user is treated as migrated and authorised via OIDC, while an unmapped user is either sent through the provider login or, for a legacy session, re-linked after a successful monolith check. Logout propagates both ways: a monolith logout calls the provider's end-session endpoint, and a provider back-channel logout event revokes the local session. Token lifetimes are kept short (access token 15 minutes, refresh 24 hours) so stale state clears quickly. Before the point of no return, all monolith session TTLs are reduced to 24 hours, so no long-lived legacy session survives into the provider-only period. The user sees one login screen and at most one extra redirect when moving between paths.\n\nPoint of no return. This is the moment the auth_provider_only flag is enabled, after which the login handler never checks a bcrypt hash for a new attempt. It is reached only when these gates pass: login error rate within 0.5% of baseline for two weeks; at least 98% of active users migrated (dormant users handled separately); the rollback drill succeeded in week 10; the provider's availability for the period meets the agreed SLA; and a health check of the credential hook passes, sending a test credential and verifying the returned token. Once the flag is on, the reversal is still possible within an hour by flipping back to dual mode, as long as bcrypt hashes have not been removed. Hashes are therefore kept until all cleanup gates clear.\n\nCleanup after the point of no return (week 13 onward). Remove the legacy login code and the auth_mode flags once no traffic has used them for two weeks. Revoke remaining monolith sessions by deleting the session store entries. Retire the bcrypt hashes only after a further two-week hold, archiving them encrypted for a defined retention period in case of audit. Dormant accounts are either moved to passwordless login on the provider or closed under the company's inactivity policy, announced in advance. Each cleanup step is a separate deploy, so each remains small and reversible.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7de-a8f2-7489-b8c3-3b22b262463a",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 100,
+    "elapsedMs": 380860,
+    "usage": {
+      "inputTokens": 116627,
+      "outputTokens": 26309,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 41293,
+      "reasoningTokens": 0,
+      "costUsd": 0.018416725
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2699,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001692125,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 34,
+      "resolved": 16
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 885,
+  "wordBudget": 900
+}

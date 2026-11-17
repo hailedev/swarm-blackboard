@@ -1,0 +1,54 @@
+{
+  "problemId": "local-first-sync",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:37:14.944Z",
+  "spentUsd": 0.017908599999999997,
+  "outcome": "answered",
+  "text": "Recommendation: store each note as a local SQLite database (WAL mode) with attachments held as content-addressed files on disk, and sync using a Yjs-based CRDT for note text so that concurrent offline edits merge without losing typed characters. Build the sync client now but leave network calls disabled in the first release; the hosted service later accepts the same data unchanged.\n\nOn-device storage: SQLite is chosen because it provides ACID transactions and reliable concurrent access through WAL mode, runs natively on iOS, Android, macOS and Windows, and stores blobs efficiently. Attachments up to 10 MB are stored as files named by their SHA-256 content hash, with the hash and size recorded in an attachments table; this deduplicates identical attachments and keeps the database small. Flat files with manual locking were rejected because concurrent writes and crash recovery must be hand-built, and JSON document stores were rejected because they lack mature offline CRDT support for two developers to rely on.\n\nSync and reconciliation: each note's text is a Yjs document. Local edits produce updates appended to a per-note updates table, and snapshots are taken periodically. When two devices edit offline, Yjs merges the update sets order-independently, so concurrent typing in different places is preserved without server-side ordering. Last-writer-wins was rejected because it silently drops text. Attachments are merged by rule: the note keeps the union of attachment references, and when two devices replace the same attachment slot, both files are kept and the note shows both.\n\nConflicts the merge cannot resolve automatically (for example, both devices rewriting the same sentence) produce no data loss: the app keeps the merged text and offers the losing version as a 'Conflict Copy' note the user can open, compare and delete. On phone the conflict appears as a banner on the note; on laptop it appears in a side-by-side view. No decision is required by default, and a resolved conflict is not re-opened automatically. Assumption: the first release does not encrypt notes end to end, so the server can merge content; if end-to-end encryption is required later, merging moves to the clients and this design still holds with the server storing opaque updates.\n\nMigration without user disruption: release 1 writes every note with a stable note identifier and a per-install device identifier, and stores the Yjs update log alongside the existing text. The sync client ships disabled. When the hosted service launches, a later release enables sync for existing installs, which performs an initial upload of the local update log and then switches to incremental sync. No database migration or user action is needed because the local format is already the sync format. Assumption: users keep the same install, so the device identifier stays valid; reinstall or new-device recovery is handled by an explicit account sign-in that re-uploads the user's notes, and is not a silent process.\n\nRisks and early tests. First, merge correctness: run an automated suite that simulates two devices editing one note offline in random interleavings and checks that every typed character survives; pass means zero lost characters across ten thousand runs. Second, attachment bloat: measure stored bytes against logical bytes on a corpus of duplicated attachments; fail if stored bytes exceed the logical total by more than 10 percent. Third, schema drift between releases: keep a fixture set of databases from each shipped version and open them in the current build; any failure blocks release. Fourth, hosted-service cost: model storage and transfer per active user from the update-log size measured in the same corpus; the cost target is set before launch and the test fails if the modelled cost per user exceeds the price.\n\nRegistry and identity risks. The attachment-status column can drift from the disk after a crash or external change, so the app should verify the attachment referenced by the note being opened and treat the database as authoritative for the rest; the test is to kill the app mid-write one hundred times and confirm no note shows a missing attachment that exists on disk. Device identity can be lost on reinstall, which would duplicate notes; the test is to reinstall on a test device and confirm sign-in restores the same notes with no duplicates. Re-opening resolved conflicts is avoided by design, and the test is to confirm no conflict reappears after the user has resolved it.\n\nSummary of what the team does: ship SQLite with content-addressed attachments and a Yjs update log now, keep sync off, run the four tests before the first paying customers, and enable hosted sync for existing installs in a later release with an automatic initial upload.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e7fe-dadc-7f17-a614-d6a6d621fbe5",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 73,
+    "elapsedMs": 233442,
+    "usage": {
+      "inputTokens": 91204,
+      "outputTokens": 20297,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 39912,
+      "reasoningTokens": 0,
+      "costUsd": 0.017908599999999997
+    },
+    "confidence": 0.6,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2700,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001475525,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 27,
+      "resolved": 17
+    },
+    "calls": {
+      "made": 21,
+      "rejected": 0
+    }
+  },
+  "words": 763,
+  "wordBudget": 900
+}

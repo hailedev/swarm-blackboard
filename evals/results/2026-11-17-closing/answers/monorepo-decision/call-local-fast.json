@@ -1,0 +1,33 @@
+{
+  "problemId": "monorepo-decision",
+  "arm": {
+    "kind": "call",
+    "alias": "local-fast"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T09:17:03.873Z",
+  "spentUsd": 0,
+  "outcome": "void",
+  "why": "109 words of about 900 asked for, after a second attempt",
+  "text": "We recommend staying in your current multi-repo structure while implementing a 'CI-First Integration' workflow combined with an internal package registry that supports semantic versioning but enables immediate local overrides via path-based imports for development purposes only. This middle path directly attacks the propagation delay by decoupling the *code availability* from the *version bump*, allowing engineers to consume unmerged changes instantly without triggering full downstream CI explosions until they are ready. It respects team autonomy because each repository retains its own deploy pipeline and schedule, satisfying the ownership requirement, while the CI cost spike is managed by limiting heavy integration tests to pull request validation rather than nightly full-suite runs.",
+  "detail": {
+    "kind": "call",
+    "modelId": "qwen3.6:35b-mlx",
+    "maxOutputTokens": 2691,
+    "usage": {
+      "inputTokens": 545,
+      "outputTokens": 142,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0
+    },
+    "latencyMs": 2487,
+    "attempts": 2,
+    "truncated": false
+  },
+  "words": 109,
+  "wordBudget": 900
+}

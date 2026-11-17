@@ -1,0 +1,54 @@
+{
+  "problemId": "confidential-llm-summaries",
+  "arm": {
+    "kind": "swarm",
+    "profile": "cheap"
+  },
+  "run": 2,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T05:51:55.609Z",
+  "spentUsd": 0.019591775,
+  "outcome": "answered",
+  "text": "Recommendation: run summarisation on a single firm-owned local workstation with an open-weight model for every contract, including all non-consenting clients, and use a hosted API only for contracts from clients who have consented in writing. Local processing keeps non-consenting contract text inside firm-controlled hardware, which is the safest reading of the confidentiality terms; the hosted API is an optional add-on for consenting clients where its larger context window and stronger extraction are worth the cost.\n\nAssumptions and volumes: 300 contracts a month, average 45 pages, about 1,500 characters per page, roughly 1.3 million characters per contract of text, or about 13.5 million input tokens and 0.5 million output tokens per month in total. Assumption: the contracts are digital PDFs, with scanned documents running at no more than 10% of volume and handled by OCR.\n\nCost model (monthly, all-in): hardware is one RTX 4090-class workstation at about $1,700, amortised over 36 months to about $47. Electricity at roughly 300 W for about 60 hours of processing a month is about $15. Software (open-source model, PDF tooling, n8n or Python scripts) is $0. Local subtotal is about $62, leaving roughly $240 of headroom. Hosted API for consenting clients only: assume 60% of volume consents, so about 180 contracts, or about 8 million input and 0.3 million output tokens; at $3 to $15 per million input and $15 to $60 per million output this is roughly $40 to $150 a month. Combined total is about $100 to $210 a month, inside the $300 cap. Assumption: API prices stay in these ranges; if they rise, the API share is the first thing to cut.\n\nOperations: the staff member spends one day a week. Setup takes about two to four weeks of focused effort at the start, after which weekly work is a fixed routine: run the batch, check the flagged list, run the quality sample, and update the consent register. Models are downloaded on a separate machine and moved by USB so the processing machine stays off the network, which avoids telemetry and keeps the air-gap argument intact. Documents over about 20,000 tokens are chunked by section with a second pass for cross-references.\n\nQuality checks before reliance: each month a random sample of 40 summaries (about 13% of volume) is checked against the source by a lawyer using a fixed rubric of six key terms: parties, term, payment, liability, termination and governing law. Rule of thumb: a summary may be relied on without full review only if the sample shows at least 95% of key fields correct and no missed termination or liability clause. Summaries from scanned or flagged documents, and any summary with a conflicting field, are always fully reviewed. If the sample error rate exceeds 5% in a month, the summaries for that month are withdrawn and the model is reviewed.\n\nWhat would change the recommendation: the hardware route stops being sufficient if volume roughly doubles past 600 contracts, which would push processing beyond the staff member's weekly capacity; the firm would notice this as weekly processing time exceeding about seven hours. A rise in consent rate above roughly 80% makes the API the main channel and the local machine a backup, which the firm would see in the consent register. A sustained rise in API invoices above about $100 a month signals either lower consent or higher prices, prompting a switch to fully local processing. If legal counsel concludes that local processing still counts as third-party sharing, all work moves to a fully local setup and the API is dropped; the firm would notice this from counsel's written view on Q1 or from a client objection. If more than 10% of contracts need legal review for ambiguity, staff time will overrun, and the workflow needs adjusting.",
+  "detail": {
+    "kind": "swarm",
+    "runId": "01a1e80a-efe2-7ec0-ac99-f0960a83ca19",
+    "rounds": 12,
+    "status": "completed",
+    "reason": "budget_rounds",
+    "entries": 87,
+    "elapsedMs": 322294,
+    "usage": {
+      "inputTokens": 113728,
+      "outputTokens": 25716,
+      "cacheReadTokens": 1550,
+      "cacheWriteTokens": 42379,
+      "reasoningTokens": 0,
+      "costUsd": 0.019591775
+    },
+    "confidence": 0.7,
+    "stage": "final",
+    "writeUp": {
+      "maxOutputTokens": 2686,
+      "wordBudget": 900,
+      "written": true,
+      "costUsd": 0.001368175,
+      "attempts": 1,
+      "short": false,
+      "retriedFor": [],
+      "leaks": []
+    },
+    "writeUpFailure": null,
+    "critiques": {
+      "raised": 32,
+      "resolved": 18
+    },
+    "calls": {
+      "made": 24,
+      "rejected": 0
+    }
+  },
+  "words": 625,
+  "wordBudget": 900
+}

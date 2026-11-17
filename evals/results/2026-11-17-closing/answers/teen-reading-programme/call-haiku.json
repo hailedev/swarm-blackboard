@@ -1,0 +1,32 @@
+{
+  "problemId": "teen-reading-programme",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:47:34.364Z",
+  "spentUsd": 0.0008108,
+  "outcome": "answered",
+  "text": "Recommendation: run a six-week, once-a-week \"Make Something Worth Showing\" programme for 13-to-17-year-olds, built around a shared, visible project (a short zine or a podcast-style audio series about the town) that teens produce in small teams, with reading entering only as a tool they choose to use. Each session runs two hours, so the librarian's four weekly hours cover one session plus one hour of preparation and one hour of follow-up contact with teens between meetings. Attendance alone will not justify repetition, so the programme is judged on three within-six-week outcomes: a skills gain measured by a before-and-after task, a change in self-reported reading and library intent, and whether participants take a concrete next step after the programme ends.\n\nWhy teens would come: non-reading teens rarely attend because a library offers nothing they want to be seen doing. The hook is a product with an audience: the zine or audio series will be displayed in the branch and shared online, and each teen earns credit toward a certificate or a small paid stipend-equivalent such as a local-business voucher. Week 1 is a free-food, open-mic style session where teens pick a topic from a menu they helped write; Week 2 teaches interviewing and recording on borrowed phones and a shared recorder; Week 3 covers editing, and reading comes in naturally as teens research their topic using the collection and the branch's free database access; Week 4 is a peer feedback workshop; Week 5 is recording and layout; Week 6 is a public showcase where families and local officials attend and the work is displayed. Each week ends with a short reflection card, which doubles as data.\n\nReaching non-visitors: recruitment happens where teens already are, not at the branch counter. The plan is to visit the two or three secondary schools and the youth sports clubs and after-school centres with a short pitch, leave flyers and a QR sign-up, and ask youth-facing staff to nominate interested teens. Volunteers, recruited from local high school students who completed the programme last cycle, university students, and retired residents with editing or local-history skills, can carry much of the outreach by making the pitch to peers. Sign-up runs through a simple text or form, so the first contact requires no library card and no visit.\n\nBudget ($500 total): roughly $180 for a supply of blank notebooks, printing of the zine (one colour cover, black-and-white interior, about 60 copies), and printed certificates; $120 for food at the three sessions where food is served, which is what draws teens in on a school evening; $100 for a small pool of rechargeable batteries and a portable USB recorder plus a microphone for the group, so no teen needs their own equipment; $60 for transport or bus tokens for teens who cannot get to the branch; and $40 for the showcase refreshments and printed programme sheet. The room and existing books cost nothing extra, and the collection covers the research step. Volunteers are unpaid, which is why their time is not in the budget.\n\nOutcome measures beyond attendance, all collected inside the six weeks: first, a baseline and exit task in which each teen writes a short paragraph describing a local issue and a source they would use to check it, scored against a simple rubric for evidence and use of a source; second, a short survey in Week 1 and Week 6 asking how often they read for pleasure, how likely they are to borrow a book or use the library in the next month, and how confident they feel about making something public, on a five-point scale; third, a count of concrete next steps, such as a library card issued, a book borrowed, or a teen who signs up to volunteer. The librarian records these, and the reflection cards add qualitative detail. Because attendance is kept as one number among these, the manager can see whether turnout converted into change.\n\nCaveats and open questions: with a small group and no comparison group, the results show whether change happened, not that the programme caused it, so the manager should treat a positive result as grounds for a second, slightly more rigorous cycle rather than as proof. Six weeks is short; behaviour such as sustained reading is unlikely to show, so the next-step measure is the most honest signal of lasting effect. Teens' consent and privacy matter, especially for the survey and any published zine, so parental permission and an opt-out for publication should be arranged before Week 1. The main open question is whether the schools will release students for a session, which should be tested in the first outreach visit before the programme is confirmed.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2700,
+    "usage": {
+      "inputTokens": 1018,
+      "outputTokens": 1418,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0008108
+    },
+    "latencyMs": 9793,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 776,
+  "wordBudget": 900
+}

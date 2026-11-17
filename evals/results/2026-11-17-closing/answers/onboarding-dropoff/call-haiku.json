@@ -1,0 +1,32 @@
+{
+  "problemId": "onboarding-dropoff",
+  "arm": {
+    "kind": "call",
+    "alias": "haiku"
+  },
+  "run": 1,
+  "commit": "d37db99",
+  "tries": 1,
+  "at": "2026-11-17T04:47:45.497Z",
+  "spentUsd": 0.0009884,
+  "outcome": "answered",
+  "text": "Recommendation: spend the first two weeks confirming where the 40% loss concentrates and why, then run two experiments that reorder and defer setup rather than remove anything. The highest-leverage hypothesis is that the \"connect a data source\" step is asking for credentials and permissions before users have any reason to trust the product, and that \"invite teammates\" is blocking users who are working alone. Both can be tested without deleting a single step.\n\nRanked likely causes. (1) Connect a data source is the most probable largest drop: it demands credentials, permissions and technical knowledge, often from someone who is not the account owner, and it produces no visible value until it succeeds. Confirm with per-step funnel data showing the sharpest fall at this step, a high share of failed or abandoned connection attempts, and drop-off concentrated in accounts where the signer-up lacks admin rights (check for a role field). Rule out if the drop is flat across roles and connection attempts succeed at a high rate. (2) Invite teammates is the second candidate: small teams may be solo at signup, and a mandatory-feeling invite screen with no skip path invites abandonment. Confirm if drop-off is high among accounts that click away rather than submitting an empty invite, and if completion is much higher for teams that invite people later. Rule out if the step has near-100% completion of those who reach it. (3) Workspace naming is likely low-friction but can be a hidden cost where the user does not know what to enter; confirm only if time-on-step is unusually long or validation errors are frequent. (4) Account creation drop is usually about the form length and email verification latency; confirm if the largest loss is before the first step completes and verification events show delays. (5) First dashboard is ranked last because by then users have invested effort and the data is connected, but it may still lose users who have connected data yet find no template matching their needs; confirm if drop-off follows a successful connection and template browsing is high with few saves.\n\nTwo-week diagnostic plan. Week one: pull step-level funnels segmented by signup source, plan, role, company size if captured, device, and time-to-step, to locate the sharpest drop and whether it differs by segment. Instrument missing events quickly: errors on connection, validation failures, clicks on skip or back, and time-on-step. Week two: run five to eight short calls or async prompts with recent abandoners at the leading step, plus a quick in-product one-question survey on exit asking what stopped them. Use results to choose the two experiments, targeting the two steps with the largest measured loss and the clearest mechanism. Keep the goal to a ranked, evidenced shortlist rather than complete understanding.\n\nExperiment A (weeks three and four): move the data connection after first value. Hypothesis: if users can see a sample or demo dashboard before being asked to connect a source, more will persist through setup, because the product shows value first. Variant: the demo dashboard appears immediately after workspace naming, with connection deferred to a prompt inside the dashboard flow. Control: current order. Primary metric: share of sign-ups reaching a completed first dashboard within seven days. Sample: with roughly 1,200 sign-ups a month and 40% loss, detecting a five-point absolute improvement at 80% power and alpha 0.05 needs about 1,500 per arm, so this takes around four weeks at full traffic, which the team may need to resolve by splitting only in-scope sign-ups or accepting a larger detectable effect; plan for at least two weeks and report the minimum detectable effect honestly.\n\nExperiment B (weeks three and four, run in parallel on a separate user segment or in sequence if traffic cannot be split): make invite teammates optional and deferred. Hypothesis: if users who work alone can skip the invite and be prompted later, completion rises without reducing team invites over time. Variant: invite step shows a clear skip with a later reminder on the dashboard. Control: current mandatory-feeling step. Primary metric: setup completion within fourteen days. Secondary: invites sent within thirty days, to guard against harm. Sample: similar scale; a ten-point lift is easier to detect, roughly 400 per arm, feasible in two weeks.\n\nDeciding what to ship. Pre-register the metric, threshold and decision rule before launch. Ship a variant if its primary metric improves with a confidence interval that excludes zero and the guardrail metrics (invites sent, first-dashboard quality, support contacts) show no meaningful harm. If the result is positive but underpowered, ship only if the effect is large and the change is reversible, and monitor. If inconclusive, do not claim a win: keep the control, ship only changes that are clearly low-risk on usability grounds, and extend the test or move to a larger effect design. Any change that removes or hides a step is excluded by constraint, so decisions are limited to ordering, deferral and optionality.\n\nCaveats: the diagnostic is based on funnel data alone, so causes are inferred and may be confounded by segment mix; two-week reads are fragile at this traffic, so treat small effects skeptically; and deferring connection may lower activation quality even if completion rises, which is why the seven-day dashboard metric matters more than raw completion. Open questions: is role or company size captured at signup, how many users sign up on mobile, and whether the sales team relies on the invite step for qualification.",
+  "detail": {
+    "kind": "call",
+    "modelId": "claude-haiku-5-5",
+    "maxOutputTokens": 2680,
+    "usage": {
+      "inputTokens": 1114,
+      "outputTokens": 1754,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0009884
+    },
+    "latencyMs": 11131,
+    "attempts": 1,
+    "truncated": false
+  },
+  "words": 899,
+  "wordBudget": 900
+}
