@@ -42,6 +42,7 @@ pnpm ledger:import [file]        # one-shot import of the old data/spend.jsonl i
 pnpm db:generate                 # regenerate the SQL migrations after a schema change
 pnpm eval [--profile cheap --yes] # swarm vs single-call baseline at equal cost, judged blind (evals/README.md); --fake needs nothing
 pnpm eval:judge --pair <pass>=<alias> --solo <ref>,… # judge existing answers again, pairwise or alone; no swarm runs (evals/README.md)
+pnpm eval:measure <generate|score|report> --label <name> # several arms (calls and swarm profiles) on every problem, each answer scored alone; two resumable stages, each under its own cap (evals/README.md)
 ```
 
 ## Architecture rules — non-negotiable

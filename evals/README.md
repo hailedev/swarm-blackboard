@@ -37,6 +37,36 @@ A judge-only session judges answers that already exist. No swarm runs and nothin
 
 The report (`<date>-<label>/report.md`, with `report.json` beside it) has one table per problem: every answer the session was pointed at, its solo score, and every pairwise score the same text has received so far with the answer it received each against. A pairwise score is given with another answer on the page; the solo score is what tells how much of a difference between two passes is the answer and how much is the company it kept.
 
+## Measuring several arms, each answer scored alone
+
+```
+pnpm eval:measure generate --label closing --profile cheap --runs 3 --max-cost 1.20 --yes \
+  --arms call:sonnet,call:haiku,swarm:cheap,swarm:dev,call:local-fast
+pnpm eval:measure score  --label closing --scores 2 --max-cost 2.80 --yes
+pnpm eval:measure report --label closing
+```
+
+A pass sets one swarm run against one baseline call and judges the pair. A measurement answers a different question: where does each of several **arms** stand on its own, and how far does it move between runs? Nothing is judged pairwise, because a pairwise score moves with the answer it is read beside (18 to 29 points on 2026-11-17, `results/2026-11-17-judge-only`).
+
+- **An arm** is `call:<alias>`, one call of that roster model with the baseline's prompt unchanged, or `swarm:<profile>`, that swarm profile run `--runs` times per problem. They are worked through in the order given, so a local model is loaded once for everything that needs it; within a swarm arm, run 1 of every problem comes before run 2.
+- **Every arm is asked for the same words**, by the same sentence: the output allowance the profile's baseline model (`--profile`, `evals` in `agents.yaml`) fits under the run cap, at most the write-up's default of 2,700 tokens, so about 900 words. A cheaper or free model gets that allowance, not the larger one its price would buy, and so does each swarm run's write-up. The stage refuses, before spending anything, a problem that would be asked for another length.
+- **Two stages, each resumable, each with a cap over the whole stage.** `generate` writes one record per answer under `answers/<problem>/`, `score` one per score under `scores/<problem>/`. A stage skips what is on disk; `--max-cost` is what the stage may spend in all, across every invocation, counted from the records. `--dry-run` says what a stage would do and spends nothing.
+- **Outcomes.** `answered`; `void` when there is no answer or it is under half its word budget after its one retry (the same rule for a call and for a write-up), which is not scored and is left out of every mean; `failed` when nothing came of the attempt for a reason outside the arm (the local model unreachable, the provider overloaded, a run left paused), which the next invocation tries again. A swarm answer that is a draft because its write-up failed is kept, scored and flagged; so is a write-up that still mentions the board, the agents or its own confidence after its retry.
+- **Scoring** is the solo judge of a judge-only session: one answer alone against the rubric, handles removed, reason before score, `--scores` times by separate calls. The first score of every answer is given before any second one, problem by problem, so a cap that bites costs some second scores of the last problems across every arm alike. A judge call is made only at its whole allowance.
+- **The folder** is `results/<date>-<label>`, found afterwards by its label whatever the date. What the measurement is (arms, runs, the profile) is fixed by the first `generate` and kept in `manifest.json`; `--problems` narrows one invocation, not the measurement.
+
+`report.md` (rewritten by every stage, or by `report` alone) starts with the account of stage 1: answers made, void and failed, cost and words per arm, how the swarm runs ended, write-ups asked for again and why. Once scores exist it adds, with an answer's score as the mean of its scores and an arm's score on a problem as the mean over its answers:
+
+- per arm, the mean and the spread over problems, with the development set and the held-out problems apart;
+- answers at 100 %, where the rubric can no longer tell a better answer;
+- the run-to-run spread of each swarm arm (per problem, and pooled);
+- the judge against itself: the difference between its two scores of one answer;
+- every arm side by side per problem;
+- each swarm arm beside the call arm on its Synthesizer's own model, problem by problem, with the mean difference and its standard error;
+- the limits of what it shows.
+
+`spot-check/<problem>.md` writes three problems out in full for a human to read: where the swarm leads its call by most, where the call leads by most, and the closest, each with the judge's reasons.
+
 ## Development set and held-out problems
 
 While Phase 5's Step 2 changes the controller, three problems are the development set: `api-rate-limiting`, `oidc-migration` and `teen-reading-programme`. Every pilot, rehearsal and per-change pass runs on those three (`--problems api-rate-limiting,oidc-migration,teen-reading-programme`), on `dev` as well as on a paid profile. The other seven are held out: nothing runs on them until one full pass at the end of Step 2, so that pass measures the swarm on problems no change was tuned against.

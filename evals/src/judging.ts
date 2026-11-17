@@ -5,6 +5,7 @@ import {
   zeroUsage,
   type Model,
   type ModelCallTags,
+  type ModelErrorKind,
   type Usage,
 } from '@team/core';
 
@@ -38,6 +39,11 @@ export interface JudgeBudget {
 export interface JudgeCallOptions {
   maxOutputTokens: number;
   tags: ModelCallTags;
+  /**
+   * Make the call only at its whole output allowance: when what is left would shrink it,
+   * the call is not made. A judgement cut short by a small allowance is worse than none.
+   */
+  whole?: boolean;
 }
 
 export interface PairJudging {
@@ -109,6 +115,10 @@ export interface SoloJudging {
   judgement: SoloJudgement | null;
   skipped: string | null;
   usage: Usage;
+  /** False when the call was not made because what is left of the budget does not cover it. */
+  fits: boolean;
+  /** How the call failed, when it was made and failed. */
+  error: ModelErrorKind | null;
 }
 
 /** One answer alone against the rubric: no second answer in the prompt, nothing to compare with. */
@@ -136,6 +146,17 @@ export const judgeSolo = async (
       judgement: null,
       skipped: `$${budget.remainingUsd.toFixed(4)} left does not cover the judge call ($${fit.worstCaseUsd.toFixed(4)})`,
       usage: zeroUsage(),
+      fits: false,
+      error: null,
+    };
+  }
+  if (options.whole === true && fit.shrunk) {
+    return {
+      judgement: null,
+      skipped: `$${budget.remainingUsd.toFixed(4)} left does not cover the judge call at its whole allowance of ${String(options.maxOutputTokens)} output tokens`,
+      usage: zeroUsage(),
+      fits: false,
+      error: null,
     };
   }
   const response = await judgeModel.generateObject({
@@ -148,8 +169,20 @@ export const judgeSolo = async (
   if (!response.ok) {
     const usage = response.error.kind === 'invalid_output' ? response.error.usage : zeroUsage();
     budget.charge(usage.costUsd);
-    return { judgement: null, skipped: response.error.kind, usage };
+    return {
+      judgement: null,
+      skipped: response.error.kind,
+      usage,
+      fits: true,
+      error: response.error.kind,
+    };
   }
   budget.charge(response.value.usage.costUsd);
-  return { judgement: response.value.object, skipped: null, usage: response.value.usage };
+  return {
+    judgement: response.value.object,
+    skipped: null,
+    usage: response.value.usage,
+    fits: true,
+    error: null,
+  };
 };

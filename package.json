@@ -29,7 +29,8 @@
     "ledger:import": "tsx apps/cli/src/import-ledger.ts",
     "trial:local": "tsx apps/cli/src/trial.ts",
     "eval": "tsx evals/src/run.ts",
-    "eval:judge": "tsx evals/src/judge-run.ts"
+    "eval:judge": "tsx evals/src/judge-run.ts",
+    "eval:measure": "tsx evals/src/measure-run.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
